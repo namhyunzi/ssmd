@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,18 +8,48 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, updateProfile, updateEmail } from "firebase/auth"
+import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
 export default function ProfileEditPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [emailStep, setEmailStep] = useState<"initial" | "editing" | "verify" | "completed">("initial")
   const [verificationCode, setVerificationCode] = useState("")
   const [timer, setTimer] = useState(180) // 3 minutes
   const [emailUsername, setEmailUsername] = useState("")
   const [emailDomain, setEmailDomain] = useState("gmail.com")
   const [fullEmail, setFullEmail] = useState("")
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [name, setName] = useState("")
+  const [phone, setPhone] = useState("")
+  const [address, setAddress] = useState("")
 
   const isValidEmail = emailUsername.length > 0 && emailDomain.length > 0
+
+  // Firebase Auth 상태 확인
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user)
+        if (user.email) {
+          const [username, domain] = user.email.split('@')
+          setEmailUsername(username)
+          setEmailDomain(domain || 'gmail.com')
+          setFullEmail(user.email)
+        }
+        // 사용자 프로필 정보도 여기서 로드할 수 있음
+        setName(user.displayName || "")
+      } else {
+        // 인증되지 않은 사용자는 메인 페이지(로그인)로 리다이렉트
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
 
   const handleEmailChange = () => {
     if (emailStep === "initial") {
@@ -58,8 +88,7 @@ export default function ProfileEditPage() {
           </Button>
           <button 
             onClick={() => {
-              const isLoggedIn = localStorage.getItem('isLoggedIn')
-              router.push(isLoggedIn ? '/dashboard' : '/')
+              router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >
@@ -80,7 +109,13 @@ export default function ProfileEditPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">이름</Label>
-              <Input id="name" type="text" defaultValue="김철수" />
+              <Input 
+                id="name" 
+                type="text" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="이름을 입력하세요"
+              />
             </div>
 
             <div className="space-y-2">
@@ -182,12 +217,24 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">연락처</Label>
-              <Input id="phone" type="tel" defaultValue="010-1234-5678" />
+              <Input 
+                id="phone" 
+                type="tel" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="연락처를 입력하세요"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="address">주소</Label>
-              <Input id="address" type="text" defaultValue="서울시 강남구 테헤란로 123" />
+              <Input 
+                id="address" 
+                type="text" 
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="주소를 입력하세요"
+              />
             </div>
 
             <div className="pt-4">
@@ -198,7 +245,27 @@ export default function ProfileEditPage() {
 
             <Button 
               className="w-full bg-primary hover:bg-primary/90 text-white font-semibold"
-              onClick={() => router.push('/dashboard')}
+              onClick={async () => {
+                try {
+                  if (currentUser && name) {
+                    await updateProfile(currentUser, {
+                      displayName: name
+                    })
+                    toast({
+                      title: "프로필 저장 완료",
+                      description: "프로필 정보가 성공적으로 저장되었습니다.",
+                    })
+                  }
+                  router.push('/dashboard')
+                } catch (error) {
+                  console.error('프로필 저장 실패:', error)
+                  toast({
+                    title: "저장 실패",
+                    description: "프로필 저장 중 오류가 발생했습니다.",
+                    variant: "destructive",
+                  })
+                }
+              }}
             >
               완료
             </Button>

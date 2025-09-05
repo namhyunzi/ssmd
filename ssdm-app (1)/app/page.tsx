@@ -1,16 +1,123 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [loginAttempts, setLoginAttempts] = useState(0)
+  const [isBlocked, setIsBlocked] = useState(false)
+  const [blockUntil, setBlockUntil] = useState<Date | null>(null)
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastSubMessage, setToastSubMessage] = useState("")
   const router = useRouter()
+
+  // 이미 로그인된 사용자는 대시보드로 리다이렉트
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.push('/dashboard')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
+  // 컴포넌트 마운트 시 로컬 스토리지에서 실패 횟수와 제한 시간 확인
+  useEffect(() => {
+    const attempts = localStorage.getItem('loginAttempts')
+    const blockTime = localStorage.getItem('blockUntil')
+    
+    if (attempts) {
+      setLoginAttempts(parseInt(attempts))
+    }
+    
+    if (blockTime) {
+      const blockDate = new Date(blockTime)
+      if (blockDate > new Date()) {
+        setIsBlocked(true)
+        setBlockUntil(blockDate)
+      } else {
+        // 제한 시간이 지났으면 초기화
+        localStorage.removeItem('loginAttempts')
+        localStorage.removeItem('blockUntil')
+        setLoginAttempts(0)
+        setIsBlocked(false)
+        setBlockUntil(null)
+      }
+    }
+  }, [])
+
+  const handleLogin = async () => {
+    // 제한 상태 확인
+    if (isBlocked && blockUntil && blockUntil > new Date()) {
+      const remainingMinutes = Math.ceil((blockUntil.getTime() - new Date().getTime()) / (1000 * 60))
+      setToastMessage(`10번 실패하여 10분간 로그인이 제한됩니다.`)
+      setToastSubMessage(`${remainingMinutes}분 후에 다시 시도해주세요.`)
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 4000)
+      return
+    }
+
+    if (!email || !password) {
+      setToastMessage("이메일과 비밀번호를 모두 입력해주세요.")
+      setToastSubMessage("")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+      
+      // 로그인 성공 시 실패 횟수 초기화
+      localStorage.removeItem('loginAttempts')
+      localStorage.removeItem('blockUntil')
+      setLoginAttempts(0)
+      setIsBlocked(false)
+      setBlockUntil(null)
+      
+      router.push("/dashboard")
+    } catch (error: any) {
+      const newAttempts = loginAttempts + 1
+      setLoginAttempts(newAttempts)
+      localStorage.setItem('loginAttempts', newAttempts.toString())
+      
+      if (newAttempts >= 10) {
+        // 10번 실패 시 10분 제한
+        const blockTime = new Date()
+        blockTime.setMinutes(blockTime.getMinutes() + 10)
+        setBlockUntil(blockTime)
+        setIsBlocked(true)
+        localStorage.setItem('blockUntil', blockTime.toISOString())
+        
+        setToastMessage("10번 실패하여 10분간 로그인이 제한됩니다.")
+        setToastSubMessage("(10/10)")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 4000)
+      } else {
+        setToastMessage(`${newAttempts}번 실패하면 10분간 로그인이 제한돼요. (${newAttempts}/10)`)
+        setToastSubMessage("")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 4000)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -30,26 +137,28 @@ export default function LoginPage() {
               placeholder="이메일" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full focus:border-primary focus:ring-primary" 
+              className="w-full focus:border-primary focus:ring-primary"
+              disabled={isBlocked}
             />
             <Input 
               type="password" 
               placeholder="비밀번호" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full focus:border-primary focus:ring-primary" 
+              className="w-full focus:border-primary focus:ring-primary"
+              disabled={isBlocked}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleLogin()
+                }
+              }}
             />
             <Button 
               className="w-full bg-primary hover:bg-primary/90"
-              onClick={() => {
-                if (email && password) {
-                  // 데이터베이스 연결이 안된 상태이므로 로그인 성공으로 가정
-                  localStorage.setItem('isLoggedIn', 'true')
-                  router.push("/dashboard")
-                }
-              }}
+              onClick={handleLogin}
+              disabled={isBlocked}
             >
-              로그인
+              {isBlocked ? '로그인 제한됨' : '로그인'}
             </Button>
           </div>
 
@@ -64,7 +173,7 @@ export default function LoginPage() {
           </div>
 
           {/* Google Login */}
-          <Button variant="outline" className="w-full bg-transparent">
+          <Button variant="outline" className="w-full bg-transparent hover:bg-muted/50">
             <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -104,6 +213,20 @@ export default function LoginPage() {
           </Link>
         </div>
       </Card>
+
+      {/* 토스트 메시지 */}
+      {showToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
+            <div className="text-center">
+              <p className="text-sm font-medium">{toastMessage}</p>
+              {toastSubMessage && (
+                <p className="text-xs mt-1 text-gray-300">{toastSubMessage}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

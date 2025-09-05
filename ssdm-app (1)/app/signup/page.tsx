@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { getExpirationTime, isCodeExpired, isValidCodeFormat } from "@/lib/verification"
+import { auth } from "@/lib/firebase"
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -15,29 +18,336 @@ export default function SignupPage() {
   const [timer, setTimer] = useState(180) // 3 minutes
   const [emailUsername, setEmailUsername] = useState("")
   const [emailDomain, setEmailDomain] = useState("")
+  const [isDomainInputMode, setIsDomainInputMode] = useState(false)
+  const [customDomain, setCustomDomain] = useState("")
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
+  const [showToast, setShowToast] = useState(false)
   const [password, setPassword] = useState("")
   const [passwordConfirm, setPasswordConfirm] = useState("")
   const [signupStep, setSignupStep] = useState<"form" | "complete">("form")
 
-  const handleEmailVerification = () => {
-    if (emailVerificationStep === "initial") {
-      setEmailVerificationStep("code-sent")
-      // Start timer countdown
+  // 인증 관련 상태
+  const [isLoading, setIsLoading] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isResending, setIsResending] = useState(false)
+  const [error, setError] = useState("")
+  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null)
+  
+  // 필드별 오류 상태
+  const [fieldErrors, setFieldErrors] = useState({
+    email: "",
+    verificationCode: "",
+    password: "",
+    passwordConfirm: ""
+  })
+
+  // 필드 오류 설정 함수
+  const setFieldError = (field: keyof typeof fieldErrors, message: string) => {
+    setFieldErrors(prev => ({ ...prev, [field]: message }))
+  }
+
+  // 필드 오류 초기화 함수
+  const clearFieldError = (field: keyof typeof fieldErrors) => {
+    setFieldErrors(prev => ({ ...prev, [field]: "" }))
+  }
+
+  // 디바운싱된 이메일 검증 함수 (실시간용)
+  const debouncedEmailValidation = (email: string) => {
+    // 기존 타이머 클리어
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+
+    // 새로운 타이머 설정 (500ms 후 실행)
+    const newTimer = setTimeout(async () => {
+      if (email) {
+        await validateEmail(email, true) // 중복 검사 포함
+      }
+    }, 500)
+
+    setDebounceTimer(newTimer)
+  }
+
+  // 이메일 유효성 검사
+  const validateEmail = async (email: string, checkDuplicate: boolean = false) => {
+    if (!email) {
+      setFieldError("email", "필수 입력 항목입니다.")
+      return false
+    }
+    
+    // 더 엄격한 이메일 정규식
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailRegex.test(email)) {
+      setFieldError("email", "이메일 형식이 올바르지 않습니다.")
+      return false
+    }
+    
+    // 도메인 부분 검증 (최소 d.dd 형태)
+    const domain = email.split('@')[1]
+    if (domain) {
+      // 더 엄격한 도메인 검증: 최소 d.dd 형태 (영문 1개 + 점 + 영문 2개 이상)
+      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/
+      if (!domainRegex.test(domain)) {
+        setFieldError("email", "이메일 형식이 올바르지 않습니다.")
+        return false
+      }
+      
+      // 도메인 부분이 최소 d.dd 형태인지 확인
+      const parts = domain.split('.')
+      if (parts.length < 2) {
+        setFieldError("email", "이메일 형식이 올바르지 않습니다.")
+        return false
+      }
+      
+      // 각 부분이 최소 1자 이상인지 확인
+      for (const part of parts) {
+        if (part.length < 1) {
+          setFieldError("email", "이메일 형식이 올바르지 않습니다.")
+          return false
+        }
+      }
+      
+      // 마지막 부분(최상위 도메인)이 최소 2자 이상인지 확인
+      if (parts[parts.length - 1].length < 2) {
+        setFieldError("email", "이메일 형식이 올바르지 않습니다.")
+        return false
+      }
+    }
+    
+    // 중복 확인이 필요한 경우 (이메일 인증 버튼 클릭 시)
+    if (checkDuplicate) {
+      try {
+        const response = await fetch('/api/check-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok) {
+          if (data.exists) {
+            setFieldError("email", data.message)
+            return false
+          }
+        } else {
+          setFieldError("email", data.error || "이메일 확인 중 오류가 발생했습니다.")
+          return false
+        }
+      } catch (error) {
+        console.error('이메일 중복 확인 오류:', error)
+        setFieldError("email", "이메일 확인 중 오류가 발생했습니다.")
+        return false
+      }
+    }
+    
+    clearFieldError("email")
+    return true
+  }
+
+  // 비밀번호 유효성 검사
+  const validatePassword = (pwd: string) => {
+    if (!pwd) {
+      setFieldError("password", "필수 입력 항목입니다.")
+      return false
+    }
+    if (pwd.length < 8) {
+      setFieldError("password", "비밀번호는 영문, 숫자를 포함하여 8자 이상이어야 합니다.")
+      return false
+    }
+    const hasLetter = /[a-zA-Z]/.test(pwd)
+    const hasNumber = /\d/.test(pwd)
+    if (!hasLetter || !hasNumber) {
+      setFieldError("password", "비밀번호는 영문, 숫자를 포함하여 8자 이상이어야 합니다.")
+      return false
+    }
+    clearFieldError("password")
+    return true
+  }
+
+  // 비밀번호 확인 검사
+  const validatePasswordConfirm = (pwd: string, confirmPwd: string) => {
+    if (!confirmPwd) {
+      setFieldError("passwordConfirm", "필수 입력 항목입니다.")
+      return false
+    }
+    if (pwd !== confirmPwd) {
+      setFieldError("passwordConfirm", "비밀번호가 일치하지 않습니다.")
+      return false
+    }
+    clearFieldError("passwordConfirm")
+    return true
+  }
+
+  // 인증코드 검증
+  const validateVerificationCode = (code: string) => {
+    if (!code) {
+      setFieldError("verificationCode", "인증코드를 입력해주세요.")
+      return false
+    }
+    if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+      setFieldError("verificationCode", "올바른 인증코드를 입력해주세요.")
+      return false
+    }
+    clearFieldError("verificationCode")
+    return true
+  }
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerInterval) {
+        clearInterval(timerInterval)
+      }
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+    }
+  }, [timerInterval, debounceTimer])
+
+  // 타이머 시작 함수
+  const startTimer = () => {
+    // 기존 타이머가 있다면 정리
+    if (timerInterval) {
+      clearInterval(timerInterval)
+    }
+    
+    setTimer(180) // 3분으로 초기화
+    
       const interval = setInterval(() => {
         setTimer((prev) => {
           if (prev <= 1) {
             clearInterval(interval)
+            // 시간 만료 시 현재 화면 유지 (초기 상태로 돌아가지 않음)
+            setTimerInterval(null)
+            // 타이머가 실제로 만료되었을 때만 오류 메시지 표시
+            if (prev === 1) {
+              setFieldError("verificationCode", "유효시간이 지났어요. '이메일 재전송하기'를 눌러주세요.")
+            }
             return 0
           }
           return prev - 1
         })
       }, 1000)
+    
+    setTimerInterval(interval)
+  }
+
+  // 이메일 재전송 함수
+  const handleResendEmail = async () => {
+    setIsResending(true)
+    setError("")
+    
+    const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
+    
+    try {
+      const response = await fetch('/api/send-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: fullEmail }),
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // 타이머 재시작
+        startTimer()
+        setVerificationCode("") // 입력된 코드 초기화
+        // 토스트 표시
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000) // 3초 후 자동 숨김
+      } else {
+        setError(data.error || "이메일 재전송에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("이메일 재전송 오류:", error)
+      setError("이메일 재전송 중 오류가 발생했습니다.")
+    } finally {
+      setIsResending(false)
     }
   }
 
-  const handleCodeVerification = () => {
-    if (verificationCode.length === 6) {
-      setEmailVerificationStep("verified")
+  const handleEmailVerification = async () => {
+    if (emailVerificationStep === "initial" && emailUsername && (emailDomain || customDomain)) {
+      const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
+      
+      // 이메일 유효성 검사 (중복 확인 포함)
+      if (!(await validateEmail(fullEmail, true))) {
+        return
+      }
+      
+      setIsLoading(true)
+      setError("")
+      
+      try {
+        // API를 통해 이메일 발송
+        const response = await fetch('/api/send-verification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: fullEmail }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok && data.success) {
+          setEmailVerificationStep("code-sent")
+          startTimer()
+        } else {
+          setError(data.error || "이메일 발송에 실패했습니다.")
+        }
+      } catch (error) {
+        console.error("이메일 발송 오류:", error)
+        setError("이메일 발송 중 오류가 발생했습니다.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+  }
+
+  const handleCodeVerification = async () => {
+    // 인증코드 유효성 검사
+    if (!validateVerificationCode(verificationCode)) {
+      return
+    }
+    
+    setIsVerifying(true)
+    setError("")
+    
+    const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
+      
+      try {
+        // API를 통해 인증코드 검증
+        const response = await fetch('/api/verify-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: fullEmail, 
+            code: verificationCode 
+          }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok && data.success) {
+          setEmailVerificationStep("verified")
+          setError("")
+          clearFieldError("verificationCode")
+        } else {
+          setFieldError("verificationCode", data.error || "인증에 실패했습니다.")
+        }
+      } catch (error) {
+        console.error("인증코드 검증 오류:", error)
+        setError("인증 처리 중 오류가 발생했습니다.")
+      } finally {
+        setIsVerifying(false)
     }
   }
 
@@ -111,16 +421,72 @@ export default function SignupPage() {
                   type="text" 
                   placeholder="이메일" 
                   value={emailUsername}
-                  onChange={(e) => setEmailUsername(e.target.value)}
+                  onChange={(e) => {
+                    setEmailUsername(e.target.value)
+                    // 실시간 검증 (디바운싱 적용)
+                    if (e.target.value) {
+                      if (emailDomain || customDomain) {
+                        const fullEmail = `${e.target.value}@${isDomainInputMode ? customDomain : emailDomain}`
+                        // 즉시 형식 검사
+                        validateEmail(fullEmail, false)
+                        // 디바운싱된 중복 검사
+                        debouncedEmailValidation(fullEmail)
+                      } else {
+                        // 도메인이 선택되지 않은 경우
+                        setFieldError("email", "이메일 형식이 올바르지 않습니다.")
+                      }
+                    } else if (fieldErrors.email) {
+                      clearFieldError("email")
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!emailUsername) {
+                      setFieldError("email", "필수 입력 항목입니다.")
+                    } else if (emailUsername && (emailDomain || customDomain)) {
+                      const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
+                      validateEmail(fullEmail, false) // blur에서는 형식만 검사
+                    }
+                  }}
                   disabled={emailVerificationStep === "verified"}
                   className={`flex-1 focus:border-primary focus:ring-primary ${
-                    emailVerificationStep === "verified" ? "bg-muted cursor-not-allowed" : ""
+                    emailVerificationStep === "verified" 
+                      ? "bg-muted cursor-not-allowed" 
+                      : fieldErrors.email 
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                        : ""
                   }`}
                 />
                 <span className="flex items-center text-muted-foreground">@</span>
-                <Select value={emailDomain} onValueChange={setEmailDomain} disabled={emailVerificationStep === "verified"}>
-                  <SelectTrigger className={`w-32 ${
-                    emailVerificationStep === "verified" ? "bg-muted cursor-not-allowed" : ""
+                
+                {!isDomainInputMode ? (
+                  <Select 
+                    value={emailDomain} 
+                    onValueChange={(value) => {
+                      if (value === "direct") {
+                        setIsDomainInputMode(true)
+                        setEmailDomain("")
+                      } else {
+                        setEmailDomain(value)
+                        // 실시간 검증 (디바운싱 적용)
+                        if (emailUsername && value) {
+                          const fullEmail = `${emailUsername}@${value}`
+                          // 즉시 형식 검사
+                          validateEmail(fullEmail, false)
+                          // 디바운싱된 중복 검사
+                          debouncedEmailValidation(fullEmail)
+                        } else if (fieldErrors.email) {
+                          clearFieldError("email")
+                        }
+                      }
+                    }} 
+                    disabled={emailVerificationStep === "verified"}
+                  >
+                    <SelectTrigger className={`w-40 ${
+                      emailVerificationStep === "verified" 
+                        ? "bg-muted cursor-not-allowed" 
+                        : fieldErrors.email 
+                          ? "border-red-500 focus:border-red-500" 
+                          : ""
                   }`}>
                     <SelectValue placeholder="선택해주세요" />
                   </SelectTrigger>
@@ -129,27 +495,93 @@ export default function SignupPage() {
                     <SelectItem value="naver.com">naver.com</SelectItem>
                     <SelectItem value="daum.net">daum.net</SelectItem>
                     <SelectItem value="hanmail.net">hanmail.net</SelectItem>
+                      <SelectItem value="direct">직접입력</SelectItem>
                   </SelectContent>
                 </Select>
+                ) : (
+                  <div className="relative w-40">
+                    <Input 
+                      type="text" 
+                      placeholder="입력해주세요"
+                      value={customDomain}
+                      onChange={(e) => {
+                        setCustomDomain(e.target.value)
+                        // 실시간 검증 (디바운싱 적용)
+                        if (emailUsername && e.target.value) {
+                          const fullEmail = `${emailUsername}@${e.target.value}`
+                          // 즉시 형식 검사
+                          validateEmail(fullEmail, false)
+                          // 디바운싱된 중복 검사
+                          debouncedEmailValidation(fullEmail)
+                        } else if (fieldErrors.email) {
+                          clearFieldError("email")
+                        }
+                      }}
+                      onBlur={() => {
+                        if (emailUsername && customDomain) {
+                          const fullEmail = `${emailUsername}@${customDomain}`
+                          validateEmail(fullEmail, false) // blur에서는 형식만 검사
+                        }
+                      }}
+                      disabled={emailVerificationStep === "verified"}
+                      className={`w-full pr-8 ${
+                        emailVerificationStep === "verified" 
+                          ? "bg-muted cursor-not-allowed" 
+                          : fieldErrors.email 
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                            : "focus:border-primary focus:ring-primary"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDomainInputMode(false)
+                        setCustomDomain("")
+                        if (fieldErrors.email) {
+                          clearFieldError("email")
+                        }
+                      }}
+                      disabled={emailVerificationStep === "verified"}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
+              {fieldErrors.email && (
+                <p className="text-sm text-red-600">{fieldErrors.email}</p>
+              )}
             </div>
 
             <Button
               type="button"
               onClick={handleEmailVerification}
               className={`w-full ${
-                emailVerificationStep === "initial" && emailUsername && emailDomain
+                emailVerificationStep === "initial" && emailUsername && (emailDomain || customDomain) && !isLoading
                   ? "bg-primary hover:bg-primary/90 text-white"
                   : emailVerificationStep === "code-sent"
                     ? "bg-gray-200 text-gray-500"
                     : "bg-gray-200 hover:bg-gray-300 text-gray-500"
               }`}
-              disabled={emailVerificationStep !== "initial" || !emailUsername || !emailDomain}
+              disabled={emailVerificationStep !== "initial" || !emailUsername || (!emailDomain && !customDomain) || isLoading}
             >
               {emailVerificationStep === "initial" && "이메일 인증하기"}
               {emailVerificationStep === "code-sent" && "이메일 인증하기"}
               {emailVerificationStep === "verified" && "이메일 인증 완료"}
             </Button>
+
+            {/* 에러 메시지 표시 */}
+            {error && (
+              <div className="bg-red-50 border border-red-300 rounded-lg p-4 flex items-start space-x-2">
+                <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-red-700 leading-relaxed">{error}</p>
+              </div>
+            )}
 
             {emailVerificationStep === "code-sent" && (
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -159,17 +591,35 @@ export default function SignupPage() {
                     type="text"
                     placeholder="인증코드 6자리"
                     value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
+                    onChange={(e) => {
+                      // 숫자만 입력 허용하고 6자리 제한
+                      const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6)
+                      setVerificationCode(value)
+                      if (fieldErrors.verificationCode) {
+                        clearFieldError("verificationCode")
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // 숫자, 백스페이스, 삭제, 탭, 화살표 키만 허용
+                      const allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
+                      if (!allowedKeys.includes(e.key) && !/[0-9]/.test(e.key)) {
+                        e.preventDefault()
+                      }
+                    }}
                     maxLength={6}
-                    className="pr-24 bg-white focus:border-primary focus:ring-primary"
+                    className={`pr-24 bg-white ${
+                      fieldErrors.verificationCode 
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                        : "focus:border-primary focus:ring-primary"
+                    }`}
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
                     <span className="text-red-500 text-sm font-mono">{formatTime(timer)}</span>
                     <button
                       onClick={handleCodeVerification}
-                      disabled={verificationCode.length !== 6}
+                      disabled={verificationCode.length !== 6 || isVerifying || (fieldErrors.verificationCode && verificationCode.length > 0)}
                       className={`text-sm font-medium ${
-                        verificationCode.length === 6 
+                        verificationCode.length === 6 && !isVerifying && !(fieldErrors.verificationCode && verificationCode.length > 0)
                           ? "text-primary hover:text-primary/80" 
                           : "text-gray-400 cursor-not-allowed"
                       }`}
@@ -178,8 +628,22 @@ export default function SignupPage() {
                     </button>
                   </div>
                 </div>
+                {fieldErrors.verificationCode && (
+                  <p className="text-sm text-red-600">{fieldErrors.verificationCode}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  이메일을 받지 못하셨나요? <button className="text-primary hover:underline">이메일 재전송하기</button>
+                  이메일을 받지 못하셨나요? 
+                  <button 
+                    onClick={handleResendEmail}
+                    disabled={isResending} // 재전송 중일 때만 비활성화
+                    className={`ml-1 ${
+                      isResending
+                        ? "text-gray-400 cursor-not-allowed"
+                        : "text-primary hover:underline"
+                    }`}
+                  >
+                    이메일 재전송하기
+                  </button>
                 </p>
               </div>
             )}
@@ -191,9 +655,22 @@ export default function SignupPage() {
                 type="password"
                 placeholder="비밀번호"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full focus:border-primary focus:ring-primary"
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (fieldErrors.password) {
+                    clearFieldError("password")
+                  }
+                }}
+                onBlur={() => validatePassword(password)}
+                className={`w-full ${
+                  fieldErrors.password 
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                    : "focus:border-primary focus:ring-primary"
+                }`}
               />
+              {fieldErrors.password && (
+                <p className="text-sm text-red-600">{fieldErrors.password}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -202,25 +679,73 @@ export default function SignupPage() {
                 type="password"
                 placeholder="비밀번호 확인"
                 value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-                className="w-full focus:border-primary focus:ring-primary"
+                onChange={(e) => {
+                  setPasswordConfirm(e.target.value)
+                  if (fieldErrors.passwordConfirm) {
+                    clearFieldError("passwordConfirm")
+                  }
+                }}
+                onBlur={() => validatePasswordConfirm(password, passwordConfirm)}
+                className={`w-full ${
+                  fieldErrors.passwordConfirm 
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                    : "focus:border-primary focus:ring-primary"
+                }`}
               />
+              {fieldErrors.passwordConfirm && (
+                <p className="text-sm text-red-600">{fieldErrors.passwordConfirm}</p>
+              )}
             </div>
           </div>
 
           <Button 
             className="w-full bg-primary hover:bg-primary/90" 
-            disabled={emailVerificationStep !== "verified" || !password || !passwordConfirm || password !== passwordConfirm}
-            onClick={() => {
-              if (emailVerificationStep === "verified" && password && passwordConfirm && password === passwordConfirm) {
-                // 회원가입 완료 시 자동으로 로그인 상태로 설정
-                localStorage.setItem('isLoggedIn', 'true')
-                setSignupStep("complete")
+            disabled={emailVerificationStep !== "verified" || !password || !passwordConfirm}
+            onClick={async () => {
+              // 모든 필드 검증
+              const isPasswordValid = validatePassword(password)
+              const isPasswordConfirmValid = validatePasswordConfirm(password, passwordConfirm)
+              
+              if (emailVerificationStep === "verified" && isPasswordValid && isPasswordConfirmValid) {
+                const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
                 
-                // 2초 후 대시보드로 자동 이동
-                setTimeout(() => {
-                  router.push('/dashboard')
-                }, 2000)
+                try {
+                  // Firebase Auth로 직접 회원가입
+                  const userCredential = await createUserWithEmailAndPassword(auth, fullEmail, password)
+                  const user = userCredential.user
+                  
+                  // 사용자 프로필 업데이트 (사용자명 설정)
+                  await updateProfile(user, {
+                    displayName: emailUsername
+                  })
+                  
+                  console.log('회원가입 성공:', {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName
+                  })
+                  
+                  // 회원가입 성공
+                  setSignupStep("complete")
+                  
+                  // 2초 후 대시보드로 자동 이동
+                  setTimeout(() => {
+                    router.push('/dashboard')
+                  }, 2000)
+                  
+                } catch (error: any) {
+                  console.error("회원가입 오류:", error)
+                  
+                  if (error.code === 'auth/email-already-in-use') {
+                    setError('이미 사용 중인 이메일입니다.')
+                  } else if (error.code === 'auth/weak-password') {
+                    setError('비밀번호가 너무 약합니다.')
+                  } else if (error.code === 'auth/invalid-email') {
+                    setError('올바른 이메일 형식이 아닙니다.')
+                  } else {
+                    setError('회원가입 중 오류가 발생했습니다.')
+                  }
+                }
               }
             }}
           >
@@ -251,6 +776,18 @@ export default function SignupPage() {
         )}
         </Card>
       </div>
+
+      {/* 토스트 메시지 */}
+      {showToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
+            <div className="text-center">
+              <p className="text-sm font-medium">입력한 이메일로 인증 메일이 발송되었습니다.</p>
+              <p className="text-xs mt-1 text-gray-300">이메일에 표시된 인증코드를 입력해주세요</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

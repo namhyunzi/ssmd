@@ -6,10 +6,39 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, signOut } from "firebase/auth"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 export default function DashboardPage() {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false)
+  const [userEmail, setUserEmail] = useState<string>("")
+  const [emailUsername, setEmailUsername] = useState<string>("")
+  const router = useRouter()
+  const { toast } = useToast()
   
+  // Firebase Auth 상태 확인 및 사용자 정보 가져오기
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('Firebase Auth 상태 변경:', user)
+      if (user && user.email) {
+        console.log('사용자 이메일:', user.email)
+        setUserEmail(user.email)
+        // 이메일에서 @ 앞부분 추출
+        const username = user.email.split('@')[0]
+        setEmailUsername(username)
+        console.log('추출된 사용자명:', username)
+      } else {
+        console.log('사용자가 로그인되지 않음')
+        // 로그인되지 않은 경우 메인 페이지(로그인)로 리다이렉트
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
   // 로컬 스토리지에서 개인정보 설정 완료 상태 확인
   useEffect(() => {
     const profileCompleted = localStorage.getItem('profileCompleted')
@@ -17,6 +46,26 @@ export default function DashboardPage() {
       setHasCompletedProfile(true)
     }
   }, [])
+
+  // 로그아웃 함수
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      toast({
+        title: "로그아웃 완료",
+        description: "안전하게 로그아웃되었습니다.",
+      })
+      router.push('/')
+    } catch (error) {
+      console.error('로그아웃 실패:', error)
+      toast({
+        title: "로그아웃 실패",
+        description: "로그아웃 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,12 +83,10 @@ export default function DashboardPage() {
                 고객센터
               </Button>
             </Link>
-            <Link href="/">
-              <Button variant="ghost" size="sm">
-                <LogOut className="h-4 w-4 mr-2" />
-                로그아웃
-              </Button>
-            </Link>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              로그아웃
+            </Button>
           </div>
         </div>
       </header>
@@ -72,7 +119,10 @@ export default function DashboardPage() {
 
         {/* Welcome Section */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">홍길동님 안녕하세요</h2>
+          <h2 className="text-xl font-semibold">
+            <span className="text-primary">{emailUsername}</span>
+            <span className="text-black">님, 안녕하세요!</span>
+          </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 전체 동의 현황 */}
