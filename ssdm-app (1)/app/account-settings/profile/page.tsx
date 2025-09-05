@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged, updateProfile, updateEmail } from "firebase/auth"
+import { getUserProfile } from "@/lib/user-profile"
+import { loadProfileFromLocal, saveProfileWithMetadata } from "@/lib/data-storage"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
@@ -26,22 +28,71 @@ export default function ProfileEditPage() {
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [address, setAddress] = useState("")
+  const [detailAddress, setDetailAddress] = useState("")
+  const [zipCode, setZipCode] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
 
   const isValidEmail = emailUsername.length > 0 && emailDomain.length > 0
 
-  // Firebase Auth 상태 확인
+  // Firebase Auth 상태 확인 및 개인정보 로드
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user)
-        if (user.email) {
-          const [username, domain] = user.email.split('@')
-          setEmailUsername(username)
-          setEmailDomain(domain || 'gmail.com')
-          setFullEmail(user.email)
+        setIsLoading(true)
+        
+        try {
+          // 1. Firebase에서 메타데이터 확인
+          const profileMetadata = await getUserProfile(user)
+          console.log('프로필 메타데이터:', profileMetadata)
+          
+          // 2. 로컬에서 실제 개인정보 데이터 로드
+          const localProfileData = loadProfileFromLocal()
+          console.log('로컬 프로필 데이터:', localProfileData)
+          
+          if (localProfileData) {
+            // 로컬에서 복호화된 개인정보를 각 필드에 설정
+            setName(localProfileData.name || "")
+            
+            // 전화번호 포맷팅 (010-1234-5678 형태)
+            const phone = localProfileData.phone || ""
+            if (phone && phone.length >= 10) {
+              // 숫자만 추출
+              const numbers = phone.replace(/\D/g, '')
+              if (numbers.length === 11) {
+                setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`)
+              } else if (numbers.length === 10) {
+                setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`)
+              } else {
+                setPhone(phone)
+              }
+            } else {
+              setPhone(phone)
+            }
+            
+            setAddress(localProfileData.address || "")
+            setDetailAddress(localProfileData.detailAddress || "")
+            setZipCode(localProfileData.zipCode || "")
+          }
+          
+          // 3. 이메일 정보 설정
+          if (user.email) {
+            const [username, domain] = user.email.split('@')
+            setEmailUsername(username)
+            setEmailDomain(domain || 'gmail.com')
+            setFullEmail(user.email)
+          }
+          
+        } catch (error) {
+          console.error('개인정보 로드 실패:', error)
+          toast({
+            title: "데이터 로드 실패",
+            description: "개인정보를 불러오는 중 오류가 발생했습니다.",
+            variant: "destructive",
+          })
+        } finally {
+          setIsLoading(false)
         }
-        // 사용자 프로필 정보도 여기서 로드할 수 있음
-        setName(user.displayName || "")
       } else {
         // 인증되지 않은 사용자는 메인 페이지(로그인)로 리다이렉트
         router.push('/')
@@ -49,7 +100,7 @@ export default function ProfileEditPage() {
     })
 
     return () => unsubscribe()
-  }, [router])
+  }, [router, toast])
 
   const handleEmailChange = () => {
     if (emailStep === "initial") {
@@ -107,6 +158,12 @@ export default function ProfileEditPage() {
             <CardTitle>개인정보 수정</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">개인정보를 불러오는 중...</div>
+              </div>
+            ) : (
+              <>
             <div className="space-y-2">
               <Label htmlFor="name">이름</Label>
               <Input 
@@ -216,13 +273,30 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">연락처</Label>
+              <Label htmlFor="phone">휴대폰 번호</Label>
               <Input 
                 id="phone" 
                 type="tel" 
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="연락처를 입력하세요"
+                onChange={(e) => {
+                  const value = e.target.value
+                  // 숫자만 추출
+                  const numbers = value.replace(/\D/g, '')
+                  
+                  // 포맷팅 적용
+                  if (numbers.length <= 3) {
+                    setPhone(numbers)
+                  } else if (numbers.length <= 7) {
+                    setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3)}`)
+                  } else if (numbers.length <= 11) {
+                    setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`)
+                  } else {
+                    // 11자리 초과 시 자르기
+                    setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`)
+                  }
+                }}
+                placeholder="010-1234-5678"
+                maxLength={13}
               />
             </div>
 
@@ -237,6 +311,28 @@ export default function ProfileEditPage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="detailAddress">상세주소</Label>
+              <Input 
+                id="detailAddress" 
+                type="text" 
+                value={detailAddress}
+                onChange={(e) => setDetailAddress(e.target.value)}
+                placeholder="상세주소를 입력하세요"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="zipCode">우편번호</Label>
+              <Input 
+                id="zipCode" 
+                type="text" 
+                value={zipCode}
+                onChange={(e) => setZipCode(e.target.value)}
+                placeholder="우편번호를 입력하세요"
+              />
+            </div>
+
             <div className="pt-4">
               <Link href="/account-settings/delete" className="text-sm text-muted-foreground hover:text-foreground flex items-center">
                 탈퇴하기 <span className="ml-1">&gt;</span>
@@ -247,14 +343,33 @@ export default function ProfileEditPage() {
               className="w-full bg-primary hover:bg-primary/90 text-white font-semibold"
               onClick={async () => {
                 try {
-                  if (currentUser && name) {
-                    await updateProfile(currentUser, {
-                      displayName: name
-                    })
-                    toast({
-                      title: "프로필 저장 완료",
-                      description: "프로필 정보가 성공적으로 저장되었습니다.",
-                    })
+                  if (currentUser) {
+                    // Firebase Auth 프로필 업데이트 (이름만)
+                    if (name) {
+                      await updateProfile(currentUser, {
+                        displayName: name
+                      })
+                    }
+                    
+                    // 로컬에 암호화하여 저장 (전체 개인정보)
+                    // 포맷팅된 데이터를 원래 형태로 변환
+                    const cleanPhone = phone.replace(/\D/g, '') // 숫자만 추출
+                    
+                    const profileData = {
+                      name,
+                      phone: cleanPhone,
+                      address,
+                      detailAddress,
+                      zipCode,
+                      email: currentUser.email
+                    }
+                    
+                    // saveProfileWithMetadata 함수를 사용하여 로컬에 암호화하여 저장
+                    const saved = await saveProfileWithMetadata(currentUser, profileData)
+                    
+                    if (!saved) {
+                      throw new Error('개인정보 저장 실패')
+                    }
                   }
                   router.push('/dashboard')
                 } catch (error) {
@@ -269,6 +384,8 @@ export default function ProfileEditPage() {
             >
               완료
             </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

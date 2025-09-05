@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, HardDrive, Cloud, Plus, Trash2, CheckCircle, AlertTriangle, XCircle, Monitor, Usb, X } from "lucide-react"
+import { ArrowLeft, HardDrive, Cloud, Plus, Trash2, CheckCircle, AlertTriangle, XCircle, Monitor, Usb, X, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -20,29 +20,7 @@ interface StorageItem {
 
 export default function StorageManagementPage() {
   const router = useRouter()
-  const [storages, setStorages] = useState<StorageItem[]>([
-    {
-      id: "1",
-      name: "내 컴퓨터",
-      type: "local",
-      status: "connected",
-      icon: HardDrive,
-    },
-    {
-      id: "2",
-      name: "구글 드라이브",
-      type: "cloud",
-      status: "warning",
-      icon: Cloud,
-    },
-    {
-      id: "3",
-      name: "USB 저장소",
-      type: "device",
-      status: "warning",
-      icon: Usb,
-    },
-  ])
+  const [storages, setStorages] = useState<StorageItem[]>([])
 
   // 팝업 관련 상태
   const [showAddStorageModal, setShowAddStorageModal] = useState(false)
@@ -188,44 +166,64 @@ export default function StorageManagementPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Storage List */}
-            <div className="space-y-3">
-              {storages.map((storage) => {
-                const IconComponent = storage.icon
-                return (
-                  <div key={storage.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <IconComponent className="h-6 w-6 text-primary" />
-                      <div>
-                        <p className="font-medium">{storage.name}</p>
-                        <div className="mt-1">{getStatusBadge(storage.status)}</div>
+            {storages.length === 0 ? (
+              <div className="text-center py-12 space-y-4">
+                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                  <HardDrive className="h-8 w-8 text-gray-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">저장소가 없습니다</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    개인정보 설정을 먼저 완료해주세요
+                  </p>
+                </div>
+                <Link href="/profile-setup">
+                  <Button className="mt-4">
+                    <Shield className="h-4 w-4 mr-2" />
+                    개인정보 설정하러 가기
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {storages.map((storage) => {
+                  const IconComponent = storage.icon
+                  return (
+                    <div key={storage.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <IconComponent className="h-6 w-6 text-primary" />
+                        <div>
+                          <p className="font-medium">{storage.name}</p>
+                          <div className="mt-1">{getStatusBadge(storage.status)}</div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {storage.status === "warning" && storage.name === "구글 드라이브" && (
+                      <div className="flex items-center space-x-2">
+                        {storage.status === "warning" && storage.name === "구글 드라이브" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-primary border-primary hover:bg-primary/10"
+                            onClick={handleReconnectGoogle}
+                          >
+                            다시 연결
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-primary border-primary hover:bg-primary/10"
-                          onClick={handleReconnectGoogle}
+                          disabled={storages.length <= 1}
+                          className="text-destructive hover:text-destructive bg-transparent"
+                          onClick={() => handleDeleteStorage(storage.id)}
                         >
-                          다시 연결
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          삭제
                         </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={storages.length <= 1}
-                        className="text-destructive hover:text-destructive bg-transparent"
-                        onClick={() => handleDeleteStorage(storage.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        삭제
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
 
             {storages.length === 1 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
@@ -236,26 +234,30 @@ export default function StorageManagementPage() {
               </div>
             )}
 
-            <Button 
-              variant="outline" 
-              className="w-full bg-transparent"
-              onClick={handleAddStorage}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              저장소 추가하기
-            </Button>
+            {storages.length > 0 && (
+              <Button 
+                variant="outline" 
+                className="w-full bg-transparent"
+                onClick={handleAddStorage}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                저장소 추가하기
+              </Button>
+            )}
 
-            {/* Action Buttons */}
-            <div className="flex space-x-3 pt-4">
-              <Link href="/dashboard" className="flex-1">
-                <Button variant="outline" className="w-full bg-transparent">
-                  취소
-                </Button>
-              </Link>
-              <Link href="/dashboard" className="flex-1">
-                <Button className="w-full bg-primary hover:bg-primary/90">설정완료</Button>
-              </Link>
-            </div>
+            {/* Action Buttons - 저장소가 있을 때만 표시 */}
+            {storages.length > 0 && (
+              <div className="flex space-x-3 pt-4">
+                <Link href="/dashboard" className="flex-1">
+                  <Button variant="outline" className="w-full bg-transparent">
+                    취소
+                  </Button>
+                </Link>
+                <Link href="/dashboard" className="flex-1">
+                  <Button className="w-full bg-primary hover:bg-primary/90">설정완료</Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

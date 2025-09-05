@@ -54,7 +54,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, onCo
             />
           </div>
 
-          {/* 연락처 */}
+          {/* 휴대폰 번호 */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">휴대폰 번호</Label>
             <div className="bg-gray-50 rounded-lg p-4">

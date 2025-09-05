@@ -1,17 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Cloud, Monitor, Check, Usb, Trash2, Shield } from "lucide-react"
+import { ArrowLeft, Cloud, Monitor, Check, Usb, Trash2, Shield, Smartphone, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged } from "firebase/auth"
+import { updateStorageMetadata, saveProfileWithMetadata, testEncryptionDecryption } from "@/lib/data-storage"
+import { updateUserProfile } from "@/lib/user-profile"
 import Link from "next/link"
 
 export default function StorageSetupPage() {
   const router = useRouter()
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [selectedStorage, setSelectedStorage] = useState("local")
   const [deviceType] = useState<"desktop" | "mobile">("desktop") // This would be detected
   const [googleConnected, setGoogleConnected] = useState(false)
@@ -21,6 +26,39 @@ export default function StorageSetupPage() {
   const [connectedStorages, setConnectedStorages] = useState<string[]>([])
   const [selectedAddStorage, setSelectedAddStorage] = useState("")
   const [addGoogleConnected, setAddGoogleConnected] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastType, setToastType] = useState<"success" | "error" | "info">("success")
+
+  // 토스트 표시 함수
+  const showToastMessage = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToastMessage(message)
+    setToastType(type)
+    setShowToast(true)
+    setTimeout(() => setShowToast(false), 3000) // 3초 후 자동 숨김
+  }
+
+  // Firebase Auth 상태 확인
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user)
+        console.log('사용자 정보:', user)
+        console.log('Firebase Auth 상태: 연결됨')
+        
+        // 암호화/복호화 테스트 실행
+        console.log('=== 암호화/복호화 테스트 시작 ===')
+        const testResult = testEncryptionDecryption()
+        console.log('=== 암호화/복호화 테스트 완료 ===', testResult ? '성공' : '실패')
+      } else {
+        console.log('Firebase Auth 상태: 로그인되지 않음')
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
 
   const handleGoogleConnect = () => {
     setShowGoogleModal(true)
@@ -48,19 +86,26 @@ export default function StorageSetupPage() {
 
   const handleAddStorageConfirm = () => {
     if (selectedAddStorage) {
-      if (selectedAddStorage === "google-drive-add" && !connectedStorages.includes("google-drive")) {
-        // 구글 드라이브 연결 시뮬레이션 - 팝업에서 연결하면 메인 페이지에 추가
-        setShowAddStorageModal(false)
-        setShowGoogleModal(true)
-        setIsConnecting(true)
-        
-        setTimeout(() => {
-          setIsConnecting(false)
-          setGoogleConnected(true)
-          setShowGoogleModal(false)
-          setConnectedStorages(prev => [...prev, "google-drive"])
-        }, 3000)
-      } else if (selectedAddStorage !== "google-drive-add") {
+      if (selectedAddStorage === "google-drive-add") {
+        if (addGoogleConnected) {
+          // 구글 드라이브가 이미 연결되어 있으면 바로 추가
+          setConnectedStorages(prev => [...prev, "google-drive-add"])
+          setShowAddStorageModal(false)
+          setAddGoogleConnected(false) // 상태 초기화
+        } else {
+          // 구글 드라이브가 연결되지 않았으면 연결 먼저
+          setShowGoogleModal(true)
+          setIsConnecting(true)
+          
+          setTimeout(() => {
+            setIsConnecting(false)
+            setAddGoogleConnected(true)
+            setShowGoogleModal(false)
+            // 연결 완료 후 추가 저장소 모달은 유지됨
+          }, 3000)
+        }
+      } else {
+        // 다른 저장소는 바로 추가
         setConnectedStorages(prev => [...prev, selectedAddStorage])
         setShowAddStorageModal(false)
       }
@@ -69,16 +114,108 @@ export default function StorageSetupPage() {
 
   const handleGoogleConnectFromModal = () => {
     // 팝업에서 구글 계정 연결 클릭 시 (추가 저장소용)
-    setShowAddStorageModal(false)
+    console.log('구글 연결 시작')
     setShowGoogleModal(true)
     setIsConnecting(true)
     
     setTimeout(() => {
+      console.log('구글 연결 완료')
       setIsConnecting(false)
       setAddGoogleConnected(true)
       setShowGoogleModal(false)
-      setConnectedStorages(prev => [...prev, "google-drive-add"])
+      // 연결 완료 후 추가 저장소 모달은 유지됨
     }, 3000)
+  }
+
+  // 설정완료 버튼 핸들러
+  const handleStorageSetupComplete = async () => {
+    console.log('=== 설정완료 버튼 클릭 ===')
+    console.log('currentUser:', currentUser)
+    console.log('selectedStorage:', selectedStorage)
+    
+    if (!currentUser) {
+      console.log('사용자가 로그인되지 않음')
+      return
+    }
+
+    setIsSaving(true)
+    console.log('저장 시작...')
+    
+    try {
+      // 현재는 "이 컴퓨터" 저장만 구현
+      if (selectedStorage === "local") {
+        // 1. 세션에서 임시 프로필 데이터 가져오기
+        const profileData = {
+          name: sessionStorage.getItem('temp_profile_name') || '',
+          phone: sessionStorage.getItem('temp_profile_phone') || '',
+          address: sessionStorage.getItem('temp_profile_address') || '',
+          detailAddress: sessionStorage.getItem('temp_profile_detailAddress') || '',
+          zipCode: sessionStorage.getItem('temp_profile_zipCode') || '',
+          email: sessionStorage.getItem('temp_profile_email') || undefined
+        }
+        
+        console.log('저장할 프로필 데이터:', profileData)
+        console.log('임시 데이터 확인:')
+        console.log('- name:', sessionStorage.getItem('temp_profile_name'))
+        console.log('- phone:', sessionStorage.getItem('temp_profile_phone'))
+        console.log('- address:', sessionStorage.getItem('temp_profile_address'))
+        console.log('- detailAddress:', sessionStorage.getItem('temp_profile_detailAddress'))
+        console.log('- zipCode:', sessionStorage.getItem('temp_profile_zipCode'))
+        console.log('- email:', sessionStorage.getItem('temp_profile_email'))
+        
+        // 2. 로컬 DB에 대칭키로 암호화하여 저장하고 Firebase에 메타데이터 저장
+        console.log('saveProfileWithMetadata 호출 시작...')
+        const saved = await saveProfileWithMetadata(currentUser, profileData)
+        console.log('saveProfileWithMetadata 결과:', saved)
+        
+        if (saved) {
+          console.log('프로필 저장 성공, Firebase 메타데이터 업데이트 시작...')
+          
+          // 3. Firebase에 프로필 완료 상태 저장 (메타데이터)
+          const profileStatus = {
+            profileCompleted: true,
+            storageType: 'local',
+            fragments: 1, // 현재는 조각 1개
+            lastUpdated: new Date().toISOString()
+          }
+          
+          const profileUpdated = await updateUserProfile(currentUser, profileStatus)
+          console.log('Firebase 프로필 업데이트 결과:', profileUpdated)
+          
+          // 4. 임시 데이터 정리
+          sessionStorage.removeItem('temp_profile_name')
+          sessionStorage.removeItem('temp_profile_phone')
+          sessionStorage.removeItem('temp_profile_address')
+          sessionStorage.removeItem('temp_profile_detailAddress')
+          sessionStorage.removeItem('temp_profile_zipCode')
+          sessionStorage.removeItem('temp_profile_email')
+          
+          console.log('저장 완료 - 로컬 DB에 암호화된 데이터 저장, Firebase에 메타데이터 저장')
+          
+          // 성공 토스트 표시 후 즉시 대시보드로 이동
+          showToastMessage("개인정보가 로컬에 암호화되어 안전하게 저장되었습니다.", "success")
+          
+          // 토스트 표시 후 1초 뒤 대시보드로 이동
+          setTimeout(() => {
+            console.log('대시보드로 이동...')
+            router.push('/dashboard')
+          }, 1000)
+        } else {
+          console.log('프로필 저장 실패')
+          throw new Error('프로필 저장 실패')
+        }
+      } else {
+        // 다른 저장소는 아직 구현되지 않음
+        console.log('지원되지 않는 저장소 타입:', selectedStorage)
+        showToastMessage("현재는 '이 컴퓨터' 저장만 지원됩니다.", "info")
+      }
+    } catch (error) {
+      console.error('설정 오류:', error)
+      showToastMessage("설정 중 오류가 발생했습니다.", "error")
+    } finally {
+      setIsSaving(false)
+      console.log('저장 프로세스 완료')
+    }
   }
 
   return (
@@ -86,13 +223,15 @@ export default function StorageSetupPage() {
       {/* Header */}
       <header className="bg-card border-b border-border p-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => router.back()}>
+          <Button variant="ghost" size="sm" onClick={() => {
+            // 뒤로가기 시 임시 데이터는 유지하고 profile-setup으로 이동
+            router.push('/profile-setup')
+          }}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button 
             onClick={() => {
-              const isLoggedIn = localStorage.getItem('isLoggedIn')
-              router.push(isLoggedIn ? '/dashboard' : '/')
+              router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >
@@ -297,9 +436,13 @@ export default function StorageSetupPage() {
               >
                 저장소 추가하기
               </Button>
-              <Link href="/dashboard">
-                <Button className="w-full bg-primary hover:bg-primary/90">설정완료</Button>
-              </Link>
+              <Button 
+                className="w-full bg-primary hover:bg-primary/90"
+                onClick={handleStorageSetupComplete}
+                disabled={isSaving || !currentUser}
+              >
+                설정
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -307,24 +450,30 @@ export default function StorageSetupPage() {
 
       {/* Google Connection Modal */}
       {showGoogleModal && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[60]" 
+          style={{ 
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)'
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
             <div className="text-center space-y-4">
               {isConnecting ? (
                 <>
                   <div className="flex justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
                   </div>
-                  <h3 className="text-lg font-semibold">구글 계정 연결 중...</h3>
-                  <p className="text-sm text-muted-foreground">잠시만 기다려주세요.</p>
+                  <h3 className="text-lg font-semibold text-gray-900">구글 계정 연결 중...</h3>
+                  <p className="text-sm text-gray-600">잠시만 기다려주세요.</p>
                 </>
               ) : (
                 <>
                   <div className="flex justify-center">
-                    <Check className="h-8 w-8 text-green-600" />
+                    <Check className="h-12 w-12 text-green-600" />
                   </div>
-                  <h3 className="text-lg font-semibold">연결 완료!</h3>
-                  <p className="text-sm text-muted-foreground">구글 드라이브가 성공적으로 연결되었습니다.</p>
+                  <h3 className="text-lg font-semibold text-gray-900">연결 완료!</h3>
+                  <p className="text-sm text-gray-600">구글 드라이브가 성공적으로 연결되었습니다.</p>
                 </>
               )}
             </div>
@@ -334,7 +483,13 @@ export default function StorageSetupPage() {
 
       {/* Add Storage Modal */}
       {showAddStorageModal && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex items-center justify-center z-50">
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50" 
+          style={{ 
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)'
+          }}
+        >
           <div className="bg-white rounded-lg p-6 max-w-xl w-full mx-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -457,11 +612,29 @@ export default function StorageSetupPage() {
                 <Button 
                   className="flex-1 bg-primary hover:bg-primary/90"
                   onClick={handleAddStorageConfirm}
-                  disabled={!selectedAddStorage}
+                  disabled={
+                    !selectedAddStorage || 
+                    (selectedAddStorage === "google-drive-add" && !addGoogleConnected)
+                  }
                 >
                   추가하기
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 토스트 메시지 */}
+      {showToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className={`px-6 py-4 rounded-lg shadow-lg ${
+            toastType === "success" ? "bg-green-600 text-white" :
+            toastType === "error" ? "bg-red-600 text-white" :
+            "bg-blue-600 text-white"
+          }`}>
+            <div className="text-center">
+              <p className="text-sm font-medium">{toastMessage}</p>
             </div>
           </div>
         </div>

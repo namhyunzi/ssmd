@@ -10,17 +10,23 @@ import { auth } from "@/lib/firebase"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { getUserProfile, createDefaultProfile, UserProfile } from "@/lib/user-profile"
+import { getUserServiceConsents, calculateConsentStats, ServiceConsent } from "@/lib/service-consent"
 
 export default function DashboardPage() {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false)
   const [userEmail, setUserEmail] = useState<string>("")
   const [emailUsername, setEmailUsername] = useState<string>("")
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
+  const [serviceConsents, setServiceConsents] = useState<ServiceConsent[]>([])
+  const [consentStats, setConsentStats] = useState({ total: 0, active: 0, expiring: 0, expired: 0 })
   const router = useRouter()
   const { toast } = useToast()
   
   // Firebase Auth 상태 확인 및 사용자 정보 가져오기
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('Firebase Auth 상태 변경:', user)
       if (user && user.email) {
         console.log('사용자 이메일:', user.email)
@@ -29,6 +35,37 @@ export default function DashboardPage() {
         const username = user.email.split('@')[0]
         setEmailUsername(username)
         console.log('추출된 사용자명:', username)
+        
+        // Firebase에서 사용자 프로필 로드
+        setIsLoadingProfile(true)
+        let profile = await getUserProfile(user)
+        
+        // 프로필이 없으면 기본 프로필 생성
+        if (!profile) {
+          console.log('프로필이 없어서 기본 프로필 생성')
+          const created = await createDefaultProfile(user)
+          if (created) {
+            profile = await getUserProfile(user)
+          }
+        }
+        
+        if (profile) {
+          setUserProfile(profile)
+          setHasCompletedProfile(profile.profileCompleted || 
+            !!(profile.name || profile.phone || profile.address || profile.detailAddress))
+        }
+        
+        // 서비스 동의 데이터 로드
+        try {
+          const consents = await getUserServiceConsents(user)
+          setServiceConsents(consents)
+          const stats = calculateConsentStats(consents)
+          setConsentStats(stats)
+        } catch (error) {
+          console.error('Error loading service consents:', error)
+        }
+        
+        setIsLoadingProfile(false)
       } else {
         console.log('사용자가 로그인되지 않음')
         // 로그인되지 않은 경우 메인 페이지(로그인)로 리다이렉트
@@ -39,13 +76,6 @@ export default function DashboardPage() {
     return () => unsubscribe()
   }, [router])
 
-  // 로컬 스토리지에서 개인정보 설정 완료 상태 확인
-  useEffect(() => {
-    const profileCompleted = localStorage.getItem('profileCompleted')
-    if (profileCompleted === 'true') {
-      setHasCompletedProfile(true)
-    }
-  }, [])
 
   // 로그아웃 함수
   const handleLogout = async () => {
@@ -119,8 +149,10 @@ export default function DashboardPage() {
 
         {/* Welcome Section */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">
-            <span className="text-primary">{emailUsername}</span>
+          <h2 className="text-xl font-semibold tracking-wide">
+            <span className="text-primary">
+              {userProfile?.name || emailUsername || "사용자"}
+            </span>
             <span className="text-black">님, 안녕하세요!</span>
           </h2>
           
@@ -134,8 +166,8 @@ export default function DashboardPage() {
                       <FileText className="h-5 w-5" />
                       <span className="text-sm opacity-90">전체 동의 현황</span>
                     </div>
-                    <div className="text-2xl font-bold mb-1">3개</div>
-                    <div className="text-sm opacity-80">활성화된 서비스 동의</div>
+                    <div className="text-2xl font-bold mb-1">{consentStats.total}개</div>
+                    <div className="text-sm opacity-80">전체 서비스 동의</div>
                   </div>
                   <ChevronRight className="h-6 w-6" />
                 </div>
@@ -153,7 +185,7 @@ export default function DashboardPage() {
                       </svg>
                       <span className="text-sm opacity-90">만료 예정</span>
                     </div>
-                    <div className="text-2xl font-bold mb-1">1개</div>
+                    <div className="text-2xl font-bold mb-1">{consentStats.expiring}개</div>
                     <div className="text-sm opacity-80">7일 이내 만료 예정</div>
                   </div>
                   <ChevronRight className="h-6 w-6" />

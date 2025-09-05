@@ -45,7 +45,7 @@ export default function DeliveryDriverViewer() {
                   <p className="text-lg font-medium">김철수</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">연락처</label>
+                  <label className="text-sm font-medium text-muted-foreground">휴대폰 번호</label>
                   <p className="text-lg font-medium">010-1234-5678</p>
                 </div>
                 <div>

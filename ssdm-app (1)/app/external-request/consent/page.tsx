@@ -31,8 +31,7 @@ export default function ConsentPage() {
           </Button>
           <button 
             onClick={() => {
-              const isLoggedIn = localStorage.getItem('isLoggedIn')
-              router.push(isLoggedIn ? '/dashboard' : '/')
+              router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >

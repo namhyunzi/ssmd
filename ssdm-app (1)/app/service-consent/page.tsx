@@ -8,50 +8,53 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
+import { getUserProfile, UserProfile } from '@/lib/user-profile'
+import { getUserServiceConsents, calculateConsentStatus, deleteServiceConsent, ServiceConsent } from '@/lib/service-consent'
+import { loadProfileFromLocal } from '@/lib/data-storage'
 
-interface ConsentItem {
-  id: string
-  serviceName: string
-  startDate: string
-  expiryDate: string
-  consentType: "always"  // "자동 허용"으로 설정된 것만 저장됨
-  status: "active" | "expiring" | "expired"
-}
+// ServiceConsent 타입을 lib에서 import하므로 중복 제거
 
 function ServiceConsentContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [selectedConsent, setSelectedConsent] = useState<ConsentItem | null>(null)
+  const [selectedConsent, setSelectedConsent] = useState<ServiceConsent | null>(null)
   const [activeFilter, setActiveFilter] = useState<string>("all")
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedConsentType, setSelectedConsentType] = useState<string>("")
-  const [consents, setConsents] = useState<ConsentItem[]>([
-    {
-      id: "1",
-      serviceName: "네이버 쇼핑몰",
-      startDate: "2024-01-15",
-      expiryDate: "2024-07-15",
-      consentType: "always",
-      status: "active",
-    },
-    {
-      id: "2",
-      serviceName: "쿠팡",
-      startDate: "2024-02-01",
-      expiryDate: "2024-03-15",
-      consentType: "session",
-      status: "expiring",
-    },
-    {
-      id: "3",
-      serviceName: "11번가",
-      startDate: "2024-01-01",
-      expiryDate: "2024-02-01",
-      consentType: "once",
-      status: "expired",
-    },
-  ])
+  const [consents, setConsents] = useState<ServiceConsent[]>([])
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [localProfile, setLocalProfile] = useState<any>(null)
+
+  // Firebase Auth 상태 확인 및 사용자 프로필 로딩
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const profile = await getUserProfile(user)
+          setUserProfile(profile)
+          
+          // 로컬 저장소에서 실제 개인정보 데이터 로드
+          const localData = loadProfileFromLocal()
+          if (localData && localData.profile) {
+            setLocalProfile(localData.profile)
+          }
+          
+          // 서비스 동의 데이터 로드
+          const userConsents = await getUserServiceConsents(user)
+          setConsents(userConsents)
+        } catch (error) {
+          console.error('Error loading user data:', error)
+        }
+      } else {
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
 
   // URL 파라미터에서 필터 상태 확인
   useEffect(() => {
@@ -79,23 +82,29 @@ function ServiceConsentContent() {
     setShowDeleteModal(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (selectedConsent) {
       setIsDeleting(true)
-      setTimeout(() => {
-        // 해당 서비스 동의 내역 삭제
-        setConsents(prev => prev.filter(consent => consent.id !== selectedConsent.id))
+      try {
+        const success = await deleteServiceConsent(selectedConsent.id)
+        if (success) {
+          // 해당 서비스 동의 내역 삭제
+          setConsents(prev => prev.filter(consent => consent.id !== selectedConsent.id))
+          setShowDeleteModal(false)
+          setSelectedConsent(null) // 목록으로 돌아가기
+        }
+      } catch (error) {
+        console.error('Error deleting consent:', error)
+      } finally {
         setIsDeleting(false)
-        setShowDeleteModal(false)
-        setSelectedConsent(null) // 목록으로 돌아가기
-      }, 2000)
+      }
     }
   }
 
-  // 필터링된 동의 내역
+  // 필터링된 동의 내역 (상태를 실시간으로 계산)
   const filteredConsents = activeFilter === "all" 
     ? consents 
-    : consents.filter(consent => consent.status === activeFilter)
+    : consents.filter(consent => calculateConsentStatus(consent.expiryDate) === activeFilter)
 
   const getFilterText = (filter: string) => {
     switch (filter) {
@@ -141,10 +150,7 @@ function ServiceConsentContent() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button 
-            onClick={() => {
-              const isLoggedIn = localStorage.getItem('isLoggedIn')
-              router.push(isLoggedIn ? '/dashboard' : '/')
-            }}
+            onClick={() => router.push('/dashboard')}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >
             <div className="text-center">
@@ -206,16 +212,22 @@ function ServiceConsentContent() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {getStatusBadge(consent.status)}
+                      {getStatusBadge(calculateConsentStatus(consent.expiryDate))}
                       <Settings className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
                   ))
                 ) : (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">
-                      {getFilterText(activeFilter)} 상태의 서비스가 없습니다.
-                    </p>
+                  <div className="text-center py-12 space-y-4">
+                    <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Store className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">연결된 서비스가 없습니다</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        외부 서비스에서 개인정보 제공 동의를 하면 여기에 표시됩니다
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -228,7 +240,7 @@ function ServiceConsentContent() {
               <CardTitle className="flex items-center">
                 <Store className="h-5 w-5 mr-2 text-primary" />
                 {selectedConsent.serviceName}
-                <div className="ml-3">{getStatusBadge(selectedConsent.status)}</div>
+                <div className="ml-3">{getStatusBadge(calculateConsentStatus(selectedConsent.expiryDate))}</div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -262,19 +274,19 @@ function ServiceConsentContent() {
                 <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                   <div>
                     <Label className="text-sm">이름</Label>
-                    <p className="text-sm">김철수</p>
+                    <p className="text-sm">{localProfile?.name || '-'}</p>
                   </div>
                   <div>
-                    <Label className="text-sm">연락처</Label>
-                    <p className="text-sm">010-1234-5678</p>
+                    <Label className="text-sm">휴대폰 번호</Label>
+                    <p className="text-sm">{localProfile?.phone || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-sm">주소</Label>
-                    <p className="text-sm">서울시 강남구 테헤란로 123</p>
+                    <p className="text-sm">{localProfile?.address || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-sm">이메일</Label>
-                    <p className="text-sm">kimcs@example.com</p>
+                    <p className="text-sm">{localProfile?.email || '-'}</p>
                   </div>
                 </div>
               </div>

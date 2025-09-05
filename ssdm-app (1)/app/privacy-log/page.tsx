@@ -19,22 +19,7 @@ function PrivacyLogContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [activeFilter, setActiveFilter] = useState<string>("1month")
-  const [logs, setLogs] = useState<ProvisionLog[]>([
-    {
-      id: "1",
-      serviceName: "네이버 쇼핑몰",
-      provisionDate: "2024-12-28",
-      provisionTime: "14:32",
-      providedInfo: ["이름", "연락처", "주소"]
-    },
-    {
-      id: "2",
-      serviceName: "쿠팡",
-      provisionDate: "2024-12-27",
-      provisionTime: "09:15",
-      providedInfo: ["이름", "연락처"]
-    }
-  ])
+  const [logs, setLogs] = useState<ProvisionLog[]>([])
 
   // URL 파라미터에서 필터 상태 확인
   useEffect(() => {
@@ -83,10 +68,7 @@ function PrivacyLogContent() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button 
-            onClick={() => {
-              const isLoggedIn = localStorage.getItem('isLoggedIn')
-              router.push(isLoggedIn ? '/dashboard' : '/')
-            }}
+            onClick={() => router.push('/dashboard')}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >
             <div className="text-center">
@@ -164,10 +146,16 @@ function PrivacyLogContent() {
                 </div>
                 ))
               ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    {getFilterText(activeFilter)} 기간 동안 개인정보 제공 기록이 없습니다.
-                  </p>
+                <div className="text-center py-12 space-y-4">
+                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                    <Shield className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">개인정보 제공 내역이 없습니다</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      외부 서비스에 개인정보를 제공하면 여기에 내역이 표시됩니다
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
