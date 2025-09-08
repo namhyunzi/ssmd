@@ -26,6 +26,19 @@ export async function sendVerificationEmail(
   verificationCode: string
 ): Promise<boolean> {
   try {
+    // Vercel 환경에서 SMTP 연결 검증
+    await new Promise((resolve, reject) => {
+      transporter.verify(function (error, success) {
+        if (error) {
+          console.error('SMTP 연결 검증 실패:', error);
+          reject(error);
+        } else {
+          console.log('SMTP 서버가 메시지를 받을 준비가 되었습니다');
+          resolve(success);
+        }
+      });
+    });
+
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: toEmail,
