@@ -9,32 +9,80 @@ import Link from "next/link"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { getUserProfile, createDefaultProfile, UserProfile } from "@/lib/user-profile"
-import { getUserServiceConsents, calculateConsentStats, ServiceConsent } from "@/lib/service-consent"
+import { getUserProfile, createDefaultProfile, Users } from "@/lib/user-profile"
+import { getUserServiceConsents, calculateConsentStats, UserConsents, createTestServiceConsents, createTestProvisionLogs } from "@/lib/service-consent"
 
 export default function DashboardPage() {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false)
   const [userEmail, setUserEmail] = useState<string>("")
   const [emailUsername, setEmailUsername] = useState<string>("")
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userProfile, setUserProfile] = useState<Users | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
-  const [serviceConsents, setServiceConsents] = useState<ServiceConsent[]>([])
+  const [serviceConsents, setServiceConsents] = useState<UserConsents[]>([])
   const [consentStats, setConsentStats] = useState({ total: 0, active: 0, expiring: 0, expired: 0 })
+  const [isSocialLogin, setIsSocialLogin] = useState(false)
   const router = useRouter()
-  const { toast } = useToast()
+  
+  // 커스텀 토스트 상태
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastSubMessage, setToastSubMessage] = useState("")
+  
+  // 테스트 데이터 생성 함수
+  const handleCreateTestData = async () => {
+    if (!currentUser) return;
+    
+    try {
+      // 서비스 동의 데이터와 개인정보 제공내역 데이터를 모두 생성
+      const [consentsSuccess, logsSuccess] = await Promise.all([
+        createTestServiceConsents(currentUser),
+        createTestProvisionLogs(currentUser)
+      ]);
+      
+      if (consentsSuccess && logsSuccess) {
+        // 서비스 동의 데이터 다시 로드
+        const consents = await getUserServiceConsents(currentUser);
+        setServiceConsents(consents);
+        setConsentStats(calculateConsentStats(consents));
+        
+        setToastMessage("테스트 데이터 생성 완료")
+        setToastSubMessage("8개 서비스 동의 + 10개 개인정보 제공내역이 생성되었습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      } else {
+        setToastMessage("테스트 데이터 생성 실패")
+        setToastSubMessage("데이터 생성 중 오류가 발생했습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      }
+    } catch (error) {
+      console.error('테스트 데이터 생성 오류:', error);
+      setToastMessage("테스트 데이터 생성 실패")
+      setToastSubMessage("데이터 생성 중 오류가 발생했습니다.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+    }
+  }
   
   // Firebase Auth 상태 확인 및 사용자 정보 가져오기
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Firebase Auth 상태 변경:', user)
       if (user && user.email) {
-        console.log('사용자 이메일:', user.email)
+        setCurrentUser(user)
         setUserEmail(user.email)
         // 이메일에서 @ 앞부분 추출
         const username = user.email.split('@')[0]
         setEmailUsername(username)
         console.log('추출된 사용자명:', username)
+        
+        // 소셜 로그인 사용자인지 확인
+        const socialLogin = user.providerData.some(provider => 
+          provider.providerId === 'google.com' || 
+          provider.providerId === 'facebook.com' ||
+          provider.providerId === 'twitter.com'
+        )
+        setIsSocialLogin(socialLogin)
         
         // Firebase에서 사용자 프로필 로드
         setIsLoadingProfile(true)
@@ -58,6 +106,9 @@ export default function DashboardPage() {
         // 서비스 동의 데이터 로드
         try {
           const consents = await getUserServiceConsents(user)
+          console.log('=== 대시보드 - 서비스 동의 데이터 ===')
+          console.log('로드된 동의 데이터 개수:', consents.length)
+          console.log('동의 데이터:', consents)
           setServiceConsents(consents)
           const stats = calculateConsentStats(consents)
           setConsentStats(stats)
@@ -81,18 +132,17 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     try {
       await signOut(auth)
-      toast({
-        title: "로그아웃 완료",
-        description: "안전하게 로그아웃되었습니다.",
-      })
+      setToastMessage("로그아웃 완료")
+      setToastSubMessage("안전하게 로그아웃되었습니다.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
       router.push('/')
     } catch (error) {
       console.error('로그아웃 실패:', error)
-      toast({
-        title: "로그아웃 실패",
-        description: "로그아웃 중 오류가 발생했습니다.",
-        variant: "destructive",
-      })
+      setToastMessage("로그아웃 실패")
+      setToastSubMessage("로그아웃 중 오류가 발생했습니다.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
     }
   }
 
@@ -151,7 +201,20 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold tracking-wide">
             <span className="text-primary">
-              {userProfile?.name || emailUsername || "사용자"}
+              {(() => {
+                // 소셜 로그인인지 확인 (Google 로그인)
+                const isSocialLogin = currentUser?.providerData?.some((provider: any) => 
+                  provider.providerId === 'google.com'
+                )
+                
+                if (isSocialLogin) {
+                  // 소셜 로그인: displayName 사용
+                  return currentUser?.displayName || emailUsername || "사용자"
+                } else {
+                  // 일반 로그인: 이메일 아이디 부분 사용
+                  return emailUsername || "사용자"
+                }
+              })()}
             </span>
             <span className="text-black">님, 안녕하세요!</span>
           </h2>
@@ -227,16 +290,19 @@ export default function DashboardPage() {
                   </Link>
                 )}
               </div>
-              <div>
-                <Link href="/account-settings/password">
-                  <Card className="border cursor-pointer p-4 hover:bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">비밀번호 변경</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </Card>
-                </Link>
-              </div>
+              {/* 소셜 로그인 사용자가 아닌 경우에만 비밀번호 변경 메뉴 표시 */}
+              {!isSocialLogin && (
+                <div>
+                  <Link href="/account-settings/password">
+                    <Card className="border cursor-pointer p-4 hover:bg-muted/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">비밀번호 변경</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </Card>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -289,10 +355,38 @@ export default function DashboardPage() {
                   </Card>
                 </Link>
               </div>
+              
+              {/* 테스트 데이터 생성 버튼 */}
+              <div className="pt-2">
+                <Button 
+                  variant="outline" 
+                  className="w-full bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                  onClick={handleCreateTestData}
+                >
+                  🧪 테스트 데이터 생성 (8개 서비스 + 10개 제공내역)
+                </Button>
+                <p className="text-xs text-gray-500 mt-1 text-center">
+                  현재 서비스 동의: {serviceConsents.length}개
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* 토스트 메시지 */}
+      {showToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
+            <div className="text-center">
+              <p className="text-sm font-medium">{toastMessage}</p>
+              {toastSubMessage && (
+                <p className="text-xs mt-1 text-gray-300">{toastSubMessage}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

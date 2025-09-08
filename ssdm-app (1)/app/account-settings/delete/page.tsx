@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Trash2, AlertTriangle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, signOut } from "firebase/auth"
 import Link from "next/link"
 
 export default function AccountDeletePage() {
@@ -13,26 +15,91 @@ export default function AccountDeletePage() {
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+
+  // Firebase Auth 상태 확인
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user)
+      } else {
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
 
   const handleDeleteAccount = () => {
     if (!isConfirmed) {
-      alert("탈퇴 전 주의사항을 확인해주세요.")
+      setToastMessage("탈퇴 전 주의사항을 확인해주세요.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
       return
     }
     setShowDeleteModal(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
+    if (!currentUser) {
+      setErrorMessage("사용자 정보를 찾을 수 없습니다.")
+      return
+    }
+
     setIsDeleting(true)
-    
-    // 계정 삭제 시뮬레이션
-    setTimeout(() => {
-      // 모든 로컬 스토리지 데이터 삭제
-      localStorage.clear()
-      
-      // 메인 페이지로 리다이렉트
-      router.push('/')
-    }, 2000)
+    setErrorMessage("")
+
+    try {
+      // API를 통해 서버에서 계정 삭제
+      console.log('계정 삭제 요청:', { uid: currentUser.uid, email: currentUser.email });
+
+      const response = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          uid: currentUser.uid,
+          email: currentUser.email 
+        }),
+      })
+
+      console.log('응답 상태:', response.status, response.statusText);
+      const data = await response.json()
+      console.log('응답 데이터:', data);
+
+      if (response.ok) {
+        // 로컬 스토리지 데이터 삭제
+        localStorage.clear()
+        sessionStorage.clear()
+        
+        // Firebase Auth에서 로그아웃
+        try {
+          await signOut(auth)
+          console.log('Firebase Auth 로그아웃 완료')
+        } catch (error) {
+          console.log('Firebase Auth 로그아웃 오류 (무시):', error)
+        }
+        
+        // 성공 메시지 표시 후 메인 로그인 페이지로 이동
+        alert("계정이 성공적으로 삭제되었습니다.")
+        router.push('/')
+      } else {
+        console.error('계정 삭제 실패:', data)
+        setErrorMessage(data.error || "계정 삭제에 실패했습니다.")
+        setShowDeleteModal(false)
+      }
+
+    } catch (error: any) {
+      console.error('계정 삭제 오류:', error)
+      setErrorMessage("계정 삭제 중 오류가 발생했습니다. 고객센터에 문의해주세요.")
+      setShowDeleteModal(false)
+    } finally {
+      setIsDeleting(false)
+    }
   }
   return (
     <div className="min-h-screen bg-background">
@@ -86,6 +153,12 @@ export default function AccountDeletePage() {
               </Label>
             </div>
 
+            {errorMessage && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-600">{errorMessage}</p>
+              </div>
+            )}
+
             <div className="flex space-x-2">
               <Link href="/dashboard" className="flex-1">
                 <Button variant="outline" className="w-full bg-transparent">
@@ -96,9 +169,10 @@ export default function AccountDeletePage() {
                 variant="destructive" 
                 className="flex-1"
                 onClick={handleDeleteAccount}
+                disabled={isDeleting}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                탈퇴하기
+                {isDeleting ? "탈퇴 중..." : "탈퇴하기"}
               </Button>
             </div>
           </CardContent>
@@ -107,7 +181,7 @@ export default function AccountDeletePage() {
 
       {/* 탈퇴 확인 모달 */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6 space-y-6">
             <div className="flex justify-between items-start">
               <div></div>
@@ -135,14 +209,6 @@ export default function AccountDeletePage() {
                 </p>
               </div>
 
-              {isDeleting && (
-                <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-                  <div className="flex items-center justify-center space-x-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                    <p className="text-sm text-red-800">계정을 삭제하는 중입니다...</p>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="flex space-x-3">
@@ -160,8 +226,19 @@ export default function AccountDeletePage() {
                 onClick={confirmDelete}
                 disabled={isDeleting}
               >
-                {isDeleting ? "삭제 중..." : "삭제하기"}
+                삭제하기
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 토스트 메시지 */}
+      {showToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
+            <div className="text-center">
+              <p className="text-sm font-medium">{toastMessage}</p>
             </div>
           </div>
         </div>

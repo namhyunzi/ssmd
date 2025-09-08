@@ -9,7 +9,8 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { getExpirationTime, isCodeExpired, isValidCodeFormat } from "@/lib/verification"
 import { auth } from "@/lib/firebase"
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, deleteUser } from "firebase/auth"
+import TermsConsentPopup from '@/components/popups/terms-consent-popup'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -21,16 +22,41 @@ export default function SignupPage() {
   const [isDomainInputMode, setIsDomainInputMode] = useState(false)
   const [customDomain, setCustomDomain] = useState("")
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
-  const [showToast, setShowToast] = useState(false)
   const [password, setPassword] = useState("")
   const [passwordConfirm, setPasswordConfirm] = useState("")
   const [signupStep, setSignupStep] = useState<"form" | "complete">("form")
+  const [showTermsPopup, setShowTermsPopup] = useState(false)
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
+  
+  // 약관 동의 체크박스 상태
+  const [allAgreed, setAllAgreed] = useState(false)
+  const [termsAgreed, setTermsAgreed] = useState(true)
+  const [privacyAgreed, setPrivacyAgreed] = useState(true)
+  const [marketingAgreed, setMarketingAgreed] = useState(false)
+  
+  // 커스텀 토스트 상태
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastSubMessage, setToastSubMessage] = useState("")
+
+  // 전체동의 처리 함수
+  const handleAllAgreed = (checked: boolean) => {
+    setAllAgreed(checked)
+    setTermsAgreed(checked)
+    setPrivacyAgreed(checked)
+    setMarketingAgreed(checked)
+  }
+
+  // 개별 체크박스 변경 시 전체동의 상태 업데이트
+  useEffect(() => {
+    const allChecked = termsAgreed && privacyAgreed && marketingAgreed
+    setAllAgreed(allChecked)
+  }, [termsAgreed, privacyAgreed, marketingAgreed])
 
   // 인증 관련 상태
   const [isLoading, setIsLoading] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [isResending, setIsResending] = useState(false)
-  const [error, setError] = useState("")
   const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null)
   
   // 필드별 오류 상태
@@ -114,7 +140,7 @@ export default function SignupPage() {
       }
     }
     
-    // 중복 확인이 필요한 경우 (이메일 인증 버튼 클릭 시)
+    // 중복 확인이 필요한 경우 (디바운싱된 검증에서만)
     if (checkDuplicate) {
       try {
         const response = await fetch('/api/check-email', {
@@ -238,7 +264,6 @@ export default function SignupPage() {
   // 이메일 재전송 함수
   const handleResendEmail = async () => {
     setIsResending(true)
-    setError("")
     
     const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
     
@@ -261,11 +286,15 @@ export default function SignupPage() {
         setShowToast(true)
         setTimeout(() => setShowToast(false), 3000) // 3초 후 자동 숨김
       } else {
-        setError(data.error || "이메일 재전송에 실패했습니다.")
+        setToastMessage(data.error || "이메일 재전송에 실패했습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
       }
     } catch (error) {
       console.error("이메일 재전송 오류:", error)
-      setError("이메일 재전송 중 오류가 발생했습니다.")
+      setToastMessage("이메일 재전송 중 오류가 발생했습니다.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
     } finally {
       setIsResending(false)
     }
@@ -275,13 +304,12 @@ export default function SignupPage() {
     if (emailVerificationStep === "initial" && emailUsername && (emailDomain || customDomain)) {
       const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
       
-      // 이메일 유효성 검사 (중복 확인 포함)
-      if (!(await validateEmail(fullEmail, true))) {
+      // 이메일 유효성 검사 (형식만 확인, 중복은 이미 실시간으로 확인됨)
+      if (!(await validateEmail(fullEmail, false))) {
         return
       }
       
       setIsLoading(true)
-      setError("")
       
       try {
         // API를 통해 이메일 발송
@@ -299,11 +327,15 @@ export default function SignupPage() {
           setEmailVerificationStep("code-sent")
           startTimer()
         } else {
-          setError(data.error || "이메일 발송에 실패했습니다.")
+          setToastMessage(data.error || "이메일 발송에 실패했습니다.")
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 3000)
         }
       } catch (error) {
         console.error("이메일 발송 오류:", error)
-        setError("이메일 발송 중 오류가 발생했습니다.")
+        setToastMessage("이메일 발송 중 오류가 발생했습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
       } finally {
         setIsLoading(false)
       }
@@ -317,7 +349,6 @@ export default function SignupPage() {
     }
     
     setIsVerifying(true)
-    setError("")
     
     const fullEmail = `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}`
       
@@ -338,14 +369,15 @@ export default function SignupPage() {
         
         if (response.ok && data.success) {
           setEmailVerificationStep("verified")
-          setError("")
           clearFieldError("verificationCode")
         } else {
           setFieldError("verificationCode", data.error || "인증에 실패했습니다.")
         }
       } catch (error) {
         console.error("인증코드 검증 오류:", error)
-        setError("인증 처리 중 오류가 발생했습니다.")
+        setToastMessage("인증 처리 중 오류가 발생했습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
       } finally {
         setIsVerifying(false)
     }
@@ -355,6 +387,137 @@ export default function SignupPage() {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
+
+  const handleGoogleSignup = async () => {
+    setIsLoading(true)
+    
+    try {
+      const provider = new GoogleAuthProvider()
+      const result = await signInWithPopup(auth, provider)
+      
+      // 신규 사용자 감지 (creationTime과 lastSignInTime이 같으면 신규 사용자)
+      const isNewUser = result.user.metadata.creationTime === result.user.metadata.lastSignInTime
+      
+      console.log('Google 회원가입/로그인 성공:', {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        isNewUser: isNewUser,
+        creationTime: result.user.metadata.creationTime,
+        lastSignInTime: result.user.metadata.lastSignInTime
+      })
+      
+      if (isNewUser) {
+        // 신규 사용자의 경우 약관 동의 팝업 표시
+        setPendingGoogleUser(result.user)
+        setShowTermsPopup(true)
+      } else {
+        // 기존 사용자의 경우 대시보드로 이동
+        router.push("/dashboard")
+      }
+    } catch (error: any) {
+      console.error('Google 회원가입/로그인 오류:', error)
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        setToastMessage("Google 로그인이 취소되었습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      } else if (error.code === 'auth/popup-blocked') {
+        setToastMessage("팝업이 차단되었습니다. 팝업 차단을 해제하고 다시 시도해주세요.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        setToastMessage("이미 다른 방법으로 가입된 이메일입니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      } else {
+        setToastMessage("Google 로그인 중 오류가 발생했습니다.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleTermsConsent = async () => {
+    setShowTermsPopup(false)
+    
+    try {
+      // 약관 동의 정보를 Firebase에 저장
+      if (pendingGoogleUser) {
+        // 1. 사용자 기본 정보 저장
+        const userData = {
+          uid: pendingGoogleUser.uid,
+          email: pendingGoogleUser.email,
+          displayName: pendingGoogleUser.displayName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        // 2. 동의 정보 저장
+        const consentData = {
+          termsAgreed: true,
+          privacyAgreed: true,
+          marketingAgreed: false, // 기본값
+          agreedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        }
+        
+        // Firebase Realtime Database에 저장
+        const { ref, set } = await import('firebase/database')
+        const { realtimeDb } = await import('@/lib/firebase')
+        
+        // 사용자 정보 저장
+        const userRef = ref(realtimeDb, `users/${pendingGoogleUser.uid}`)
+        await set(userRef, userData)
+        
+        // 동의 정보 저장
+        const consentRef = ref(realtimeDb, `userConsents/${pendingGoogleUser.uid}`)
+        await set(consentRef, consentData)
+        
+        console.log('약관 동의 정보 저장 완료:', pendingGoogleUser.email)
+      }
+      
+      // 회원가입 완료 화면 표시
+      setSignupStep("complete")
+      
+      // 2초 후 프로필 설정 페이지로 이동
+      setTimeout(() => {
+        router.push("/profile-setup")
+      }, 2000)
+      
+    } catch (error) {
+      console.error('약관 동의 정보 저장 오류:', error)
+      setToastMessage("회원가입 중 오류가 발생했습니다. 다시 시도해주세요.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+    } finally {
+      // 임시 사용자 정보 정리
+      setPendingGoogleUser(null)
+    }
+  }
+
+  const handleTermsClose = async () => {
+    setShowTermsPopup(false)
+    
+    // 약관 거부 시 계정 삭제
+    if (pendingGoogleUser) {
+      try {
+        await deleteUser(pendingGoogleUser)
+        console.log('약관 거부로 인한 계정 삭제 완료')
+      } catch (error) {
+        console.error('계정 삭제 오류:', error)
+        // 계정 삭제 실패 시 로그아웃만 처리
+        await auth.signOut()
+      }
+    }
+    
+    setPendingGoogleUser(null)
+    setToastMessage("서비스 이용을 위해 약관에 동의해주세요.")
+    setShowToast(true)
+    setTimeout(() => setShowToast(false), 3000)
   }
 
   return (
@@ -381,7 +544,12 @@ export default function SignupPage() {
           <CardContent className="space-y-4">
             {signupStep === "form" ? (
             <>
-              <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50 bg-transparent">
+              <Button 
+                variant="outline" 
+                className="w-full border-gray-300 hover:bg-gray-50 bg-transparent"
+                onClick={handleGoogleSignup}
+                disabled={isLoading}
+              >
                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -400,7 +568,7 @@ export default function SignupPage() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                   />
                 </svg>
-                Google로 로그인
+                Google로 회원가입
               </Button>
 
               {/* Divider */}
@@ -566,22 +734,13 @@ export default function SignupPage() {
                     ? "bg-gray-200 text-gray-500"
                     : "bg-gray-200 hover:bg-gray-300 text-gray-500"
               }`}
-              disabled={emailVerificationStep !== "initial" || !emailUsername || (!emailDomain && !customDomain) || isLoading}
+              disabled={emailVerificationStep !== "initial" || !emailUsername || (!emailDomain && !customDomain) || isLoading || !!fieldErrors.email}
             >
               {emailVerificationStep === "initial" && "이메일 인증하기"}
               {emailVerificationStep === "code-sent" && "이메일 인증하기"}
               {emailVerificationStep === "verified" && "이메일 인증 완료"}
             </Button>
 
-            {/* 에러 메시지 표시 */}
-            {error && (
-              <div className="bg-red-50 border border-red-300 rounded-lg p-4 flex items-start space-x-2">
-                <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm text-red-700 leading-relaxed">{error}</p>
-              </div>
-            )}
 
             {emailVerificationStep === "code-sent" && (
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -617,9 +776,9 @@ export default function SignupPage() {
                     <span className="text-red-500 text-sm font-mono">{formatTime(timer)}</span>
                     <button
                       onClick={handleCodeVerification}
-                      disabled={verificationCode.length !== 6 || isVerifying || (fieldErrors.verificationCode && verificationCode.length > 0)}
+                      disabled={verificationCode.length !== 6 || isVerifying || (!!fieldErrors.verificationCode && verificationCode.length > 0)}
                       className={`text-sm font-medium ${
-                        verificationCode.length === 6 && !isVerifying && !(fieldErrors.verificationCode && verificationCode.length > 0)
+                        verificationCode.length === 6 && !isVerifying && !(!!fieldErrors.verificationCode && verificationCode.length > 0)
                           ? "text-primary hover:text-primary/80" 
                           : "text-gray-400 cursor-not-allowed"
                       }`}
@@ -698,9 +857,86 @@ export default function SignupPage() {
             </div>
           </div>
 
+          {/* 약관 동의 체크박스 */}
+          <div className="space-y-3">
+            {/* 약관동의 라벨 */}
+            <h3 className="text-sm font-medium text-gray-900">약관동의</h3>
+            
+            {/* 전체 약관 동의 콜아웃 */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+              {/* 전체동의 */}
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="allAgreed"
+                  checked={allAgreed}
+                  onChange={(e) => handleAllAgreed(e.target.checked)}
+                  className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                />
+                <label htmlFor="allAgreed" className="text-sm text-gray-700">
+                  전체동의 선택항목에 대한 동의 포함
+                </label>
+              </div>
+              
+              {/* 구분선 */}
+              <div className="border-t border-gray-200"></div>
+              
+              {/* 개별 동의 항목들 */}
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    checked={termsAgreed}
+                    onChange={(e) => setTermsAgreed(e.target.checked)}
+                    className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  />
+                  <label htmlFor="terms" className="text-sm text-gray-700 flex items-center">
+                    이용약관 <span className="text-red-500">(필수)</span>
+                    <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </label>
+                </div>
+                
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="privacy"
+                    checked={privacyAgreed}
+                    onChange={(e) => setPrivacyAgreed(e.target.checked)}
+                    className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  />
+                  <label htmlFor="privacy" className="text-sm text-gray-700 flex items-center">
+                    개인정보처리방침 <span className="text-red-500">(필수)</span>
+                    <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </label>
+                </div>
+                
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="marketing"
+                    checked={marketingAgreed}
+                    onChange={(e) => setMarketingAgreed(e.target.checked)}
+                    className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  />
+                  <label htmlFor="marketing" className="text-sm text-gray-700 flex items-center">
+                    마케팅 정보 수신 동의 <span className="text-gray-500">(선택)</span>
+                    <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <Button 
             className="w-full bg-primary hover:bg-primary/90" 
-            disabled={emailVerificationStep !== "verified" || !password || !passwordConfirm}
+                disabled={emailVerificationStep !== "verified" || !password || !passwordConfirm || !termsAgreed || !privacyAgreed || isLoading}
             onClick={async () => {
               // 모든 필드 검증
               const isPasswordValid = validatePassword(password)
@@ -714,10 +950,34 @@ export default function SignupPage() {
                   const userCredential = await createUserWithEmailAndPassword(auth, fullEmail, password)
                   const user = userCredential.user
                   
-                  // 사용자 프로필 업데이트 (사용자명 설정)
-                  await updateProfile(user, {
-                    displayName: emailUsername
-                  })
+                  // 사용자 정보를 우리 데이터베이스에 저장
+                  const userData = {
+                    uid: user.uid,
+                    email: user.email,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  }
+                  
+                  // 동의 정보 저장 (사용자가 선택한 값 사용)
+                  const consentData = {
+                    termsAgreed: termsAgreed,
+                    privacyAgreed: privacyAgreed,
+                    marketingAgreed: marketingAgreed,
+                    agreedAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                  }
+                  
+                  // Firebase Realtime Database에 저장
+                  const { ref, set } = await import('firebase/database')
+                  const { realtimeDb } = await import('@/lib/firebase')
+                  
+                  // 사용자 정보 저장
+                  const userRef = ref(realtimeDb, `users/${user.uid}`)
+                  await set(userRef, userData)
+                  
+                  // 동의 정보 저장
+                  const consentRef = ref(realtimeDb, `userConsents/${user.uid}`)
+                  await set(consentRef, consentData)
                   
                   console.log('회원가입 성공:', {
                     uid: user.uid,
@@ -725,25 +985,28 @@ export default function SignupPage() {
                     displayName: user.displayName
                   })
                   
-                  // 회원가입 성공
-                  setSignupStep("complete")
-                  
-                  // 2초 후 대시보드로 자동 이동
-                  setTimeout(() => {
-                    router.push('/dashboard')
-                  }, 2000)
+                  // 회원가입 성공 후 대시보드로 이동
+                  router.push('/dashboard')
                   
                 } catch (error: any) {
                   console.error("회원가입 오류:", error)
                   
                   if (error.code === 'auth/email-already-in-use') {
-                    setError('이미 사용 중인 이메일입니다.')
+                    setToastMessage("이미 사용 중인 이메일입니다.")
+                    setShowToast(true)
+                    setTimeout(() => setShowToast(false), 3000)
                   } else if (error.code === 'auth/weak-password') {
-                    setError('비밀번호가 너무 약합니다.')
+                    setToastMessage("비밀번호가 너무 약합니다.")
+                    setShowToast(true)
+                    setTimeout(() => setShowToast(false), 3000)
                   } else if (error.code === 'auth/invalid-email') {
-                    setError('올바른 이메일 형식이 아닙니다.')
+                    setToastMessage("올바른 이메일 형식이 아닙니다.")
+                    setShowToast(true)
+                    setTimeout(() => setShowToast(false), 3000)
                   } else {
-                    setError('회원가입 중 오류가 발생했습니다.')
+                    setToastMessage("회원가입 중 오류가 발생했습니다.")
+                    setShowToast(true)
+                    setTimeout(() => setShowToast(false), 3000)
                   }
                 }
               }
@@ -777,13 +1040,24 @@ export default function SignupPage() {
         </Card>
       </div>
 
+      {/* 약관 동의 팝업 */}
+      <TermsConsentPopup
+        isOpen={showTermsPopup}
+        onClose={handleTermsClose}
+        onConsent={handleTermsConsent}
+        userEmail={pendingGoogleUser?.email}
+        userName={pendingGoogleUser?.displayName}
+      />
+
       {/* 토스트 메시지 */}
       {showToast && (
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
           <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
             <div className="text-center">
-              <p className="text-sm font-medium">입력한 이메일로 인증 메일이 발송되었습니다.</p>
-              <p className="text-xs mt-1 text-gray-300">이메일에 표시된 인증코드를 입력해주세요</p>
+              <p className="text-sm font-medium">{toastMessage}</p>
+              {toastSubMessage && (
+                <p className="text-xs mt-1 text-gray-300">{toastSubMessage}</p>
+              )}
             </div>
           </div>
         </div>

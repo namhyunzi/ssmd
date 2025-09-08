@@ -11,10 +11,9 @@ import {
   reassembleData
 } from './encryption';
 
-export interface UserDataMetadata {
+export interface UserProfileMetadata {
   userId: string;
-  dataType: 'profile' | 'consent' | 'log';
-  storageLocation: 'local' | 'cloud' | 'distributed';
+  storageLocations: string[]; // ['local'], ['local', 'cloud'] 등으로 분산 저장 처리
   fragments: {
     totalFragments: number;
     fragmentOrder: number;
@@ -22,8 +21,8 @@ export interface UserDataMetadata {
     encryptedKey: string;
     checksum: string;
   }[];
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LocalStorageData {
@@ -41,24 +40,12 @@ export interface LocalStorageData {
  */
 export function saveToLocalStorage(data: LocalStorageData): boolean {
   try {
-    console.log('=== saveToLocalStorage 시작 ===');
     const storageKey = 'ssdm_user_profile';
-    console.log('저장 키:', storageKey);
-    console.log('저장할 데이터:', data);
-    
     const jsonString = JSON.stringify(data);
-    console.log('JSON 문자열 길이:', jsonString.length);
-    
     localStorage.setItem(storageKey, jsonString);
-    
-    // 저장 확인
-    const saved = localStorage.getItem(storageKey);
-    console.log('저장 확인:', saved ? '성공' : '실패');
-    console.log('=== saveToLocalStorage 완료 ===');
     return true;
   } catch (error) {
     console.error('로컬 저장소 저장 실패:', error);
-    console.error('오류 상세:', error);
     return false;
   }
 }
@@ -92,24 +79,13 @@ export async function saveProfileWithMetadata(
   }
 ): Promise<boolean> {
   try {
-    console.log('=== saveProfileWithMetadata 시작 ===');
-    console.log('사용자:', user.uid);
-    console.log('프로필 데이터:', profileData);
-    
     // 1. 강력한 AES-256 암호화 키 생성
     const encryptionKey = generateEncryptionKey(user.uid, Date.now());
-    console.log('AES-256 암호화 키 생성 완료, 키 길이:', encryptionKey.length);
     
     // 2. 데이터 암호화
     const dataString = JSON.stringify(profileData);
-    console.log('JSON 문자열 길이:', dataString.length);
-    
-    console.log('AES-256 데이터 암호화 시작...');
     const encryptedData = encryptData(dataString, encryptionKey);
-    console.log('AES-256 암호화 완료, 암호화된 데이터 길이:', encryptedData.length);
-    
     const checksum = generateHash(dataString);
-    console.log('SHA-256 해시 생성:', checksum);
     
     // 3. 로컬 저장소에 암호화된 데이터만 저장
     const localData: LocalStorageData = {
@@ -119,19 +95,16 @@ export async function saveProfileWithMetadata(
       checksum: checksum
     };
     
-    console.log('로컬 저장소에 저장할 데이터:', localData);
     const localSaved = saveToLocalStorage(localData);
-    console.log('로컬 저장소 저장 결과:', localSaved);
     
     if (!localSaved) {
       throw new Error('로컬 저장소 저장 실패');
     }
     
     // 4. Firebase에 메타데이터 저장 (실제 데이터는 저장하지 않음)
-    const metadata: UserDataMetadata = {
+    const metadata: UserProfileMetadata = {
       userId: user.uid,
-      dataType: 'profile',
-      storageLocation: 'local',
+      storageLocations: ['local'], // 현재는 로컬만, 나중에 ['local', 'cloud'] 등으로 확장
       fragments: [{
         totalFragments: 1,
         fragmentOrder: 1,
@@ -139,20 +112,13 @@ export async function saveProfileWithMetadata(
         encryptedKey: encryptData(encryptionKey, user.uid), // 사용자 ID로 키 암호화
         checksum: checksum
       }],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     
-    console.log('Firebase 메타데이터:', metadata);
-    console.log('Firebase Realtime Database에 메타데이터 저장 시작...');
-    console.log('Firebase realtimeDb 인스턴스:', realtimeDb);
-    
     try {
-      const metadataRef = ref(realtimeDb, `userDataMetadata/${user.uid}`);
-      console.log('Realtime Database 참조 생성:', metadataRef);
-      
+      const metadataRef = ref(realtimeDb, `userProfileMetadata/${user.uid}`);
       await set(metadataRef, metadata);
-      console.log('Realtime Database 저장 성공');
     } catch (firebaseError: any) {
       console.error('Firebase Realtime Database 저장 오류:', firebaseError);
       console.error('Firebase 오류 코드:', firebaseError?.code);
@@ -164,9 +130,6 @@ export async function saveProfileWithMetadata(
     }
     
     console.log('개인정보 암호화 저장 및 메타데이터 저장 완료');
-    console.log('로컬 저장소에 암호화된 데이터 저장됨');
-    console.log('Firebase에는 메타데이터만 저장됨');
-    console.log('=== saveProfileWithMetadata 완료 ===');
     return true;
     
   } catch (error) {
@@ -214,13 +177,13 @@ export function loadProfileFromLocal(): {
 /**
  * Firebase Realtime Database에서 메타데이터 읽기
  */
-export async function getProfileMetadata(user: User): Promise<UserDataMetadata | null> {
+export async function getProfileMetadata(user: User): Promise<UserProfileMetadata | null> {
   try {
     const metadataRef = ref(realtimeDb, `userDataMetadata/${user.uid}`);
     const snapshot = await get(metadataRef);
     
     if (snapshot.exists()) {
-      return snapshot.val() as UserDataMetadata;
+      return snapshot.val() as UserProfileMetadata;
     }
     return null;
   } catch (error) {
@@ -246,7 +209,7 @@ export async function updateStorageMetadata(
     const metadataRef = ref(realtimeDb, `userDataMetadata/${user.uid}`);
     await update(metadataRef, {
       fragments: newFragments,
-      updatedAt: Date.now()
+      updatedAt: new Date().toISOString()
     });
     
     return true;
@@ -259,3 +222,86 @@ export async function updateStorageMetadata(
 // Firebase 연결 테스트 함수는 제거됨
 
 // 암호화 테스트 함수는 lib/encryption.ts의 testEncryption() 함수 사용
+export function testEncryptionDecryption(): boolean {
+  const { testEncryption } = require('./encryption');
+  return testEncryption();
+}
+
+/**
+ * 개인정보 제공 로그 저장 (Firebase에 직접 저장)
+ */
+export async function saveProvisionLog(
+  userId: string,
+  logData: {
+    serviceName: string;
+    provisionDate: string;
+    provisionTime: string;
+    providedInfo: string[];
+  }
+): Promise<boolean> {
+  try {
+    const logRef = ref(realtimeDb, `userLogs/${userId}`);
+    const newLogRef = push(logRef);
+    
+    const logEntry = {
+      id: newLogRef.key,
+      ...logData,
+      createdAt: new Date().toISOString()
+    };
+    
+    await set(newLogRef, logEntry);
+    return true;
+  } catch (error) {
+    console.error('로그 저장 실패:', error);
+    return false;
+  }
+}
+
+/**
+ * 사용자의 개인정보 제공 로그 조회
+ */
+export async function getUserProvisionLogs(userId: string): Promise<any[]> {
+  try {
+    const logsRef = ref(realtimeDb, `userLogs/${userId}`);
+    const snapshot = await get(logsRef);
+    
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      return Object.values(data);
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('로그 조회 실패:', error);
+    return [];
+  }
+}
+
+/**
+ * Firebase Realtime Database에서 테스트 데이터 삭제
+ */
+export async function cleanupTestData(): Promise<boolean> {
+  try {
+    // users 경로의 모든 데이터 삭제
+    const usersRef = ref(realtimeDb, 'users');
+    await remove(usersRef);
+    
+    // userProfileMetadata 경로의 모든 데이터 삭제
+    const metadataRef = ref(realtimeDb, 'userProfileMetadata');
+    await remove(metadataRef);
+    
+    // userLogs 경로의 모든 데이터 삭제
+    const logsRef = ref(realtimeDb, 'userLogs');
+    await remove(logsRef);
+    
+    // userConsents 경로의 모든 데이터 삭제
+    const consentsRef = ref(realtimeDb, 'userConsents');
+    await remove(consentsRef);
+    
+    console.log('Firebase 테스트 데이터 삭제 완료');
+    return true;
+  } catch (error) {
+    console.error('테스트 데이터 삭제 실패:', error);
+    return false;
+  }
+}

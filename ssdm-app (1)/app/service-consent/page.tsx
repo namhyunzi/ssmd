@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { ArrowLeft, Store, Settings, Unlink, Filter, AlertTriangle, X, Shield, Info } from "lucide-react"
+import { ArrowLeft, Store, Settings, Unlink, Filter, AlertTriangle, X, Shield, Info, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,8 +10,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { getUserProfile, UserProfile } from '@/lib/user-profile'
-import { getUserServiceConsents, calculateConsentStatus, deleteServiceConsent, ServiceConsent } from '@/lib/service-consent'
+import { getUserProfile, Users } from '@/lib/user-profile'
+import { getUserServiceConsents, calculateConsentStatus, deleteServiceConsent, UserConsents } from '@/lib/service-consent'
 import { loadProfileFromLocal } from '@/lib/data-storage'
 
 // ServiceConsent 타입을 lib에서 import하므로 중복 제거
@@ -19,14 +19,18 @@ import { loadProfileFromLocal } from '@/lib/data-storage'
 function ServiceConsentContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [selectedConsent, setSelectedConsent] = useState<ServiceConsent | null>(null)
+  const [selectedConsent, setSelectedConsent] = useState<UserConsents | null>(null)
   const [activeFilter, setActiveFilter] = useState<string>("all")
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedConsentType, setSelectedConsentType] = useState<string>("")
-  const [consents, setConsents] = useState<ServiceConsent[]>([])
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [consents, setConsents] = useState<UserConsents[]>([])
+  const [userProfile, setUserProfile] = useState<Users | null>(null)
   const [localProfile, setLocalProfile] = useState<any>(null)
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
 
   // Firebase Auth 상태 확인 및 사용자 프로필 로딩
   useEffect(() => {
@@ -105,6 +109,17 @@ function ServiceConsentContent() {
   const filteredConsents = activeFilter === "all" 
     ? consents 
     : consents.filter(consent => calculateConsentStatus(consent.expiryDate) === activeFilter)
+
+  // 페이지네이션 계산
+  const totalPages = Math.ceil(filteredConsents.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedConsents = filteredConsents.slice(startIndex, endIndex)
+
+  // 필터 변경 시 첫 페이지로 이동
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeFilter])
 
   const getFilterText = (filter: string) => {
     switch (filter) {
@@ -194,7 +209,7 @@ function ServiceConsentContent() {
 
               <div className="space-y-3">
                 {filteredConsents.length > 0 ? (
-                  filteredConsents.map((consent) => (
+                  paginatedConsents.map((consent) => (
                   <div
                     key={consent.id}
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 cursor-pointer"
@@ -231,6 +246,43 @@ function ServiceConsentContent() {
                   </div>
                 )}
               </div>
+
+              {/* 페이지네이션 */}
+              {filteredConsents.length > 0 && totalPages > 1 && (
+                <div className="flex items-center justify-center pt-4 border-t">
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -372,7 +424,7 @@ function ServiceConsentContent() {
                   disabled={isDeleting}
                 >
                   <Unlink className="h-4 w-4 mr-2" />
-                  {isDeleting ? "해제 중..." : "연결해제"}
+                  연결해제
                 </Button>
               </div>
             </div>

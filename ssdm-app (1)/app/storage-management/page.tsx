@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, HardDrive, Cloud, Plus, Trash2, CheckCircle, AlertTriangle, XCircle, Monitor, Usb, X, Shield } from "lucide-react"
@@ -9,6 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged } from "firebase/auth"
+import { ref, get, query, orderByChild, equalTo } from "firebase/database"
+import { realtimeDb } from "@/lib/firebase"
 
 interface StorageItem {
   id: string
@@ -21,6 +25,8 @@ interface StorageItem {
 export default function StorageManagementPage() {
   const router = useRouter()
   const [storages, setStorages] = useState<StorageItem[]>([])
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   // 팝업 관련 상태
   const [showAddStorageModal, setShowAddStorageModal] = useState(false)
@@ -28,6 +34,115 @@ export default function StorageManagementPage() {
   const [showGoogleModal, setShowGoogleModal] = useState(false) // 재연결 및 추가용 통합
   const [isConnecting, setIsConnecting] = useState(false)
   const [addGoogleConnected, setAddGoogleConnected] = useState(false) // 팝업 내 구글 연결 상태
+
+  // Firebase에서 저장소 데이터 로드
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCurrentUser(user)
+        await loadUserStorages(user.uid)
+      } else {
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
+  const loadUserStorages = async (userId: string) => {
+    try {
+      setIsLoading(true)
+      
+      // userProfileMetadata에서 저장소 정보 가져오기
+      const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`)
+      const snapshot = await get(metadataRef)
+      
+      if (snapshot.exists()) {
+        const metadata = snapshot.val()
+        console.log('=== 저장소 관리 - 메타데이터 ===')
+        console.log('사용자 ID:', userId)
+        console.log('메타데이터:', metadata)
+        
+        const storageList: StorageItem[] = []
+        
+        if (metadata.storageLocation) {
+          // 저장소 위치에 따른 저장소 정보 생성
+          const storageLocation = metadata.storageLocation
+          
+          // 단일 저장소인 경우 (현재 구현)
+          if (typeof storageLocation === 'string') {
+            if (storageLocation === 'local') {
+              storageList.push({
+                id: 'local-storage',
+                name: '이 컴퓨터',
+                type: 'local',
+                status: 'connected',
+                icon: HardDrive
+              })
+            } else if (storageLocation === 'cloud') {
+              storageList.push({
+                id: 'cloud-storage',
+                name: '구글 드라이브',
+                type: 'cloud',
+                status: 'connected',
+                icon: Cloud
+              })
+            } else if (storageLocation === 'usb') {
+              storageList.push({
+                id: 'usb-storage',
+                name: 'USB 저장소',
+                type: 'device',
+                status: 'connected',
+                icon: Monitor
+              })
+            }
+          } 
+          // 분산 저장소인 경우 (추후 구현)
+          else if (Array.isArray(storageLocation)) {
+            storageLocation.forEach((location, index) => {
+              const storageName = location === 'local' ? '이 컴퓨터' : 
+                                 location === 'cloud' ? '구글 드라이브' : 
+                                 location === 'usb' ? 'USB 저장소' : 
+                                 `저장소 ${index + 1}`
+              
+              storageList.push({
+                id: `storage-${index}`,
+                name: storageName,
+                type: location === 'local' ? 'local' : 
+                      location === 'cloud' ? 'cloud' : 'device',
+                status: 'connected',
+                icon: getStorageIcon(location)
+              })
+            })
+          }
+        }
+        
+        console.log('생성된 저장소 목록:', storageList)
+        setStorages(storageList)
+      } else {
+        console.log('메타데이터가 없습니다. 개인정보 설정이 필요합니다.')
+        setStorages([])
+      }
+    } catch (error) {
+      console.error('저장소 데이터 로드 오류:', error)
+      setStorages([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const getStorageIcon = (type: string) => {
+    switch (type) {
+      case "local":
+        return HardDrive
+      case "cloud":
+        return Cloud
+      case "device":
+        return Monitor
+      default:
+        return HardDrive
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -100,7 +215,7 @@ export default function StorageManagementPage() {
       if (selectedAddStorage === "google-drive-add" && addGoogleConnected) {
         // 구글 드라이브 연결된 상태에서 추가
         const newStorage: StorageItem = {
-          id: Date.now().toString(),
+          id: crypto.randomUUID(),
           name: "구글 드라이브",
           type: "cloud",
           status: "connected",
@@ -120,7 +235,7 @@ export default function StorageManagementPage() {
         const selectedConfig = storageMap[selectedAddStorage as keyof typeof storageMap]
         if (selectedConfig) {
           const newStorage: StorageItem = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             name: selectedConfig.name,
             type: selectedAddStorage === "usb-add" ? "device" : "local",
             status: "connected",

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Script from "next/script"
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,21 +10,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
-import { onAuthStateChanged, updateProfile, updateEmail } from "firebase/auth"
-import { getUserProfile } from "@/lib/user-profile"
+import { onAuthStateChanged, updateProfile } from "firebase/auth"
+import { getUserProfile, Users } from "@/lib/user-profile"
 import { loadProfileFromLocal, saveProfileWithMetadata } from "@/lib/data-storage"
-import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+
+// Daum 우편번호 API 타입 정의
+declare global {
+  interface Window {
+    daum: {
+      Postcode: new (options: {
+        oncomplete: (data: {
+          zonecode: string;
+          roadAddress: string;
+          jibunAddress: string;
+          userSelectedType: 'R' | 'J';
+          bname: string;
+          buildingName: string;
+          apartment: string;
+        }) => void;
+      }) => {
+        open: () => void;
+      };
+    };
+  }
+}
 
 export default function ProfileEditPage() {
   const router = useRouter()
-  const { toast } = useToast()
-  const [emailStep, setEmailStep] = useState<"initial" | "editing" | "verify" | "completed">("initial")
+  const [emailStep, setEmailStep] = useState<"initial" | "editing" | "verify">("initial")
   const [verificationCode, setVerificationCode] = useState("")
   const [timer, setTimer] = useState(180) // 3 minutes
   const [emailUsername, setEmailUsername] = useState("")
   const [emailDomain, setEmailDomain] = useState("gmail.com")
   const [fullEmail, setFullEmail] = useState("")
+  const [newEmail, setNewEmail] = useState("") // 인증 완료된 새 이메일
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
@@ -31,8 +52,89 @@ export default function ProfileEditPage() {
   const [detailAddress, setDetailAddress] = useState("")
   const [zipCode, setZipCode] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isResending, setIsResending] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null)
+  
+  // 필드별 오류 상태
+  const [fieldErrors, setFieldErrors] = useState({
+    email: "",
+    verificationCode: ""
+  })
 
-  const isValidEmail = emailUsername.length > 0 && emailDomain.length > 0
+  // 커스텀 토스트 상태
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastSubMessage, setToastSubMessage] = useState("")
+
+  // 필드 오류 설정 함수
+  const setFieldError = (field: keyof typeof fieldErrors, message: string) => {
+    setFieldErrors(prev => ({ ...prev, [field]: message }))
+  }
+
+  // 필드 오류 초기화 함수
+  const clearFieldError = (field: keyof typeof fieldErrors) => {
+    setFieldErrors(prev => ({ ...prev, [field]: "" }))
+  }
+
+  // 이메일 유효성 검사
+  const validateEmail = (email: string) => {
+    if (!email) {
+      setFieldError("email", "꼭 입력해야 해요.")
+      return false
+    }
+    
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailRegex.test(email)) {
+      setFieldError("email", "이메일 주소 형식에 맞게 입력해 주세요.")
+      return false
+    }
+    
+    // 기존 이메일과 동일한지 확인
+    if (email === currentUser?.email) {
+      setFieldError("email", "현재 이메일과 동일합니다. 다른 이메일을 입력해주세요.")
+      return false
+    }
+    
+    clearFieldError("email")
+    return true
+  }
+
+  const isValidEmail = emailUsername.length > 0 && emailDomain.length > 0 && !fieldErrors.email
+  const isEmailChanged = fullEmail !== currentUser?.email
+
+  // 타이머 관리
+  useEffect(() => {
+    if (emailStep === "verify" && timer > 0) {
+      const interval = setInterval(() => {
+        setTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(interval)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      setTimerInterval(interval)
+      
+      return () => clearInterval(interval)
+    }
+  }, [emailStep, timer])
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerInterval) {
+        clearInterval(timerInterval)
+      }
+    }
+  }, [timerInterval])
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
 
   // Firebase Auth 상태 확인 및 개인정보 로드
   useEffect(() => {
@@ -85,11 +187,10 @@ export default function ProfileEditPage() {
           
         } catch (error) {
           console.error('개인정보 로드 실패:', error)
-          toast({
-            title: "데이터 로드 실패",
-            description: "개인정보를 불러오는 중 오류가 발생했습니다.",
-            variant: "destructive",
-          })
+          setToastMessage("데이터 로드 실패")
+          setToastSubMessage("개인정보를 불러오는 중 오류가 발생했습니다.")
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 3000)
         } finally {
           setIsLoading(false)
         }
@@ -100,37 +201,196 @@ export default function ProfileEditPage() {
     })
 
     return () => unsubscribe()
-  }, [router, toast])
+  }, [router])
 
   const handleEmailChange = () => {
     if (emailStep === "initial") {
       setEmailStep("editing")
       // 현재 표시된 이메일을 fullEmail에 설정
-      const currentEmail = emailUsername && emailDomain ? `${emailUsername}@${emailDomain}` : "hyunji3556@gmail.com"
+      const currentEmail = newEmail || currentUser?.email || ""
       setFullEmail(currentEmail)
+      // 이메일 입력란 활성화, 인증 버튼 비활성화
     }
   }
 
-  const handleEmailVerification = () => {
-    if (emailStep === "editing" && isValidEmail) {
-      setEmailStep("verify")
-      setTimer(180) // Reset timer
-      // Start timer countdown
-    } else if (emailStep === "verify" && verificationCode.length === 6) {
-      // 인증 완료 후 바로 initial 상태로 돌아감
-      setEmailStep("initial")
-      setVerificationCode("")
+  const handleEmailVerification = async () => {
+    if (emailStep === "editing") {
+      // 이메일 유효성 검사
+      if (!validateEmail(fullEmail)) {
+        return
+      }
+      
+      try {
+        // 인증코드 전송 API 호출
+        const response = await fetch('/api/send-verification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: fullEmail }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok) {
+          setEmailStep("verify")
+          setTimer(180) // 3분 타이머 시작
+          setToastMessage("인증코드가 전송되었습니다.")
+          setToastSubMessage("이메일을 확인해주세요.")
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 3000)
+        } else {
+          setToastMessage(data.error || "인증코드 전송에 실패했습니다.")
+          setToastSubMessage("다시 시도해주세요.")
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 3000)
+        }
+      } catch (error) {
+        console.error('인증코드 전송 오류:', error)
+        setToastMessage("인증코드 전송 중 오류가 발생했습니다.")
+        setToastSubMessage("다시 시도해주세요.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      }
+    } else if (emailStep === "verify") {
+      // 인증코드 확인
+      if (verificationCode.length !== 6) {
+        setFieldError("verificationCode", "인증코드 6자리를 입력해주세요.")
+        return
+      }
+      
+      setIsVerifying(true)
+      
+      try {
+        const response = await fetch('/api/verify-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: fullEmail, 
+            code: verificationCode 
+          }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok) {
+          // 인증 성공 - 바뀐 이메일을 상태에 저장
+          setNewEmail(fullEmail)
+          
+          // 초기 상태로 돌아가기 (바뀐 이메일로)
+          setEmailStep("initial")
+          setVerificationCode("")
+          setFullEmail("")
+          clearFieldError("email")
+          clearFieldError("verificationCode")
+        } else {
+          setFieldError("verificationCode", data.error || "인증코드가 올바르지 않습니다.")
+        }
+      } catch (error) {
+        console.error('인증코드 확인 오류:', error)
+        setFieldError("verificationCode", "인증코드 확인 중 오류가 발생했습니다.")
+      } finally {
+        setIsVerifying(false)
+      }
     }
   }
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  const handleResendCode = async () => {
+    setIsResending(true)
+    
+    try {
+      const response = await fetch('/api/send-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: fullEmail }),
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        setTimer(180) // 타이머 리셋
+        setToastMessage("인증코드가 재전송되었습니다.")
+        setToastSubMessage("이메일을 확인해주세요.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      } else {
+        setToastMessage(data.error || "인증코드 재전송에 실패했습니다.")
+        setToastSubMessage("다시 시도해주세요.")
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      }
+    } catch (error) {
+      console.error('인증코드 재전송 오류:', error)
+      setToastMessage("인증코드 재전송 중 오류가 발생했습니다.")
+      setToastSubMessage("다시 시도해주세요.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+    } finally {
+      setIsResending(false)
+    }
+  }
+
+  // Daum 우편번호 API 주소 찾기 함수
+  const handleAddressSearch = () => {
+    if (typeof window !== 'undefined' && window.daum) {
+      new window.daum.Postcode({
+        oncomplete: function(data) {
+          // 도로명 주소와 지번 주소 모두 사용 가능
+          let addr = '';
+          let extraAddr = '';
+
+          // 사용자가 선택한 주소 타입에 따라 해당 주소 값을 가져온다.
+          if (data.userSelectedType === 'R') { // 사용자가 도로명 주소를 선택했을 경우
+            addr = data.roadAddress;
+          } else { // 사용자가 지번 주소를 선택했을 경우(J)
+            addr = data.jibunAddress;
+          }
+
+          // 사용자가 선택한 주소가 도로명 타입일때 참고항목을 조합한다.
+          if(data.userSelectedType === 'R'){
+            // 법정동명이 있을 경우 추가한다. (법정리는 제외)
+            // 법정동의 경우 마지막 문자가 "동/로/가"로 끝난다.
+            if(data.bname !== '' && /[동|로|가]$/g.test(data.bname)){
+              extraAddr += data.bname;
+            }
+            // 건물명이 있고, 공동주택일 경우 추가한다.
+            if(data.buildingName !== '' && data.apartment === 'Y'){
+              extraAddr += (extraAddr !== '' ? ', ' + data.buildingName : data.buildingName);
+            }
+            // 표시할 참고항목이 있을 경우, 괄호까지 추가한 최종 문자열을 만든다.
+            if(extraAddr !== ''){
+              extraAddr = ' (' + extraAddr + ')';
+            }
+          }
+
+          // 우편번호와 주소 정보를 해당 필드에 넣는다.
+          setZipCode(data.zonecode);
+          setAddress(addr);
+          // 참고항목 문자열이 있을 경우 해당 필드에 넣는다.
+          if(extraAddr !== ''){
+            setAddress(addr + extraAddr);
+          }
+        }
+      }).open();
+    } else {
+      alert('우편번호 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+    }
   }
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Daum 우편번호 API 스크립트 로드 */}
+      <Script
+        src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
+        strategy="lazyOnload"
+        onLoad={() => {
+          console.log('Daum 우편번호 API 로드 완료');
+        }}
+      />
       {/* Header */}
       <header className="bg-card border-b border-border p-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -184,7 +444,7 @@ export default function ProfileEditPage() {
                 {emailStep === "initial" && (
                   <>
                     <div className="bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground">
-                      {emailUsername && emailDomain ? `${emailUsername}@${emailDomain}` : "hyunji3556@gmail.com"}
+                      {newEmail || currentUser?.email}
                     </div>
                     <Button
                       variant="outline"
@@ -213,19 +473,32 @@ export default function ProfileEditPage() {
                           setEmailUsername(emailValue)
                           setEmailDomain("")
                         }
+                        
+                        // 실시간 유효성 검사
+                        if (emailValue) {
+                          validateEmail(emailValue)
+                        }
                       }}
+                      onBlur={() => validateEmail(fullEmail)}
                       placeholder="이메일을 입력하세요"
-                      className="w-full"
+                      className={`w-full ${
+                        fieldErrors.email 
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                          : "focus:border-primary focus:ring-primary"
+                      }`}
                     />
+                    {fieldErrors.email && (
+                      <p className="text-sm text-red-600">{fieldErrors.email}</p>
+                    )}
                     <Button
                       variant="outline"
                       className={`w-full ${
-                        isValidEmail 
+                        isValidEmail && isEmailChanged
                           ? "bg-primary text-white hover:bg-primary/90" 
-                          : "bg-gray-200 text-gray-500"
+                          : "bg-gray-200 text-gray-500 cursor-not-allowed"
                       }`}
                       onClick={handleEmailVerification}
-                      disabled={!isValidEmail}
+                      disabled={!isValidEmail || !isEmailChanged}
                     >
                       이메일 인증하기
                     </Button>
@@ -235,25 +508,48 @@ export default function ProfileEditPage() {
                 {emailStep === "verify" && (
                   <div className="space-y-3">
                     <div className="bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground">
-                      {emailUsername}@{emailDomain}
+                      {fullEmail}
                     </div>
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent border-blue-300 text-blue-600 hover:bg-blue-50"
+                      onClick={() => {
+                        setEmailStep("editing")
+                        setVerificationCode("")
+                        clearFieldError("verificationCode")
+                      }}
+                    >
+                      이메일 변경하기
+                    </Button>
                     <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                       <p className="text-sm text-muted-foreground">이메일로 받은 인증코드를 입력해주세요.</p>
                       <div className="relative">
                         <Input
                           placeholder="인증코드 6자리"
                           value={verificationCode}
-                          onChange={(e) => setVerificationCode(e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '') // 숫자만 허용
+                            if (value.length <= 6) {
+                              setVerificationCode(value)
+                              if (fieldErrors.verificationCode) {
+                                clearFieldError("verificationCode")
+                              }
+                            }
+                          }}
                           maxLength={6}
-                          className="pr-24 bg-white"
+                          className={`pr-24 bg-white ${
+                            fieldErrors.verificationCode 
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                              : "focus:border-primary focus:ring-primary"
+                          }`}
                         />
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
                           <span className="text-red-500 text-sm font-mono">{formatTime(timer)}</span>
                           <button
                             onClick={handleEmailVerification}
-                            disabled={verificationCode.length !== 6}
+                            disabled={verificationCode.length !== 6 || isVerifying}
                             className={`text-sm font-medium ${
-                              verificationCode.length === 6 
+                              verificationCode.length === 6 && !isVerifying
                                 ? "text-primary hover:text-primary/80" 
                                 : "text-gray-400 cursor-not-allowed"
                             }`}
@@ -262,12 +558,23 @@ export default function ProfileEditPage() {
                           </button>
                         </div>
                       </div>
+                      {fieldErrors.verificationCode && (
+                        <p className="text-sm text-red-600">{fieldErrors.verificationCode}</p>
+                      )}
                       <p className="text-xs text-muted-foreground">
-                        이메일을 받지 못하셨나요? <button className="text-primary hover:underline">이메일 재전송하기</button>
+                        이메일을 받지 못하셨나요? 
+                        <button 
+                          onClick={handleResendCode}
+                          disabled={isResending}
+                          className="text-primary hover:underline ml-1"
+                        >
+                          {isResending ? "재전송 중..." : "이메일 재전송하기"}
+                        </button>
                       </p>
                     </div>
                   </div>
                 )}
+
 
               </div>
             </div>
@@ -301,36 +608,42 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="address">주소</Label>
-              <Input 
-                id="address" 
-                type="text" 
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="주소를 입력하세요"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="detailAddress">상세주소</Label>
-              <Input 
-                id="detailAddress" 
-                type="text" 
-                value={detailAddress}
-                onChange={(e) => setDetailAddress(e.target.value)}
-                placeholder="상세주소를 입력하세요"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="zipCode">우편번호</Label>
-              <Input 
-                id="zipCode" 
-                type="text" 
-                value={zipCode}
-                onChange={(e) => setZipCode(e.target.value)}
-                placeholder="우편번호를 입력하세요"
-              />
+              <Label>주소</Label>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                <div className="flex space-x-2">
+                  <Input
+                    type="text"
+                    value={zipCode}
+                    onChange={(e) => setZipCode(e.target.value)}
+                    placeholder="우편번호"
+                    className="flex-1 focus:border-primary focus:ring-primary bg-muted"
+                    disabled
+                  />
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    className="bg-primary text-white hover:bg-primary/90"
+                    onClick={handleAddressSearch}
+                  >
+                    주소찾기
+                  </Button>
+                </div>
+                <Input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="주소"
+                  className="focus:border-primary focus:ring-primary bg-muted"
+                  disabled
+                />
+                <Input
+                  type="text"
+                  placeholder="상세주소 입력"
+                  value={detailAddress}
+                  onChange={(e) => setDetailAddress(e.target.value)}
+                  className="focus:border-primary focus:ring-primary"
+                />
+              </div>
             </div>
 
             <div className="pt-4">
@@ -361,8 +674,14 @@ export default function ProfileEditPage() {
                       address,
                       detailAddress,
                       zipCode,
-                      email: currentUser.email
+                      email: newEmail || currentUser.email // 인증된 새 이메일 또는 기존 이메일
                     }
+                    
+                    console.log('=== 개인정보 수정 데이터 ===')
+                    console.log('사용자 ID:', currentUser.uid)
+                    console.log('수정할 개인정보 데이터:', profileData)
+                    console.log('새 이메일 여부:', newEmail ? '새 이메일로 변경됨' : '기존 이메일 유지')
+                    console.log('========================')
                     
                     // saveProfileWithMetadata 함수를 사용하여 로컬에 암호화하여 저장
                     const saved = await saveProfileWithMetadata(currentUser, profileData)
@@ -374,11 +693,10 @@ export default function ProfileEditPage() {
                   router.push('/dashboard')
                 } catch (error) {
                   console.error('프로필 저장 실패:', error)
-                  toast({
-                    title: "저장 실패",
-                    description: "프로필 저장 중 오류가 발생했습니다.",
-                    variant: "destructive",
-                  })
+                  setToastMessage("저장 실패")
+                  setToastSubMessage("프로필 저장 중 오류가 발생했습니다.")
+                  setShowToast(true)
+                  setTimeout(() => setShowToast(false), 3000)
                 }
               }}
             >
@@ -389,6 +707,20 @@ export default function ProfileEditPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 토스트 메시지 */}
+      {showToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
+            <div className="text-center">
+              <p className="text-sm font-medium">{toastMessage}</p>
+              {toastSubMessage && (
+                <p className="text-xs mt-1 text-gray-300">{toastSubMessage}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

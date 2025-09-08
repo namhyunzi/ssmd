@@ -2,16 +2,19 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { ArrowLeft, Store, Filter, Shield, Clock } from "lucide-react"
+import { ArrowLeft, Store, Filter, Shield, Clock, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged } from "firebase/auth"
+import { ref, get } from "firebase/database"
+import { realtimeDb } from "@/lib/firebase"
 
-interface ProvisionLog {
+interface UserLogs {
   id: string
   serviceName: string
-  provisionDate: string
-  provisionTime: string
+  provisionDateTime: string
   providedInfo: string[]
 }
 
@@ -19,7 +22,64 @@ function PrivacyLogContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [activeFilter, setActiveFilter] = useState<string>("1month")
-  const [logs, setLogs] = useState<ProvisionLog[]>([])
+  const [logs, setLogs] = useState<UserLogs[]>([])
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
+
+  // Firebase Auth 상태 확인 및 개인정보 제공내역 로드
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCurrentUser(user)
+        await loadProvisionLogs(user.uid)
+      } else {
+        router.push('/')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
+  // 개인정보 제공내역 로드 함수
+  const loadProvisionLogs = async (userId: string) => {
+    try {
+      setIsLoading(true)
+      const logsRef = ref(realtimeDb, `userLogs/${userId}`)
+      const snapshot = await get(logsRef)
+      
+      console.log('=== 개인정보 제공내역 로드 ===')
+      console.log('사용자 ID:', userId)
+      console.log('스냅샷 존재:', snapshot.exists())
+      
+      if (snapshot.exists()) {
+        const data = snapshot.val()
+        console.log('로드된 데이터:', data)
+        
+        const logsList: UserLogs[] = []
+        Object.keys(data).forEach((key) => {
+          logsList.push({
+            id: key,
+            ...data[key]
+          } as UserLogs)
+        })
+        
+        console.log('변환된 로그 목록:', logsList)
+        setLogs(logsList)
+      } else {
+        console.log('개인정보 제공내역 데이터가 없습니다.')
+        setLogs([])
+      }
+    } catch (error) {
+      console.error('개인정보 제공내역 로드 오류:', error)
+      setLogs([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // URL 파라미터에서 필터 상태 확인
   useEffect(() => {
@@ -32,10 +92,21 @@ function PrivacyLogContent() {
   // 필터링된 로그
   const getFilteredLogs = () => {
     // 간단하게 모든 로그를 최신순으로 정렬해서 반환
-    return logs.sort((a, b) => new Date(b.provisionDate).getTime() - new Date(a.provisionDate).getTime())
+    return logs.sort((a, b) => new Date(b.provisionDateTime).getTime() - new Date(a.provisionDateTime).getTime())
   }
 
   const filteredLogs = getFilteredLogs()
+
+  // 페이지네이션 계산
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex)
+
+  // 필터 변경 시 첫 페이지로 이동
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeFilter])
 
   const getFilterText = (filter: string) => {
     switch (filter) {
@@ -50,13 +121,20 @@ function PrivacyLogContent() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('ko-KR', { 
-      month: 'long', 
-      day: 'numeric',
-      weekday: 'short'
-    })
+  const formatDateTime = (dateTimeString: string) => {
+    const date = new Date(dateTimeString)
+    
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    const weekday = date.toLocaleDateString('ko-KR', { weekday: 'short' })
+    
+    const hour = date.getHours()
+    const minute = date.getMinutes().toString().padStart(2, '0')
+    const ampm = hour < 12 ? '오전' : '오후'
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+    
+    return `${year}년 ${month}월 ${day}일 (${weekday}) ${ampm} ${displayHour}:${minute}`
   }
 
   return (
@@ -117,8 +195,13 @@ function PrivacyLogContent() {
             </div>
 
             <div className="space-y-3">
-              {filteredLogs.length > 0 ? (
-                filteredLogs.map((log) => (
+              {isLoading ? (
+                <div className="text-center py-12 space-y-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  <p className="text-sm text-muted-foreground">개인정보 제공내역을 불러오는 중...</p>
+                </div>
+              ) : filteredLogs.length > 0 ? (
+                paginatedLogs.map((log) => (
                 <div
                   key={log.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30"
@@ -130,7 +213,7 @@ function PrivacyLogContent() {
                       <div className="flex items-center space-x-2 mt-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          {formatDate(log.provisionDate)} {log.provisionTime}
+                          {formatDateTime(log.provisionDateTime)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-1 mt-1">
@@ -159,6 +242,43 @@ function PrivacyLogContent() {
                 </div>
               )}
             </div>
+
+            {/* 페이지네이션 */}
+            {filteredLogs.length > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-center pt-4 border-t">
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

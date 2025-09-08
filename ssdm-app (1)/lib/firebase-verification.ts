@@ -1,11 +1,11 @@
 import { realtimeDb } from './firebase';
 import { ref, set, get, remove } from 'firebase/database';
 
-interface VerificationData {
+interface Verifications {
   code: string;
   email: string;
-  createdAt: number;
-  expiresAt: number;
+  createdAt: string;
+  expiresAt: string;
 }
 
 /**
@@ -22,13 +22,13 @@ export async function saveVerificationCode(
     // 저장 전 만료된 코드들 자동 정리
     await cleanupExpiredCodes();
     
-    const now = Date.now();
+    const now = new Date().toISOString();
     const expiresAt = now + (3 * 60 * 1000); // 3분 후 만료
     
     // 이메일을 키로 사용 (특수문자 제거)
     const emailKey = email.replace(/[.#$[\]]/g, '_');
     
-    const verificationData: VerificationData = {
+    const verificationData: Verifications = {
       code,
       email,
       createdAt: now,
@@ -71,11 +71,11 @@ export async function verifyCode(
       };
     }
     
-    const data: VerificationData = snapshot.val();
-    const now = Date.now();
+    const data: Verifications = snapshot.val();
+    const now = new Date().toISOString();
     
     // 만료 시간 확인
-    if (now > data.expiresAt) {
+    if (new Date(now) > new Date(data.expiresAt)) {
       // 만료된 코드 삭제
       await remove(ref(realtimeDb, `verifications/${emailKey}`));
       return {
@@ -118,18 +118,18 @@ export async function cleanupExpiredCodes(): Promise<void> {
     if (!snapshot.exists()) return;
     
     const data = snapshot.val();
-    const now = Date.now();
+    const now = new Date().toISOString();
     let deletedCount = 0;
     
     // 배치로 삭제할 키들 수집
     const keysToDelete: string[] = [];
     
     for (const emailKey in data) {
-      const verification: VerificationData = data[emailKey];
+      const verification: Verifications = data[emailKey];
       
       // 만료된 코드 또는 1시간 이상 된 코드 삭제
-      const isExpired = now > verification.expiresAt;
-      const isOld = now > (verification.createdAt + (60 * 60 * 1000)); // 1시간
+      const isExpired = new Date(now) > new Date(verification.expiresAt);
+      const isOld = new Date(now) > new Date(new Date(verification.createdAt).getTime() + (60 * 60 * 1000)); // 1시간
       
       if (isExpired || isOld) {
         keysToDelete.push(emailKey);

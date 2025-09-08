@@ -39,26 +39,44 @@ export default function StorageSetupPage() {
     setTimeout(() => setShowToast(false), 3000) // 3초 후 자동 숨김
   }
 
+  // 임시 sessionStorage 정리 함수
+  const clearTempData = () => {
+    sessionStorage.removeItem('temp_profile_name')
+    sessionStorage.removeItem('temp_profile_phone')
+    sessionStorage.removeItem('temp_profile_address')
+    sessionStorage.removeItem('temp_profile_detailAddress')
+    sessionStorage.removeItem('temp_profile_zipCode')
+    sessionStorage.removeItem('temp_profile_email')
+    console.log('임시 세션 데이터 삭제 완료')
+  }
+
   // Firebase Auth 상태 확인
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user)
-        console.log('사용자 정보:', user)
-        console.log('Firebase Auth 상태: 연결됨')
-        
-        // 암호화/복호화 테스트 실행
-        console.log('=== 암호화/복호화 테스트 시작 ===')
-        const testResult = testEncryptionDecryption()
-        console.log('=== 암호화/복호화 테스트 완료 ===', testResult ? '성공' : '실패')
       } else {
-        console.log('Firebase Auth 상태: 로그인되지 않음')
         router.push('/')
       }
     })
 
     return () => unsubscribe()
   }, [router])
+
+  // 페이지를 벗어날 때 임시 데이터 정리
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // 브라우저 탭을 닫거나 새로고침할 때
+      // 임시 데이터가 있다면 정리
+      clearTempData()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   const handleGoogleConnect = () => {
     setShowGoogleModal(true)
@@ -171,16 +189,12 @@ export default function StorageSetupPage() {
         if (saved) {
           console.log('프로필 저장 성공, Firebase 메타데이터 업데이트 시작...')
           
-          // 3. Firebase에 프로필 완료 상태 저장 (메타데이터)
+          // 3. Firebase에 프로필 완료 상태 저장 (기본 사용자 정보만)
           const profileStatus = {
-            profileCompleted: true,
-            storageType: 'local',
-            fragments: 1, // 현재는 조각 1개
-            lastUpdated: new Date().toISOString()
+            profileCompleted: true
           }
           
           const profileUpdated = await updateUserProfile(currentUser, profileStatus)
-          console.log('Firebase 프로필 업데이트 결과:', profileUpdated)
           
           // 4. 임시 데이터 정리
           sessionStorage.removeItem('temp_profile_name')
@@ -190,14 +204,13 @@ export default function StorageSetupPage() {
           sessionStorage.removeItem('temp_profile_zipCode')
           sessionStorage.removeItem('temp_profile_email')
           
-          console.log('저장 완료 - 로컬 DB에 암호화된 데이터 저장, Firebase에 메타데이터 저장')
-          
           // 성공 토스트 표시 후 즉시 대시보드로 이동
-          showToastMessage("개인정보가 로컬에 암호화되어 안전하게 저장되었습니다.", "success")
+          showToastMessage("개인정보가 안전하게 저장되었습니다.", "success")
           
           // 토스트 표시 후 1초 뒤 대시보드로 이동
           setTimeout(() => {
             console.log('대시보드로 이동...')
+            clearTempData() // 임시 세션 삭제
             router.push('/dashboard')
           }, 1000)
         } else {
@@ -231,6 +244,7 @@ export default function StorageSetupPage() {
           </Button>
           <button 
             onClick={() => {
+              clearTempData() // 임시 세션 삭제
               router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"

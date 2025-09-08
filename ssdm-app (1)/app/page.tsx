@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'
+import { signInWithEmailAndPassword, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, deleteUser } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import TermsConsentPopup from '@/components/popups/terms-consent-popup'
 
 
 export default function LoginPage() {
@@ -20,18 +21,28 @@ export default function LoginPage() {
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [toastSubMessage, setToastSubMessage] = useState("")
+  const [showTermsPopup, setShowTermsPopup] = useState(false)
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
+  const [signupStep, setSignupStep] = useState<"form" | "complete">("form")
   const router = useRouter()
 
-  // 이미 로그인된 사용자는 대시보드로 리다이렉트
+  // 이미 로그인된 사용자는 대시보드로 리다이렉트 (신규 사용자가 아닐 때만)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        router.push('/dashboard')
+      if (user && !showTermsPopup) {
+        // 신규 사용자인지 확인
+        const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
+        
+        if (!isNewUser) {
+          // 기존 사용자만 대시보드로 이동
+          router.push('/dashboard')
+        }
+        // 신규 사용자는 handleGoogleLogin에서 처리
       }
     })
 
     return () => unsubscribe()
-  }, [router])
+  }, [router, showTermsPopup])
 
   // 컴포넌트 마운트 시 로컬 스토리지에서 실패 횟수와 제한 시간 확인
   useEffect(() => {
@@ -91,6 +102,9 @@ export default function LoginPage() {
       
       router.push("/dashboard")
     } catch (error: any) {
+      // 로그인 실패 시 비밀번호 입력란 지우기
+      setPassword("")
+      
       const newAttempts = loginAttempts + 1
       setLoginAttempts(newAttempts)
       localStorage.setItem('loginAttempts', newAttempts.toString())
@@ -118,18 +132,170 @@ export default function LoginPage() {
     }
   }
 
+  const handleGoogleLogin = async () => {
+    setIsLoading(true)
+    
+    try {
+      const provider = new GoogleAuthProvider()
+      const result = await signInWithPopup(auth, provider)
+      
+      // Google 로그인 성공 시 실패 횟수 초기화
+      localStorage.removeItem('loginAttempts')
+      localStorage.removeItem('blockUntil')
+      setLoginAttempts(0)
+      setIsBlocked(false)
+      setBlockUntil(null)
+      
+      // 신규 사용자 감지 (creationTime과 lastSignInTime이 같으면 신규 사용자)
+      const isNewUser = result.user.metadata.creationTime === result.user.metadata.lastSignInTime
+      
+      console.log('Google 로그인 성공:', {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        isNewUser: isNewUser,
+        creationTime: result.user.metadata.creationTime,
+        lastSignInTime: result.user.metadata.lastSignInTime
+      })
+      
+      if (isNewUser) {
+        // 신규 사용자의 경우 약관 동의 팝업 표시
+        setPendingGoogleUser(result.user)
+        setShowTermsPopup(true)
+      } else {
+        // 기존 사용자의 경우 대시보드로 이동
+        router.push("/dashboard")
+      }
+    } catch (error: any) {
+      console.error('Google 로그인 오류:', error)
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        setToastMessage("Google 로그인이 취소되었습니다.")
+        setToastSubMessage("")
+      } else if (error.code === 'auth/popup-blocked') {
+        setToastMessage("팝업이 차단되었습니다.")
+        setToastSubMessage("팝업 차단을 해제하고 다시 시도해주세요.")
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        setToastMessage("이미 다른 방법으로 가입된 이메일입니다.")
+        setToastSubMessage("이메일/비밀번호로 로그인해주세요.")
+      } else {
+        setToastMessage("Google 로그인 중 오류가 발생했습니다.")
+        setToastSubMessage("")
+      }
+      
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 4000)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleTermsConsent = async () => {
+    setShowTermsPopup(false)
+    
+    try {
+      // 약관 동의 정보를 Firebase에 저장
+      if (pendingGoogleUser) {
+        // 1. 사용자 기본 정보 저장
+        const userData = {
+          uid: pendingGoogleUser.uid,
+          email: pendingGoogleUser.email,
+          displayName: pendingGoogleUser.displayName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        // 2. 동의 정보 저장
+        const consentData = {
+          termsAgreed: true,
+          privacyAgreed: true,
+          marketingAgreed: false, // 기본값
+          agreedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        }
+        
+        // Firebase Realtime Database에 저장
+        const { ref, set } = await import('firebase/database')
+        const { realtimeDb } = await import('@/lib/firebase')
+        
+        // 사용자 정보 저장
+        const userRef = ref(realtimeDb, `users/${pendingGoogleUser.uid}`)
+        await set(userRef, userData)
+        
+        // 동의 정보 저장
+        const consentRef = ref(realtimeDb, `userConsents/${pendingGoogleUser.uid}`)
+        await set(consentRef, consentData)
+        
+        console.log('약관 동의 정보 저장 완료:', pendingGoogleUser.email)
+      }
+      
+      // 회원가입 완료 화면 표시
+      setSignupStep("complete")
+      
+      // 2초 후 프로필 설정 페이지로 이동
+      setTimeout(() => {
+        router.push("/profile-setup")
+      }, 2000)
+      
+    } catch (error) {
+      console.error('약관 동의 정보 저장 오류:', error)
+      setToastMessage("회원가입 중 오류가 발생했습니다.")
+      setToastSubMessage("다시 시도해주세요.")
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+    } finally {
+      // 임시 사용자 정보 정리
+      setPendingGoogleUser(null)
+    }
+  }
+
+  const handleTermsClose = async () => {
+    setShowTermsPopup(false)
+    
+    // 약관 거부 시 계정 삭제
+    if (pendingGoogleUser) {
+      try {
+        await deleteUser(pendingGoogleUser)
+        console.log('약관 거부로 인한 계정 삭제 완료')
+      } catch (error) {
+        console.error('계정 삭제 오류:', error)
+        // 계정 삭제 실패 시 로그아웃만 처리
+        await auth.signOut()
+      }
+    }
+    
+    setPendingGoogleUser(null)
+    
+    // 사용자에게 안내 메시지
+    setToastMessage("약관 동의가 필요합니다.")
+    setToastSubMessage("서비스 이용을 위해 약관에 동의해주세요.")
+    setShowToast(true)
+    setTimeout(() => setShowToast(false), 3000)
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {signupStep === "complete" && (
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-primary">SSDM</h1>
+          <p className="text-sm text-muted-foreground">개인정보보호</p>
+        </div>
+      )}
+      
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          {/* SSDM Logo */}
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-primary">SSDM</h1>
-            <p className="text-sm text-muted-foreground">개인정보보호</p>
-          </div>
-        </CardHeader>
+        {signupStep === "form" && (
+          <CardHeader className="text-center space-y-4">
+            {/* SSDM Logo */}
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-primary">SSDM</h1>
+              <p className="text-sm text-muted-foreground">개인정보보호</p>
+            </div>
+          </CardHeader>
+        )}
 
         <CardContent className="space-y-4">
+          {signupStep === "form" ? (
+          <>
           {/* Login Form */}
           <div className="space-y-3">
             <Input 
@@ -158,7 +324,7 @@ export default function LoginPage() {
               onClick={handleLogin}
               disabled={isBlocked}
             >
-              {isBlocked ? '로그인 제한됨' : '로그인'}
+              로그인
             </Button>
           </div>
 
@@ -173,7 +339,12 @@ export default function LoginPage() {
           </div>
 
           {/* Google Login */}
-          <Button variant="outline" className="w-full bg-transparent hover:bg-muted/50">
+          <Button 
+            variant="outline" 
+            className="w-full bg-transparent hover:bg-muted/50"
+            onClick={handleGoogleLogin}
+            disabled={isLoading || isBlocked}
+          >
             <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -204,15 +375,39 @@ export default function LoginPage() {
               회원가입
             </Link>
           </div>
+          </>
+          ) : (
+            <div className="text-center space-y-6 py-8">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">회원가입이 완료되었습니다!</h2>
+            </div>
+          )}
         </CardContent>
 
-        {/* Updated bottom text */}
-        <div className="border-t border-border p-4 text-center">
-          <Link href="/support" className="text-sm text-muted-foreground hover:text-primary">
-            로그인에 문제가 있으신가요?
-          </Link>
-        </div>
+        {signupStep === "form" && (
+          <>
+            {/* Updated bottom text */}
+            <div className="border-t border-border p-4 text-center">
+              <Link href="/support" className="text-sm text-muted-foreground hover:text-primary">
+                로그인에 문제가 있으신가요?
+              </Link>
+            </div>
+          </>
+        )}
       </Card>
+
+      {/* 약관 동의 팝업 */}
+      <TermsConsentPopup
+        isOpen={showTermsPopup}
+        onClose={handleTermsClose}
+        onConsent={handleTermsConsent}
+        userEmail={pendingGoogleUser?.email}
+        userName={pendingGoogleUser?.displayName}
+      />
 
       {/* 토스트 메시지 */}
       {showToast && (
