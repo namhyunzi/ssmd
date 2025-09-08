@@ -64,9 +64,11 @@ export async function POST(request: NextRequest) {
           });
         }
       } catch (authError: any) {
-        console.log('Firebase Admin Auth 확인 실패:', authError.message);
-        // 사용자를 찾을 수 없는 경우 (auth/user-not-found)는 정상
-        if (authError.code !== 'auth/user-not-found') {
+        // 사용자를 찾을 수 없는 경우 (auth/user-not-found)는 정상적인 상황
+        if (authError.code === 'auth/user-not-found') {
+          console.log('Firebase Admin Auth에서 사용자를 찾을 수 없음 (정상):', email);
+        } else {
+          console.log('Firebase Admin Auth 확인 실패:', authError.message);
           throw authError;
         }
       }

@@ -22,15 +22,20 @@ export async function POST(request: NextRequest) {
     const codeSaved = await saveVerificationCode(email, verificationCode);
     
     if (codeSaved) {
-      // 이메일 발송을 백그라운드에서 처리 (응답을 기다리지 않음)
-      sendVerificationEmail(email, verificationCode).catch(error => {
-        console.error('백그라운드 이메일 발송 실패:', error);
-      });
+      // Vercel 서버리스 환경에서는 await를 사용해서 이메일 발송 완료까지 기다림
+      const emailSent = await sendVerificationEmail(email, verificationCode);
       
-      return NextResponse.json({
-        success: true,
-        message: '인증코드가 발송되었습니다.',
-      });
+      if (emailSent) {
+        return NextResponse.json({
+          success: true,
+          message: '인증코드가 발송되었습니다.',
+        });
+      } else {
+        return NextResponse.json(
+          { error: '이메일 발송에 실패했습니다.' },
+          { status: 500 }
+        );
+      }
     } else {
       return NextResponse.json(
         { error: '인증코드 저장에 실패했습니다.' },
