@@ -126,7 +126,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Firebase 인증 서비스 오류가 발생했습니다.',
-          details: process.env.NODE_ENV === 'development' ? error.message : undefined
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          errorCode: error.code,
+          fullError: process.env.NODE_ENV === 'development' ? error : undefined
         },
         { status: 500 }
       );

@@ -2,10 +2,16 @@ import nodemailer from 'nodemailer';
 
 // Gmail SMTP 설정
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.GMAIL_USER, // Gmail 주소
-    pass: process.env.GMAIL_APP_PASSWORD, // 앱 비밀번호: kmnf ebye ufdu mihu
+    pass: process.env.GMAIL_APP_PASSWORD, // 앱 비밀번호
+  },
+  // Vercel 환경에서 TLS 인증서 검증 문제 해결
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
@@ -53,8 +59,19 @@ export async function sendVerificationEmail(
       `,
     };
 
-    const result = await transporter.sendMail(mailOptions);
-    console.log('이메일 발송 성공:', result.messageId);
+    // Vercel 환경에서 Promise 기반 처리
+    const result = await new Promise((resolve, reject) => {
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error('이메일 발송 실패:', error);
+          reject(error);
+        } else {
+          console.log('이메일 발송 성공:', info.messageId);
+          resolve(info);
+        }
+      });
+    });
+    
     return true;
   } catch (error) {
     console.error('이메일 발송 실패:', error);

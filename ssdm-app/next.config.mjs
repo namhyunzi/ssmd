@@ -9,6 +9,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Vercel Insights 비활성화
+  experimental: {
+    instrumentationHook: false,
+  },
 }
 
 export default nextConfig
