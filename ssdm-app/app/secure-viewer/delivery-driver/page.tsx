@@ -1,7 +1,150 @@
-import { Shield, Eye, Truck } from "lucide-react"
+"use client"
+
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { Shield, Eye, Truck, User, Phone, MapPin, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+
+interface ViewerSession {
+  sessionId: string;
+  sessionType: string;
+  allowedFields: string[];
+  expiresAt: string;
+  isActive: boolean;
+}
+
+interface UserData {
+  name?: string;
+  phone?: string;
+  address?: string;
+  email?: string;
+}
 
 export default function DeliveryDriverViewer() {
+  const [session, setSession] = useState<ViewerSession | null>(null)
+  const [userData, setUserData] = useState<UserData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>("")
+  
+  const searchParams = useSearchParams()
+  const sessionId = searchParams.get('session')
+
+  useEffect(() => {
+    if (!sessionId) {
+      setError("세션 ID가 필요합니다.")
+      setLoading(false)
+      return
+    }
+
+    loadSessionData()
+  }, [sessionId])
+
+  const loadSessionData = async () => {
+    try {
+      // 1. 세션 정보 조회
+      const sessionResponse = await fetch(`/api/request-info?sessionId=${sessionId}`)
+      const sessionResult = await sessionResponse.json()
+
+      if (!sessionResponse.ok) {
+        setError(sessionResult.error || "세션을 찾을 수 없습니다.")
+        return
+      }
+
+      setSession(sessionResult.session)
+
+      // 2. 실제 사용자 데이터 조회
+      const userDataResponse = await fetch('/api/get-user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      })
+
+      const userDataResult = await userDataResponse.json()
+
+      if (!userDataResponse.ok) {
+        setError(userDataResult.error || "사용자 데이터를 불러올 수 없습니다.")
+        return
+      }
+
+      setUserData(userDataResult.userData)
+
+    } catch (error) {
+      console.error('세션 로드 오류:', error)
+      setError("세션 정보를 불러오는 중 오류가 발생했습니다.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getFieldIcon = (field: string) => {
+    switch (field) {
+      case 'name': return <User className="h-4 w-4" />
+      case 'phone': return <Phone className="h-4 w-4" />
+      case 'address': return <MapPin className="h-4 w-4" />
+      default: return <Eye className="h-4 w-4" />
+    }
+  }
+
+  const getFieldLabel = (field: string) => {
+    switch (field) {
+      case 'name': return '이름'
+      case 'phone': return '휴대폰번호'
+      case 'address': return '주소'
+      case 'email': return '이메일'
+      default: return field
+    }
+  }
+
+  const getFieldValue = (field: string) => {
+    if (!userData) return ''
+    switch (field) {
+      case 'name': return userData.name || ''
+      case 'phone': return userData.phone || ''
+      case 'address': return userData.address || ''
+      case 'email': return userData.email || ''
+      default: return ''
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>세션 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-red-600">접근 오류</h1>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={() => window.close()} variant="outline">
+              창 닫기
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!session || !userData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p>세션 정보를 불러올 수 없습니다.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background relative">
       {/* Security Header */}
@@ -28,6 +171,16 @@ export default function DeliveryDriverViewer() {
       </div>
 
       <div className="max-w-2xl mx-auto p-4">
+        {/* 세션 정보 */}
+        <Card className="mb-4">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>세션 ID: {session.sessionId.slice(0, 8)}...</span>
+              <span>만료: {new Date(session.expiresAt).toLocaleString('ko-KR')}</span>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-2">
@@ -40,20 +193,25 @@ export default function DeliveryDriverViewer() {
             {/* Customer Information - Read Only */}
             <div className="bg-muted/30 p-6 rounded-lg space-y-4">
               <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">받는 분</label>
-                  <p className="text-lg font-medium">김철수</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">휴대폰 번호</label>
-                  <p className="text-lg font-medium">010-1234-5678</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">배송 주소</label>
-                  <p className="text-lg font-medium">서울시 강남구 테헤란로 123</p>
-                  <p className="text-sm text-muted-foreground">상세주소: 101동 1001호</p>
-                </div>
+                {session.allowedFields.map(field => (
+                  <div key={field}>
+                    <label className="text-sm font-medium text-muted-foreground flex items-center">
+                      {getFieldIcon(field)}
+                      <span className="ml-2">{getFieldLabel(field)}</span>
+                    </label>
+                    <p className="text-lg font-medium">{getFieldValue(field)}</p>
+                  </div>
+                ))}
               </div>
+              
+              {/* 허용되지 않은 필드가 있는 경우 안내 */}
+              {session.allowedFields.length < 3 && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    이 세션에서는 {session.allowedFields.map(f => getFieldLabel(f)).join(', ')} 정보만 제공됩니다.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Security Notice */}

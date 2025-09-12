@@ -11,10 +11,15 @@ interface ConsentPopupProps {
   isOpen: boolean
   onClose: () => void
   serviceName: string
-  onComplete?: () => void
+  userInfo?: {
+    name: string
+    phone: string
+    address: string
+  }
+  onComplete?: (consentType: string, fields: string[]) => void
 }
 
-export default function ConsentPopup({ isOpen, onClose, serviceName, onComplete }: ConsentPopupProps) {
+export default function ConsentPopup({ isOpen, onClose, serviceName, userInfo, onComplete }: ConsentPopupProps) {
   const [consentType, setConsentType] = useState<string>("once")
 
   if (!isOpen) return null
@@ -30,12 +35,14 @@ export default function ConsentPopup({ isOpen, onClose, serviceName, onComplete 
     })
   }
 
-  // 제공될 정보 (실제로는 props로 받거나 context에서 가져올 것)
-  const userInfo = {
-    name: "김현지",
-    phone: "010-1234-5678", 
-    address: "서울특별시 강남구 테헤란로 123, 201호"
+  // 기본값 설정 (실제 사용자 정보가 없을 때)
+  const defaultUserInfo = {
+    name: "사용자",
+    phone: "전화번호 확인 중...", 
+    address: "주소 확인 중..."
   }
+  
+  const displayUserInfo = userInfo || defaultUserInfo
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -63,21 +70,21 @@ export default function ConsentPopup({ isOpen, onClose, serviceName, onComplete 
                 <User className="h-4 w-4 text-gray-600 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900">이름</p>
-                  <p className="text-sm text-gray-600">{userInfo.name}</p>
+                  <p className="text-sm text-gray-600">{displayUserInfo.name}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 <Phone className="h-4 w-4 text-gray-600 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900">휴대폰 번호</p>
-                  <p className="text-sm text-gray-600">{userInfo.phone}</p>
+                  <p className="text-sm text-gray-600">{displayUserInfo.phone}</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
                 <MapPin className="h-4 w-4 text-gray-600 flex-shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900">주소</p>
-                  <p className="text-sm text-gray-600">{userInfo.address}</p>
+                  <p className="text-sm text-gray-600">{displayUserInfo.address}</p>
                 </div>
               </div>
             </div>
@@ -135,13 +142,13 @@ export default function ConsentPopup({ isOpen, onClose, serviceName, onComplete 
           <Button 
             className="w-full h-12 bg-primary hover:bg-primary/90"
             onClick={() => {
-              if (consentType === "always") {
-                // "자동 허용"의 경우에만 service-consent에 저장하여 지속적으로 관리
-                console.log(`동의 방식: ${consentType}, 서비스: ${serviceName}`)
-                // 실제로는 여기서 동의 내역을 service-consent에 저장
-              }
-              // "이번만 허용"의 경우 별도 저장 없이 일회성 처리
-              onComplete && onComplete()
+              // 제공될 필드 목록 (실제로는 쇼핑몰이 요청한 필드)
+              const requestedFields = ['name', 'phone', 'address']
+              
+              console.log(`동의 방식: ${consentType}, 서비스: ${serviceName}, 필드: ${requestedFields}`)
+              
+              // 동의 타입과 필드 정보를 부모 컴포넌트로 전달
+              onComplete && onComplete(consentType, requestedFields)
             }}
           >
             동의하기

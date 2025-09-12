@@ -1,0 +1,47 @@
+{
+  "rules": {
+    // 서비스 동의 내역
+    "serviceConsents": {
+      ".indexOn": ["userId"],
+      "$consentId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    
+    // 이메일 인증
+    "verifications": {
+      ".read": true,
+      ".write": true
+    },
+    
+    // 사용자 정보
+    "users": {
+      ".indexOn": ["email"],
+      ".read": true,
+      ".write": "auth != null"
+    },
+    
+    // 쇼핑몰 정보 (개발 환경: 모든 접근 허용)
+    "malls": {
+      ".read": true,
+      ".write": true
+    },
+    
+    // API Key 인덱스 (개발 환경: 모든 접근 허용)
+    "apiKeys": {
+      ".read": true,
+      ".write": true
+    },
+    
+    // 뷰어 세션 (개발 환경: 모든 접근 허용)
+    "viewerSessions": {
+      ".read": true,
+      ".write": true
+    },
+    
+    // 기본 규칙
+    ".read": "auth != null",
+    ".write": "auth != null"
+  }
+}

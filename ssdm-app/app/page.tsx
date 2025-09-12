@@ -34,8 +34,15 @@ export default function LoginPage() {
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
         
         if (!isNewUser) {
-          // 기존 사용자만 대시보드로 이동
-          router.push('/dashboard')
+          // 로그인 후 돌아갈 URL이 있는지 확인
+          const redirectUrl = localStorage.getItem('redirect_after_login')
+          if (redirectUrl) {
+            localStorage.removeItem('redirect_after_login')
+            router.push(redirectUrl)
+          } else {
+            // 기존 사용자만 대시보드로 이동
+            router.push('/dashboard')
+          }
         }
         // 신규 사용자는 handleGoogleLogin에서 처리
       }
@@ -100,7 +107,14 @@ export default function LoginPage() {
       setIsBlocked(false)
       setBlockUntil(null)
       
-      router.push("/dashboard")
+      // 로그인 후 돌아갈 URL이 있는지 확인
+      const redirectUrl = localStorage.getItem('redirect_after_login')
+      if (redirectUrl) {
+        localStorage.removeItem('redirect_after_login')
+        router.push(redirectUrl)
+      } else {
+        router.push("/dashboard")
+      }
     } catch (error: any) {
       // 로그인 실패 시 비밀번호 입력란 지우기
       setPassword("")
@@ -163,8 +177,14 @@ export default function LoginPage() {
         setPendingGoogleUser(result.user)
         setShowTermsPopup(true)
       } else {
-        // 기존 사용자의 경우 대시보드로 이동
-        router.push("/dashboard")
+        // 기존 사용자의 경우 리디렉션 URL 확인 후 이동
+        const redirectUrl = localStorage.getItem('redirect_after_login')
+        if (redirectUrl) {
+          localStorage.removeItem('redirect_after_login')
+          router.push(redirectUrl)
+        } else {
+          router.push("/dashboard")
+        }
       }
     } catch (error: any) {
       console.error('Google 로그인 오류:', error)
