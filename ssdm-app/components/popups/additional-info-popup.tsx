@@ -14,30 +14,22 @@ interface AdditionalInfoPopupProps {
   serviceName: string
   missingFields: string[]
   existingData?: { [key: string]: string } // 기존 데이터
-  onComplete?: () => void
+  onComplete?: (data: { [key: string]: string }) => void
 }
 
 export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, missingFields, existingData = {}, onComplete }: AdditionalInfoPopupProps) {
-  const [name, setName] = useState(existingData.name || "")
-  const [phone, setPhone] = useState(existingData.phone || "")
-  const [zipCode, setZipCode] = useState(existingData.zipCode || "")
-  const [address, setAddress] = useState(existingData.address || "")
-  const [detailAddress, setDetailAddress] = useState(existingData.detailAddress || "")
+  const [name, setName] = useState("")
+  const [phone, setPhone] = useState("")
+  const [zipCode, setZipCode] = useState("")
+  const [address, setAddress] = useState("")
+  const [detailAddress, setDetailAddress] = useState("")
 
   if (!isOpen) return null
 
-  // 동적으로 누락된 필드만 검증
-  const isFormValid = missingFields.every(field => {
-    switch (field) {
-      case 'name': return name.trim() !== ""
-      case 'phone': return phone.trim() !== ""
-      case 'address': return address.trim() !== ""
-      default: return true
-    }
-  })
+  const isFormValid = name.trim() !== "" && phone.trim() !== "" && address.trim() !== ""
 
   return (
-    <div className="fixed inset-0 bg-gray-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-lg">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -54,29 +46,19 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* 모든 필드를 표시하되 누락된 것만 활성화 */}
-          
           {/* 이름 */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">
-              이름 {missingFields.includes('name') && <span className="text-red-500">*</span>}
-            </Label>
+            <Label className="text-sm font-medium">이름</Label>
             <Input 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={missingFields.includes('name') ? "이름을 입력해주세요" : "이미 입력된 정보"}
-              disabled={!missingFields.includes('name')}
-              className={`h-12 border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary ${
-                !missingFields.includes('name') ? 'bg-gray-100' : 'bg-white'
-              }`}
+              className="h-12"
             />
           </div>
 
           {/* 휴대폰 번호 */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">
-              휴대폰 번호 {missingFields.includes('phone') && <span className="text-red-500">*</span>}
-            </Label>
+            <Label className="text-sm font-medium">휴대폰 번호</Label>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex space-x-2">
                 <Select defaultValue="010" disabled>
@@ -90,11 +72,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                 <Input 
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder={missingFields.includes('phone') ? "1234-5678" : "이미 입력된 정보"}
-                  disabled={!missingFields.includes('phone')}
-                  className={`flex-1 border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary placeholder:text-gray-400 ${
-                    !missingFields.includes('phone') ? 'bg-gray-100' : 'bg-white'
-                  }`}
+                  placeholder="1234-5678"
+                  className="flex-1 bg-white"
                 />
               </div>
             </div>
@@ -102,9 +81,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
           {/* 주소 */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">
-              주소 {missingFields.includes('address') && <span className="text-red-500">*</span>}
-            </Label>
+            <Label className="text-sm font-medium">주소</Label>
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div className="flex space-x-2">
                 <Input 
@@ -116,7 +93,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                 <Button 
                   variant="outline" 
                   className="flex-shrink-0"
-                  disabled={!missingFields.includes('address')}
                   onClick={() => {
                     // 주소 API 시뮬레이션
                     setZipCode("12345")
@@ -136,11 +112,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               <Input 
                 value={detailAddress}
                 onChange={(e) => setDetailAddress(e.target.value)}
-                placeholder={missingFields.includes('address') ? "상세주소 입력" : "이미 입력된 정보"}
-                disabled={!missingFields.includes('address')}
-                className={`border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary placeholder:text-gray-400 ${
-                  !missingFields.includes('address') ? 'bg-gray-100' : 'bg-white'
-                }`}
+                placeholder="상세주소 입력"
+                className="bg-white"
               />
             </div>
           </div>
@@ -150,7 +123,13 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             disabled={!isFormValid}
             onClick={() => {
               if (isFormValid) {
-                onComplete && onComplete()
+                const additionalData = {
+                  name,
+                  phone,
+                  address: `${address} ${detailAddress}`.trim(),
+                  zipCode
+                }
+                onComplete && onComplete(additionalData)
               }
             }}
           >

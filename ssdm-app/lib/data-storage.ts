@@ -278,6 +278,26 @@ export async function getUserProvisionLogs(userId: string): Promise<any[]> {
 }
 
 /**
+ * 쇼핑몰의 허용 필드 조회
+ */
+export async function getMallAllowedFields(mallId: string): Promise<string[] | null> {
+  try {
+    const mallRef = ref(realtimeDb, `malls/${mallId}`);
+    const snapshot = await get(mallRef);
+    
+    if (!snapshot.exists()) {
+      return null;
+    }
+    
+    const mallData = snapshot.val();
+    return mallData.allowedFields || [];
+  } catch (error) {
+    console.error('쇼핑몰 정보 조회 오류:', error);
+    return null;
+  }
+}
+
+/**
  * Firebase Realtime Database에서 테스트 데이터 삭제
  */
 export async function cleanupTestData(): Promise<boolean> {

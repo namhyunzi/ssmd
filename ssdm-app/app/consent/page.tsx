@@ -36,9 +36,9 @@ function ConsentPageContent() {
 
   const checkLoginStatus = async () => {
     try {
-      // Firebase Auth 상태 확인
-      const { getAuth, onAuthStateChanged } = await import('firebase/auth')
-      const auth = getAuth()
+      // Firebase Auth 상태 확인 - 이미 초기화된 auth 인스턴스 사용
+      const { auth } = await import('@/lib/firebase')
+      const { onAuthStateChanged } = await import('firebase/auth')
       
       const currentUser = await new Promise<any>((resolve) => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -70,7 +70,7 @@ function ConsentPageContent() {
     try {
       setLoading(true)
       
-      // 1. 쇼핑몰의 허용 필드 조회
+      // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
       const allowedFields = await getMallAllowedFields(mallId!)
       
@@ -256,7 +256,9 @@ function ConsentPageContent() {
   }
 
   const handleConsent = async () => {
-    if (!mallInfo || !generatedUid) return
+    if (!mallInfo || !shopId || !mallId) return
+    
+    const generatedUid = `${mallId}_${shopId}`
 
     setLoading(true)
     try {
@@ -300,7 +302,7 @@ function ConsentPageContent() {
     }
   }
 
-  const handleAdditionalInfoComplete = async (additionalData: any) => {
+  const handleAdditionalInfoComplete = async (additionalData: { [key: string]: string }) => {
     try {
       // 추가정보 입력 완료 후 사용자 정보 업데이트
       setShowAdditionalInfo(false)
@@ -315,6 +317,8 @@ function ConsentPageContent() {
       
       // 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
       // Firebase에서 실제 쇼핑몰 정보 조회
+      const { realtimeDb } = await import('@/lib/firebase')
+      const { ref, get } = await import('firebase/database')
       const mallRef = ref(realtimeDb, `malls/${mallId}`)
       const mallSnapshot = await get(mallRef)
       
