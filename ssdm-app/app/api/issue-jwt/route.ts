@@ -5,13 +5,11 @@ import jwt from 'jsonwebtoken';
 
 interface IssueJwtRequest {
   userId: string;  // 쇼핑몰의 사용자 ID
-  sessionType: 'paper' | 'qr';
 }
 
 interface JwtPayload {
   uid: string;
   mallId: string;
-  sessionType: 'paper' | 'qr';
   exp: number;
   iat: number;
 }
@@ -71,19 +69,6 @@ function createJwtToken(payload: Omit<JwtPayload, 'exp' | 'iat'>, expiresIn: num
   return jwt.sign(jwtPayload, secret, { algorithm: 'HS256' });
 }
 
-/**
- * 세션 타입별 만료 시간 반환 (초 단위)
- */
-function getExpirationTime(sessionType: 'paper' | 'qr'): number {
-  switch (sessionType) {
-    case 'paper':
-      return 3600; // 1시간
-    case 'qr':
-      return 43200; // 12시간
-    default:
-      return 3600;
-  }
-}
 
 /**
  * JWT 발급 API
@@ -102,19 +87,12 @@ export async function POST(request: NextRequest) {
 
     const apiKey = authorization.replace('Bearer ', '');
     
-    const { userId, sessionType }: IssueJwtRequest = await request.json();
+    const { userId }: IssueJwtRequest = await request.json();
 
     // 입력값 검증
-    if (!userId || !sessionType) {
+    if (!userId) {
       return NextResponse.json(
-        { error: 'userId와 sessionType은 필수입니다.' },
-        { status: 400 }
-      );
-    }
-
-    if (!['paper', 'qr'].includes(sessionType)) {
-      return NextResponse.json(
-        { error: 'sessionType은 "paper" 또는 "qr"이어야 합니다.' },
+        { error: 'userId는 필수입니다.' },
         { status: 400 }
       );
     }
@@ -143,22 +121,20 @@ export async function POST(request: NextRequest) {
     const uid = await getOrCreateUid(userId, mallId);
 
     // JWT 토큰 생성 (UID 기반)
-    const expiresIn = getExpirationTime(sessionType);
+    const expiresIn = 3600; // 1시간 고정
     const token = createJwtToken(
       {
         uid,
-        mallId,
-        sessionType
+        mallId
       },
       expiresIn
     );
 
-    console.log(`JWT 발급 성공: ${uid} (${sessionType}, ${expiresIn}초)`);
+    console.log(`JWT 발급 성공: ${uid} (${expiresIn}초)`);
 
     return NextResponse.json({
       jwt: token,
-      expiresIn,
-      sessionType
+      expiresIn
     });
 
   } catch (error) {

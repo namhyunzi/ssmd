@@ -163,7 +163,9 @@ export async function POST(request: NextRequest) {
 
     // 보안 뷰어 URL 생성
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const viewerUrl = `${baseUrl}/secure-viewer/${sessionType === 'paper' ? 'delivery-manager' : 'delivery-driver'}?session=${sessionId}`;
+    // sessionType에 따라 동적으로 뷰어 타입 결정
+    const viewerType = sessionType === 'paper' ? 'delivery-manager' : 'delivery-driver';
+    const viewerUrl = `${baseUrl}/secure-viewer/${viewerType}?session=${sessionId}`;
 
     console.log(`보안 뷰어 세션 생성: ${sessionId} (${sessionType}, ${intersectionFields.join(',')})`);
 

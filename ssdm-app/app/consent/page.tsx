@@ -18,7 +18,7 @@ function ConsentPageContent() {
   const [mallInfo, setMallInfo] = useState<any>(null)
   const [error, setError] = useState<string>("")
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false)
-  const [generatedUid, setGeneratedUid] = useState<string>("")
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
   
   const searchParams = useSearchParams()
   const shopId = searchParams.get('shopId')
@@ -30,35 +30,60 @@ function ConsentPageContent() {
       return
     }
 
-    // UID 생성 또는 기존 UID 확인
-    initializeUserConnection()
+    // 1. 먼저 로그인 상태 확인
+    checkLoginStatus()
   }, [shopId, mallId])
+
+  const checkLoginStatus = async () => {
+    try {
+      // Firebase Auth 상태 확인
+      const { getAuth, onAuthStateChanged } = await import('firebase/auth')
+      const auth = getAuth()
+      
+      const currentUser = await new Promise<any>((resolve) => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          unsubscribe()
+          resolve(user)
+        })
+      })
+      
+      if (!currentUser) {
+        // 로그인되지 않은 경우 → 로그인 페이지로 리디렉션
+        console.log('로그인되지 않음 - 로그인 페이지로 리디렉션')
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+        localStorage.setItem('redirect_after_login', currentUrl)
+        window.location.href = '/'
+        return
+      }
+      
+      setIsLoggedIn(true)
+      // 로그인된 경우 동의 프로세스 진행
+      initializeUserConnection()
+      
+    } catch (error) {
+      console.error('로그인 상태 확인 오류:', error)
+      setError('로그인 상태를 확인할 수 없습니다.')
+    }
+  }
 
   const initializeUserConnection = async () => {
     try {
       setLoading(true)
       
-      // 1. 기존 UID 확인 (실제로는 Firebase에서 확인)
+      // 1. 쇼핑몰의 허용 필드 조회
+      const { getMallAllowedFields } = await import('@/lib/data-storage')
+      const allowedFields = await getMallAllowedFields(mallId!)
+      
+      if (!allowedFields || allowedFields.length === 0) {
+        setError('쇼핑몰의 허용 필드가 설정되지 않았습니다.')
+        return
+      }
+      
+      // 2. UID 생성
       const constructedUid = `${mallId}_${shopId}`
       
-      // TODO: Firebase에서 기존 UID 확인 로직
-      // const existingUid = await checkExistingUid(shopId, mallId)
-      
-      // 임시로 항상 새 UID 생성 (실제로는 기존 UID가 있으면 재활용)
-      const finalUid = constructedUid
-      setGeneratedUid(finalUid)
-      
-      // 2. 사용자 데이터 로드
-      const requiredFields = ['name', 'phone', 'address']
-      await loadUserData(finalUid, requiredFields)
-      
-      // 3. 쇼핑몰 정보 설정
-      setMallInfo({
-        mallId,
-        mallName: mallId === 'bookstore' ? '북스토어' : 
-                 mallId === 'morebooks' ? '모어북스' : mallId,
-        requiredFields
-      })
+      // 3. 사용자 데이터 로드
+      await loadUserData(constructedUid, allowedFields)
       
     } catch (error) {
       console.error('사용자 연결 초기화 오류:', error)
@@ -73,42 +98,117 @@ function ConsentPageContent() {
       // UID에서 사용자 ID 추출
       const userId = uid.split('_').slice(1).join('_')
       
-      // TODO: 실제 Firebase에서 사용자 데이터 로드
-      // const userProfile = await getUserProfile(userId)
-      // const encryptedPersonalData = await getPersonalData(userId)
+      // Firebase에서 사용자 데이터 로드
+      const { realtimeDb } = await import('@/lib/firebase')
+      const { ref, get } = await import('firebase/database')
       
-      // 임시 데이터 (실제로는 복호화된 개인정보)
-      const userData = {
-        name: "김현지",
-        phone: "010-1234-5678",
-        address: "서울특별시 강남구 테헤란로 123, 201호",
-        email: "user@example.com"
+      // users/{uid}에서 사용자 기본 정보 조회
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const userSnapshot = await get(userRef)
+      
+      if (!userSnapshot.exists()) {
+        setError('사용자 정보를 찾을 수 없습니다.')
+        return
       }
       
-      // 누락된 필드 확인
+      const userData = userSnapshot.val()
+      
+      // userProfileMetadata/{uid}에서 암호화된 개인정보 메타데이터 조회
+      const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`)
+      const metadataSnapshot = await get(metadataRef)
+      
+      let personalData = {}
+      if (metadataSnapshot.exists()) {
+        const metadata = metadataSnapshot.val()
+        // TODO: 실제 암호화된 개인정보 복호화 로직
+        // const { decryptPersonalData } = await import('@/lib/encryption')
+        // personalData = decryptPersonalData(metadata.encryptedData)
+        
+        // 임시로 기본 정보만 사용 (실제로는 복호화된 개인정보 사용)
+        personalData = {
+          name: userData.displayName?.split('/')[0] || '',
+          phone: '', // 복호화된 데이터에서 가져와야 함
+          address: '', // 복호화된 데이터에서 가져와야 함
+          email: userData.email || ''
+        }
+      } else {
+        // 메타데이터가 없으면 기본 정보만 사용
+        personalData = {
+          name: userData.displayName?.split('/')[0] || '',
+          phone: '',
+          address: '',
+          email: userData.email || ''
+        }
+      }
+      
+      // 기본 정보와 개인정보 병합
+      const mergedUserData = {
+        ...userData,
+        ...personalData
+      }
+      
+      // 1. 프로필 완료 여부 확인
+      if (!userData.profileCompleted) {
+        // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
+        console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+        localStorage.setItem('redirect_after_profile', currentUrl)
+        window.location.href = '/profile-setup'
+        return
+      }
+      
+      // 2. 누락된 필드 확인
       const missingFields = requiredFields.filter(field => {
-        const value = userData[field as keyof typeof userData]
+        const value = mergedUserData[field as keyof typeof mergedUserData]
         return !value || value.trim() === ""
       })
       
       if (missingFields.length > 0) {
-        // 추가정보 입력 필요
+        // 요청 정보보다 적게 입력한 사람 → 추가정보 입력
         setShowAdditionalInfo(true)
-        const mallId = uid.split('_')[0]
-        setMallInfo({
-          mallId,
-          mallName: mallId === 'bookstore' ? '북스토어' : mallId,
-          requiredFields
-        })
+        const mallIdFromUid = uid.split('_')[0]
+        
+        // Firebase에서 실제 쇼핑몰 정보 조회
+        const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
+        const mallSnapshot = await get(mallRef)
+        
+        if (mallSnapshot.exists()) {
+          const mallData = mallSnapshot.val()
+          setMallInfo({
+            mallId: mallIdFromUid,
+            mallName: mallData.mallName || mallIdFromUid,
+            requiredFields
+          })
+        } else {
+          setMallInfo({
+            mallId: mallIdFromUid,
+            mallName: mallIdFromUid, // 기본값으로 mallId 사용
+            requiredFields
+          })
+        }
       } else {
-        // 바로 동의 절차 진행
-        setUserInfo(userData)
-        const mallId = uid.split('_')[0]
-        setMallInfo({
-          mallId,
-          mallName: mallId === 'bookstore' ? '북스토어' : mallId,
-          requiredFields
-        })
+        // 모든 정보가 충분한 경우 → 동의 절차 진행
+        setUserInfo(mergedUserData)
+        const mallIdFromUid = uid.split('_')[0]
+        
+        // Firebase에서 실제 쇼핑몰 정보 조회
+        const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
+        const mallSnapshot = await get(mallRef)
+        
+        if (mallSnapshot.exists()) {
+          const mallData = mallSnapshot.val()
+          setMallInfo({
+            mallId: mallIdFromUid,
+            mallName: mallData.mallName || mallIdFromUid,
+            requiredFields
+          })
+        } else {
+          setMallInfo({
+            mallId: mallIdFromUid,
+            mallName: mallIdFromUid, // 기본값으로 mallId 사용
+            requiredFields
+          })
+        }
       }
     } catch (error) {
       console.error('사용자 데이터 로드 오류:', error)
@@ -200,15 +300,43 @@ function ConsentPageContent() {
     }
   }
 
-  const handleAdditionalInfoComplete = () => {
-    // 추가정보 입력 완료 후 사용자 정보 업데이트
-    setShowAdditionalInfo(false)
-    setUserInfo({
-      name: "김현지",
-      phone: "010-1234-5678", // 입력됨
-      address: "서울특별시 강남구 테헤란로 123, 201호", // 입력됨
-      email: "user@example.com"
-    })
+  const handleAdditionalInfoComplete = async (additionalData: any) => {
+    try {
+      // 추가정보 입력 완료 후 사용자 정보 업데이트
+      setShowAdditionalInfo(false)
+      
+      // 기존 사용자 데이터와 추가 입력된 데이터 병합
+      const updatedUserData = {
+        ...userInfo,
+        ...additionalData
+      }
+      
+      setUserInfo(updatedUserData)
+      
+      // 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
+      // Firebase에서 실제 쇼핑몰 정보 조회
+      const mallRef = ref(realtimeDb, `malls/${mallId}`)
+      const mallSnapshot = await get(mallRef)
+      
+      if (mallSnapshot.exists()) {
+        const mallData = mallSnapshot.val()
+        setMallInfo({
+          mallId,
+          mallName: mallData.mallName || mallId,
+          requiredFields: mallInfo?.requiredFields || []
+        })
+      } else {
+        setMallInfo({
+          mallId,
+          mallName: mallId, // 기본값으로 mallId 사용
+          requiredFields: mallInfo?.requiredFields || []
+        })
+      }
+      
+    } catch (error) {
+      console.error('추가정보 완료 처리 오류:', error)
+      setError('추가정보 처리 중 오류가 발생했습니다.')
+    }
   }
 
   if (error) {
