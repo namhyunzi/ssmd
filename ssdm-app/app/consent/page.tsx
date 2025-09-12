@@ -120,16 +120,31 @@ function ConsentPageContent() {
       let personalData = {}
       if (metadataSnapshot.exists()) {
         const metadata = metadataSnapshot.val()
-        // TODO: 실제 암호화된 개인정보 복호화 로직
-        // const { decryptPersonalData } = await import('@/lib/encryption')
-        // personalData = decryptPersonalData(metadata.encryptedData)
         
-        // 임시로 기본 정보만 사용 (실제로는 복호화된 개인정보 사용)
-        personalData = {
-          name: userData.displayName?.split('/')[0] || '',
-          phone: '', // 복호화된 데이터에서 가져와야 함
-          address: '', // 복호화된 데이터에서 가져와야 함
-          email: userData.email || ''
+        // 로컬 저장소에서 암호화된 개인정보 복호화
+        const { loadProfileFromLocal } = await import('@/lib/data-storage')
+        const decryptedProfile = loadProfileFromLocal()
+        
+        if (decryptedProfile) {
+          // 복호화된 개인정보 사용
+          personalData = {
+            name: decryptedProfile.name || userData.displayName?.split('/')[0] || '',
+            phone: decryptedProfile.phone || '',
+            address: decryptedProfile.address || '',
+            detailAddress: decryptedProfile.detailAddress || '',
+            zipCode: decryptedProfile.zipCode || '',
+            email: decryptedProfile.email || userData.email || ''
+          }
+        } else {
+          // 복호화 실패 시 기본 정보만 사용
+          personalData = {
+            name: userData.displayName?.split('/')[0] || '',
+            phone: '',
+            address: '',
+            detailAddress: '',
+            zipCode: '',
+            email: userData.email || ''
+          }
         }
       } else {
         // 메타데이터가 없으면 기본 정보만 사용
@@ -137,6 +152,8 @@ function ConsentPageContent() {
           name: userData.displayName?.split('/')[0] || '',
           phone: '',
           address: '',
+          detailAddress: '',
+          zipCode: '',
           email: userData.email || ''
         }
       }
@@ -231,6 +248,9 @@ function ConsentPageContent() {
       case 'name': return <User className="h-4 w-4" />
       case 'phone': return <Phone className="h-4 w-4" />
       case 'address': return <MapPin className="h-4 w-4" />
+      case 'detailAddress': return <MapPin className="h-4 w-4" />
+      case 'zipCode': return <MapPin className="h-4 w-4" />
+      case 'email': return <Info className="h-4 w-4" />
       default: return <Info className="h-4 w-4" />
     }
   }
@@ -240,6 +260,8 @@ function ConsentPageContent() {
       case 'name': return '이름'
       case 'phone': return '휴대폰번호'
       case 'address': return '주소'
+      case 'detailAddress': return '상세주소'
+      case 'zipCode': return '우편번호'
       case 'email': return '이메일'
       default: return field
     }
@@ -250,6 +272,8 @@ function ConsentPageContent() {
       case 'name': return userInfo?.name
       case 'phone': return userInfo?.phone
       case 'address': return userInfo?.address
+      case 'detailAddress': return userInfo?.detailAddress
+      case 'zipCode': return userInfo?.zipCode
       case 'email': return userInfo?.email
       default: return ''
     }
