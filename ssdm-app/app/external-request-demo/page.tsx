@@ -56,7 +56,7 @@ export default function ExternalRequestDemo() {
                       size="sm" 
                       variant="outline"
                       className="w-full border-blue-500 text-blue-600 hover:bg-blue-50"
-                      onClick={() => router.push('/external-request/additional-info')}
+                      onClick={() => router.push('/additional-info')}
                     >
                       페이지로 이동
                     </Button>
@@ -71,7 +71,7 @@ export default function ExternalRequestDemo() {
                       size="sm" 
                       variant="outline"
                       className="w-full border-green-500 text-green-600 hover:bg-green-50"
-                      onClick={() => router.push('/external-request/consent')}
+                      onClick={() => router.push('/consent')}
                     >
                       페이지로 이동
                     </Button>

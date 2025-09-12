@@ -17,3 +17,8 @@ filter.lfs.smudge=git-lfs smudge -- %f
 filter.lfs.process=git-lfs filter-process
 filter.lfs.required=true
 filter.lfs.clean=git-lfs clean -- %f
+[33m0717667[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m 외부 사이트 연동을 위한 체크아웃 API 엔드포인트 추가
+[33m56e996c[m fix: Vercel 서버리스 환경에서 이메일 발송 문제 해결
+[33m65313d0[m feat: SMTP 연결 검증(transporter.verify) 추가
+[33m755cf78[m fix: Vercel 환경에서 Gmail SMTP 연결 문제 해결
+[33mb00a83e[m 폴더 이름 변경: ssdm-app (1) -> ssdm-app

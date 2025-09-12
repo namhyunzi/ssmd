@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { realtimeDb } from '@/lib/firebase';
-import { ref, get } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 
 interface GenerateUidRequest {
-  // API Key만으로 mallId 추출하여 UID 생성
+  userId: string; // 쇼핑몰 사용자 ID
 }
 
 /**
@@ -51,6 +51,49 @@ async function validateMall(mallId: string): Promise<boolean> {
 }
 
 /**
+ * 기존 UID 조회
+ */
+async function getExistingUid(mallId: string, userId: string): Promise<string | null> {
+  try {
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${userId}`);
+    const snapshot = await get(mappingRef);
+    
+    if (!snapshot.exists()) {
+      return null;
+    }
+    
+    const mappingData = snapshot.val();
+    if (!mappingData.isActive) {
+      return null;
+    }
+    
+    return mappingData.uid;
+  } catch (error) {
+    console.error('기존 UID 조회 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * userId와 UID 매핑 저장
+ */
+async function saveMapping(mallId: string, userId: string, uid: string): Promise<void> {
+  try {
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${userId}`);
+    await set(mappingRef, {
+      uid: uid,
+      createdAt: new Date().toISOString(),
+      isActive: true
+    });
+    
+    console.log(`사용자 매핑 저장 완료: ${userId} → ${uid}`);
+  } catch (error) {
+    console.error('사용자 매핑 저장 오류:', error);
+    throw error;
+  }
+}
+
+/**
  * UID 생성 함수
  * 형식: {englishId}-{UUID}
  * 서비스별 사용자 고유 식별자
@@ -93,7 +136,15 @@ export async function POST(request: NextRequest) {
 
     const apiKey = authorization.replace('Bearer ', '');
     
-    // API Key만으로 UID 생성 (userId 파라미터 불필요)
+    // 요청 본문에서 userId 추출
+    const { userId }: GenerateUidRequest = await request.json();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'userId는 필수입니다.' },
+        { status: 400 }
+      );
+    }
 
     // API Key 검증 및 mallId 추출
     const mallId = await validateApiKey(apiKey);
@@ -104,13 +155,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // UID 생성 (UUID 기반 표준 형식)
-    const uid = await generateUid(mallId);
+    // 쇼핑몰 존재 여부 확인
+    const mallExists = await validateMall(mallId);
+    if (!mallExists) {
+      return NextResponse.json(
+        { error: '등록되지 않은 쇼핑몰입니다.' },
+        { status: 400 }
+      );
+    }
 
-    console.log(`UID 생성 성공: ${uid} (쇼핑몰: ${mallId})`);
+    // 기존 UID 조회
+    let uid = await getExistingUid(mallId, userId);
+    let isNew = false;
+    
+    if (!uid) {
+      // 새 UID 생성
+      uid = await generateUid(mallId);
+      
+      // userId와 UID 매핑 저장
+      await saveMapping(mallId, userId, uid);
+      isNew = true;
+      
+      console.log(`새 UID 생성 및 매핑 완료: ${userId} → ${uid} (쇼핑몰: ${mallId})`);
+    } else {
+      console.log(`기존 UID 조회: ${userId} → ${uid} (쇼핑몰: ${mallId})`);
+    }
 
     return NextResponse.json({
-      uid                 // UUID 기반 표준 형식
+      uid,
+      isNew
     });
 
   } catch (error) {

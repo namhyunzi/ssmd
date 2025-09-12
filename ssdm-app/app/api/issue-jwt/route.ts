@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (internalCall === 'consent-process') {
+    if (internalCall === 'generate-jwt') {
       // 내부 호출인 경우 API Key 검증 생략
       console.log('내부 호출 - API Key 검증 생략');
     } else {

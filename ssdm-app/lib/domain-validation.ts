@@ -60,3 +60,5 @@ export function getDefaultCallbackUrl(mallId: string): string {
   return `https://ssmd.com/callback-error?mallId=${mallId}&error=invalid_return_url`;
 }
 
+
+
