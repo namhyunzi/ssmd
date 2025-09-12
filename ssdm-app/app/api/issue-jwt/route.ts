@@ -4,12 +4,14 @@ import { ref, get } from 'firebase/database';
 import jwt from 'jsonwebtoken';
 
 interface IssueJwtRequest {
-  uid: string;
+  userId: string;  // 쇼핑몰의 사용자 ID
+  sessionType: 'paper' | 'qr';
 }
 
 interface JwtPayload {
   uid: string;
   mallId: string;
+  sessionType: 'paper' | 'qr';
   exp: number;
   iat: number;
 }
@@ -39,14 +41,18 @@ async function validateApiKey(apiKey: string): Promise<string | null> {
 }
 
 /**
- * UID에서 mallId 추출
+ * userId로 UID 생성 또는 기존 UID 반환
  */
-function extractMallIdFromUid(uid: string): string | null {
-  const parts = uid.split('-');
-  if (parts.length < 2) {
-    return null;
-  }
-  return parts[0];
+async function getOrCreateUid(userId: string, mallId: string): Promise<string> {
+  // UID 형식: {mallId}_{userId}
+  const uid = `${mallId}_${userId}`;
+  
+  // TODO: Firebase에서 기존 UID 확인 로직
+  // const existingUid = await checkExistingUid(userId, mallId);
+  // if (existingUid) return existingUid;
+  
+  // 임시로 항상 새 UID 반환 (실제로는 기존 UID가 있으면 재활용)
+  return uid;
 }
 
 /**
@@ -85,63 +91,41 @@ function getExpirationTime(sessionType: 'paper' | 'qr'): number {
  */
 export async function POST(request: NextRequest) {
   try {
-    // 내부 호출 확인 (동의 프로세스에서 호출)
-    const internalCall = request.headers.get('X-Internal-Call');
-    let apiKey: string | undefined;
-    let mallId: string;
-    let uid: string;
-
-    // 요청 본문 먼저 파싱
-    const body = await request.json();
-    uid = body.uid;
-
-    if (!uid) {
+    // Authorization 헤더에서 API Key 추출
+    const authorization = request.headers.get('authorization');
+    if (!authorization || !authorization.startsWith('Bearer ')) {
       return NextResponse.json(
-        { error: 'uid는 필수입니다.' },
+        { error: 'Authorization 헤더가 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const apiKey = authorization.replace('Bearer ', '');
+    
+    const { userId, sessionType }: IssueJwtRequest = await request.json();
+
+    // 입력값 검증
+    if (!userId || !sessionType) {
+      return NextResponse.json(
+        { error: 'userId와 sessionType은 필수입니다.' },
         { status: 400 }
       );
     }
 
-    // UID에서 mallId 추출
-    mallId = extractMallIdFromUid(uid);
+    if (!['paper', 'qr'].includes(sessionType)) {
+      return NextResponse.json(
+        { error: 'sessionType은 "paper" 또는 "qr"이어야 합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // API Key 검증
+    const mallId = await validateApiKey(apiKey);
     if (!mallId) {
       return NextResponse.json(
-        { error: '올바르지 않은 UID 형식입니다.' },
-        { status: 400 }
+        { error: '유효하지 않은 API Key입니다.' },
+        { status: 401 }
       );
-    }
-
-    if (internalCall === 'generate-jwt') {
-      // 내부 호출인 경우 API Key 검증 생략
-      console.log('내부 호출 - API Key 검증 생략');
-    } else {
-      // 외부 API 호출인 경우 기존 방식
-      const authorization = request.headers.get('authorization');
-      if (!authorization || !authorization.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Authorization 헤더가 필요합니다.' },
-          { status: 401 }
-        );
-      }
-
-      apiKey = authorization.replace('Bearer ', '');
-      
-      // API Key 검증
-      const apiKeyMallId = await validateApiKey(apiKey);
-      if (!apiKeyMallId) {
-        return NextResponse.json(
-          { error: '유효하지 않은 API Key입니다.' },
-          { status: 401 }
-        );
-      }
-
-      // API Key의 mallId와 UID의 mallId 일치 확인
-      if (apiKeyMallId !== mallId) {
-        return NextResponse.json(
-          { error: 'API Key와 UID의 쇼핑몰이 일치하지 않습니다.' },
-          { status: 403 }
-        );
-      }
     }
 
     // 쇼핑몰 존재 여부 확인
@@ -155,21 +139,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // JWT 토큰 생성 (15분)
-    const expiresIn = 900; // 15분
+    // userId로 UID 생성 또는 기존 UID 반환
+    const uid = await getOrCreateUid(userId, mallId);
+
+    // JWT 토큰 생성 (UID 기반)
+    const expiresIn = getExpirationTime(sessionType);
     const token = createJwtToken(
       {
         uid,
-        mallId
+        mallId,
+        sessionType
       },
       expiresIn
     );
 
-    console.log(`JWT 발급 성공: ${uid} (${expiresIn}초)`);
+    console.log(`JWT 발급 성공: ${uid} (${sessionType}, ${expiresIn}초)`);
 
     return NextResponse.json({
       jwt: token,
-      expiresIn
+      expiresIn,
+      sessionType
     });
 
   } catch (error) {
