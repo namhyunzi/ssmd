@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Shield, X, User, Phone, MapPin, Info, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import AdditionalInfoPopup from "@/components/popups/additional-info-popup"
 
 interface ConsentPageProps {}
 
-export default function ConsentPage({}: ConsentPageProps) {
+function ConsentPageContent() {
   const [consentType, setConsentType] = useState<string>("once")
   const [loading, setLoading] = useState(false)
   const [userInfo, setUserInfo] = useState<any>(null)
@@ -355,5 +355,22 @@ export default function ConsentPage({}: ConsentPageProps) {
         />
       )}
     </div>
+  )
+}
+
+export default function ConsentPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p>페이지를 불러오는 중...</p>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <ConsentPageContent />
+    </Suspense>
   )
 }
