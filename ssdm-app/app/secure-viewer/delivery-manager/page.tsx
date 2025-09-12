@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Shield, Printer, QrCode, Eye, User, Phone, MapPin, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,7 @@ interface UserData {
   email?: string;
 }
 
-export default function DeliveryManagerViewer() {
+function DeliveryManagerContent() {
   const [session, setSession] = useState<ViewerSession | null>(null)
   const [userData, setUserData] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -301,5 +301,20 @@ export default function DeliveryManagerViewer() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DeliveryManagerViewer() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>페이지를 로드하는 중...</p>
+        </div>
+      </div>
+    }>
+      <DeliveryManagerContent />
+    </Suspense>
   )
 }

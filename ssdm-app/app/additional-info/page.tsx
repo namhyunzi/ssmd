@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter, useSearchParams } from "next/navigation"
 import AdditionalInfoPopup from "@/components/popups/additional-info-popup"
 import { generateEncryptionKey, encryptData, decryptData } from "@/lib/encryption"
 
-export default function AdditionalInfoPage() {
+function AdditionalInfoContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showPopup, setShowPopup] = useState(true)
@@ -268,5 +268,20 @@ export default function AdditionalInfoPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function AdditionalInfoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>페이지를 로드하는 중...</p>
+        </div>
+      </div>
+    }>
+      <AdditionalInfoContent />
+    </Suspense>
   )
 }
