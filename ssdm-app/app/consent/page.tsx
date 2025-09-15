@@ -505,6 +505,7 @@ function ConsentPageContent() {
         // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
         const referrer = document.referrer
         const targetOrigin = referrer ? new URL(referrer).origin : '*'
+        console.log("targetOrigin 확인",targetOrigin);
         
         console.log('postMessage로 동의 결과 전달:', {
           type: 'consent_result',
