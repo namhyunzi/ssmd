@@ -157,7 +157,6 @@ function ConsentPageContent() {
         console.log('로그인되지 않음 - 처리 방법 결정')
         
         // 외부 팝업인 경우 부모 창에 로그인 필요 메시지 전달
-        if (window.parent !== window) {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
@@ -173,7 +172,6 @@ function ConsentPageContent() {
           // 외부 팝업에서 온 경우를 표시
           localStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
-        }
         return
       }
       
@@ -501,7 +499,6 @@ function ConsentPageContent() {
     setLoading(true)
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
-      if (window.parent !== window) {
         // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
         const referrer = document.referrer
         const targetOrigin = referrer ? new URL(referrer).origin : '*'
@@ -538,10 +535,8 @@ function ConsentPageContent() {
         setTimeout(() => {
           saveConsentData(consentId, mallId, shopId, consentType)
         }, 100)
-      } else {
         // 일반 페이지인 경우 동의 내역 저장
         await saveConsentData(consentId, mallId, shopId, consentType)
-      }
 
       // 동의 내역 저장 (항상 허용인 경우)
       if (consentType === "always") {
