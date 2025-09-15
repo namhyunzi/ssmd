@@ -34,6 +34,8 @@ export default function TermsConsentPopup({
 
   const allRequiredAgreed = termsAgreed && privacyAgreed
 
+  console.log('TermsConsentPopup 렌더링:', { isOpen, userEmail, userName })
+
   if (!isOpen) return null
 
   return (

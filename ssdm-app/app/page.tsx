@@ -33,14 +33,22 @@ export default function LoginPage() {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
         const fromExternalPopup = localStorage.getItem('from_external_popup')
+        const isNewUserProcessing = localStorage.getItem('is_new_user_processing')
         
         console.log('useEffect에서 사용자 감지:', {
           uid: user.uid,
           isNewUser: isNewUser,
           showTermsPopup: showTermsPopup,
           pendingGoogleUser: !!pendingGoogleUser,
-          fromExternalPopup: fromExternalPopup
+          fromExternalPopup: fromExternalPopup,
+          isNewUserProcessing: isNewUserProcessing
         })
+        
+        // 신규 사용자 처리 중이면 리다이렉션하지 않음
+        if (isNewUserProcessing === 'true') {
+          console.log('신규 사용자 처리 중 - 리다이렉션 건너뜀')
+          return
+        }
         
         // 외부 팝업에서 온 경우 약관동의 팝업 강제 표시
         if (fromExternalPopup === 'true' && isNewUser) {
@@ -181,7 +189,8 @@ export default function LoginPage() {
       // 신규 사용자 감지 (creationTime과 lastSignInTime이 같으면 신규 사용자)
       const isNewUser = result.user.metadata.creationTime === result.user.metadata.lastSignInTime
       
-      console.log('Google 로그인 성공:', {
+      console.log('=== Google 로그인 성공 ===')
+      console.log('사용자 정보:', {
         uid: result.user.uid,
         email: result.user.email,
         displayName: result.user.displayName,
@@ -189,12 +198,20 @@ export default function LoginPage() {
         creationTime: result.user.metadata.creationTime,
         lastSignInTime: result.user.metadata.lastSignInTime
       })
+      console.log('신규 사용자 여부:', isNewUser)
+      console.log('creationTime === lastSignInTime:', result.user.metadata.creationTime === result.user.metadata.lastSignInTime)
       
       if (isNewUser) {
         // 신규 사용자의 경우 약관 동의 팝업 표시
-        console.log('신규 사용자 감지 - 약관동의 팝업 표시')
+        console.log('=== 신규 사용자 감지 - 약관동의 팝업 표시 ===')
+        console.log('setPendingGoogleUser 호출 전')
         setPendingGoogleUser(result.user)
+        console.log('setShowTermsPopup(true) 호출 전')
         setShowTermsPopup(true)
+        console.log('is_new_user_processing 플래그 설정')
+        // 신규 사용자는 useEffect에서 리다이렉션하지 않도록 플래그 설정
+        localStorage.setItem('is_new_user_processing', 'true')
+        console.log('신규 사용자 처리 완료')
       } else {
         // 기존 사용자의 경우 리디렉션 URL 확인 후 이동
         const redirectUrl = localStorage.getItem('redirect_after_login')
@@ -268,6 +285,9 @@ export default function LoginPage() {
         console.log('약관 동의 정보 저장 완료:', pendingGoogleUser.email)
       }
       
+      // 신규 사용자 처리 플래그 정리
+      localStorage.removeItem('is_new_user_processing')
+      
       // 회원가입 완료 화면 표시
       setSignupStep("complete")
       
@@ -292,6 +312,9 @@ export default function LoginPage() {
 
   const handleTermsClose = async () => {
     setShowTermsPopup(false)
+    
+    // 신규 사용자 처리 플래그 정리
+    localStorage.removeItem('is_new_user_processing')
     
     // 약관 거부 시 계정 삭제
     if (pendingGoogleUser) {
@@ -442,6 +465,7 @@ export default function LoginPage() {
       </Card>
 
       {/* 약관 동의 팝업 */}
+      {console.log('팝업 렌더링 상태:', { showTermsPopup, pendingGoogleUser: !!pendingGoogleUser })}
       <TermsConsentPopup
         isOpen={showTermsPopup}
         onClose={handleTermsClose}
