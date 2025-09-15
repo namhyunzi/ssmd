@@ -21,27 +21,32 @@ function ConsentPageContent() {
   
   const searchParams = useSearchParams()
   const router = useRouter()
-  const token = searchParams.get('token')
+  const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
-    console.log('token:', token)
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
     
-    if (!token) {
+    // 세션 스토리지에서 JWT 토큰 가져오기
+    const jwtFromStorage = sessionStorage.getItem('consent_jwt')
+    console.log('세션 스토리지에서 가져온 JWT:', jwtFromStorage ? '존재함' : '없음')
+    
+    if (!jwtFromStorage) {
       console.log('토큰 누락')
       setError("JWT 토큰이 누락되었습니다.")
       return
     }
 
+    setToken(jwtFromStorage)
+    
     // JWT 토큰 검증 및 파라미터 추출
-    verifyToken()
-  }, [token])
+    verifyToken(jwtFromStorage)
+  }, [])
 
   // JWT 토큰 검증 함수
-  const verifyToken = async () => {
+  const verifyToken = async (jwtToken: string) => {
     try {
       console.log('JWT 토큰 검증 시작')
       
@@ -50,7 +55,7 @@ function ConsentPageContent() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token: jwtToken })
       })
       
       if (response.ok) {
@@ -60,6 +65,10 @@ function ConsentPageContent() {
           console.log('JWT 토큰 검증 성공:', payload)
           setShopId(payload.shopId)
           setMallId(payload.mallId)
+          
+          // JWT 토큰 사용 후 세션 스토리지에서 즉시 삭제
+          sessionStorage.removeItem('consent_jwt')
+          console.log('JWT 토큰을 세션 스토리지에서 삭제했습니다.')
           
           // 로그인 상태 확인 시작
           const timer = setTimeout(() => {
