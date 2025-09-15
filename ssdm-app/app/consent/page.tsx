@@ -180,12 +180,11 @@ function ConsentPageContent() {
 
   const loadUserData = async (uid: string, requiredFields: string[]) => {
     try {
-      // UID에서 사용자 ID 추출
-      const userId = uid.split('_').slice(1).join('_')
+      // Firebase Auth UID를 그대로 사용 (별도 파싱 불필요)
+      const userId = uid
       
       console.log('=== 사용자 데이터 로드 디버깅 ===')
-      console.log('전체 UID:', uid)
-      console.log('추출된 userId:', userId)
+      console.log('Firebase Auth UID:', uid)
       console.log('조회할 경로: users/' + userId)
       
       // Firebase에서 사용자 데이터 로드
@@ -200,7 +199,12 @@ function ConsentPageContent() {
       
       if (!userSnapshot.exists()) {
         console.log('사용자 정보를 찾을 수 없습니다. userId:', userId)
-        setError(`사용자 정보를 찾을 수 없습니다. (ID: ${userId})`)
+        console.log('사용자 데이터가 없으므로 로그인 페이지로 리디렉션')
+        
+        // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+        localStorage.setItem('redirect_after_login', currentUrl)
+        window.location.href = '/'
         return
       }
       
@@ -276,7 +280,8 @@ function ConsentPageContent() {
       if (missingFields.length > 0) {
         // 요청 정보보다 적게 입력한 사람 → 추가정보 입력
         setShowAdditionalInfo(true)
-        const mallIdFromUid = uid.split('_')[0]
+        // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
+        const mallIdFromUid = mallId
         
         // Firebase에서 실제 쇼핑몰 정보 조회
         const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
@@ -299,7 +304,8 @@ function ConsentPageContent() {
       } else {
         // 모든 정보가 충분한 경우 → 동의 절차 진행
         setUserInfo(mergedUserData)
-        const mallIdFromUid = uid.split('_')[0]
+        // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
+        const mallIdFromUid = mallId
         
         // Firebase에서 실제 쇼핑몰 정보 조회
         const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
@@ -375,7 +381,8 @@ function ConsentPageContent() {
   const handleConsent = async () => {
     if (!mallInfo || !shopId || !mallId) return
     
-    const generatedUid = `${mallId}_${shopId}`
+    // 동의 결과 식별을 위한 고유 ID 생성
+    const consentId = `${mallId}_${shopId}`
 
     setLoading(true)
     try {
@@ -394,7 +401,7 @@ function ConsentPageContent() {
       // 동의 내역 저장 (6개월 허용인 경우)
       if (consentType === "always") {
         // TODO: 서버에 동의 내역 저장 API 호출
-        console.log(`6개월 동의 저장: ${generatedUid}, 만료일: ${getExpiryDate()}`)
+        console.log(`6개월 동의 저장: ${consentId}, 만료일: ${getExpiryDate()}`)
       }
 
       console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}`)
