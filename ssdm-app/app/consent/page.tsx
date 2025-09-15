@@ -25,44 +25,120 @@ function ConsentPageContent() {
   const mallId = searchParams.get('mallId')
 
   useEffect(() => {
+    console.log('=== useEffect 시작 ===')
+    console.log('shopId:', shopId, 'mallId:', mallId)
+    console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
+    
     if (!shopId || !mallId) {
+      console.log('파라미터 누락')
       setError("필수 파라미터가 누락되었습니다. (shopId, mallId 필요)")
       return
     }
 
-    // 1. 먼저 로그인 상태 확인
-    checkLoginStatus()
+    console.log('로그인 상태 확인 시작')
+    // 약간의 지연을 두고 Firebase 초기화 확인
+    const timer = setTimeout(() => {
+      checkLoginStatus()
+    }, 100) // 100ms 지연으로 Firebase 초기화 대기
+    
+    return () => clearTimeout(timer)
   }, [shopId, mallId])
 
   const checkLoginStatus = async () => {
     try {
-      // Firebase Auth 상태 확인 - 이미 초기화된 auth 인스턴스 사용
-      const { auth } = await import('@/lib/firebase')
-      const { onAuthStateChanged } = await import('firebase/auth')
+      console.log('Firebase import 시작')
       
-      const currentUser = await new Promise<any>((resolve) => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          unsubscribe()
-          resolve(user)
-        })
-      })
-      
-      if (!currentUser) {
-        // 로그인되지 않은 경우 → 로그인 페이지로 리디렉션
-        console.log('로그인되지 않음 - 로그인 페이지로 리디렉션')
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
-        localStorage.setItem('redirect_after_login', currentUrl)
-        window.location.href = '/'
+      // Firebase 모듈 동적 import with 에러 처리
+      let auth, onAuthStateChanged
+      try {
+        const firebaseModule = await import('@/lib/firebase')
+        auth = firebaseModule.auth
+        console.log('Firebase auth import 완료:', !!auth)
+        
+        // Firebase Auth가 제대로 초기화되었는지 확인
+        if (!auth) {
+          throw new Error('Firebase Auth 인스턴스가 생성되지 않았습니다.')
+        }
+        
+        const authModule = await import('firebase/auth')
+        onAuthStateChanged = authModule.onAuthStateChanged
+        console.log('onAuthStateChanged import 완료:', !!onAuthStateChanged)
+        
+        if (!onAuthStateChanged) {
+          throw new Error('Firebase Auth 메서드를 불러올 수 없습니다.')
+        }
+      } catch (importError: any) {
+        console.error('Firebase 모듈 로드 실패:', importError)
+        
+        // 구체적인 에러 메시지 제공
+        let errorMessage = 'Firebase 초기화에 실패했습니다.'
+        if (importError?.message?.includes('환경변수')) {
+          errorMessage = 'Firebase 설정이 올바르지 않습니다. 관리자에게 문의하세요.'
+        } else if (importError?.message?.includes('network')) {
+          errorMessage = '네트워크 연결을 확인하고 다시 시도해주세요.'
+        } else {
+          errorMessage = 'Firebase 초기화에 실패했습니다. 페이지를 새로고침해주세요.'
+        }
+        
+        setError(errorMessage)
         return
       }
       
+      // Auth 상태 확인을 위한 타임아웃 설정 (5초)
+      const currentUser = await Promise.race([
+        new Promise<any>((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, (user) => {
+            console.log('Auth state changed:', !!user, user?.uid)
+            unsubscribe()
+            resolve(user)
+          })
+        }),
+        new Promise<null>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('로그인 상태 확인 타임아웃'))
+          }, 5000)
+        })
+      ])
+      
+      if (!currentUser) {
+        // 로그인되지 않은 경우 → 부모 창에 로그인 요청 또는 로그인 페이지로 리디렉션
+        console.log('로그인되지 않음 - 처리 방법 결정')
+        
+        // 외부 팝업인 경우 부모 창에 로그인 필요 메시지 전달
+        if (window.parent !== window) {
+          window.parent.postMessage({
+            type: 'login_required',
+            message: '로그인이 필요합니다.',
+            returnUrl: `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+          }, '*')
+          
+          // 팝업 환경에서는 에러 메시지 표시
+          setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
+        } else {
+          // 일반 페이지인 경우 로그인 페이지로 리디렉션
+          const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+          localStorage.setItem('redirect_after_login', currentUrl)
+          window.location.href = '/'
+        }
+        return
+      }
+      
+      console.log('=== 로그인 상태 확인 완료 ===')
+      console.log('로그인된 사용자 UID:', currentUser.uid)
+      console.log('쿼리 파라미터 - shopId:', shopId, 'mallId:', mallId)
+      
       setIsLoggedIn(true)
       // 로그인된 경우 동의 프로세스 진행
-      initializeUserConnection()
+      await initializeUserConnection()
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('로그인 상태 확인 오류:', error)
-      setError('로그인 상태를 확인할 수 없습니다.')
+      
+      if (error?.message?.includes('타임아웃')) {
+        setError('로그인 상태 확인이 시간 초과되었습니다. 페이지를 새로고침해주세요.')
+      } else {
+        setError('로그인 상태를 확인할 수 없습니다. 네트워크 연결을 확인하고 다시 시도해주세요.')
+      }
     }
   }
 
@@ -79,11 +155,20 @@ function ConsentPageContent() {
         return
       }
       
-      // 2. UID 생성
-      const constructedUid = `${mallId}_${shopId}`
+      // 2. 로그인된 사용자의 실제 Firebase UID 사용
+      const { auth } = await import('@/lib/firebase')
+      const currentUser = auth.currentUser
+      
+      if (!currentUser) {
+        setError('로그인된 사용자 정보를 찾을 수 없습니다.')
+        return
+      }
+      
+      const userId = currentUser.uid
+      console.log('사용할 실제 사용자 UID:', userId)
       
       // 3. 사용자 데이터 로드
-      await loadUserData(constructedUid, allowedFields)
+      await loadUserData(userId, allowedFields)
       
     } catch (error) {
       console.error('사용자 연결 초기화 오류:', error)
@@ -98,6 +183,11 @@ function ConsentPageContent() {
       // UID에서 사용자 ID 추출
       const userId = uid.split('_').slice(1).join('_')
       
+      console.log('=== 사용자 데이터 로드 디버깅 ===')
+      console.log('전체 UID:', uid)
+      console.log('추출된 userId:', userId)
+      console.log('조회할 경로: users/' + userId)
+      
       // Firebase에서 사용자 데이터 로드
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, get } = await import('firebase/database')
@@ -106,8 +196,11 @@ function ConsentPageContent() {
       const userRef = ref(realtimeDb, `users/${userId}`)
       const userSnapshot = await get(userRef)
       
+      console.log('사용자 데이터 존재 여부:', userSnapshot.exists())
+      
       if (!userSnapshot.exists()) {
-        setError('사용자 정보를 찾을 수 없습니다.')
+        console.log('사용자 정보를 찾을 수 없습니다. userId:', userId)
+        setError(`사용자 정보를 찾을 수 없습니다. (ID: ${userId})`)
         return
       }
       
@@ -376,10 +469,34 @@ function ConsentPageContent() {
             <CardTitle className="text-red-600">오류</CardTitle>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={() => window.close()} variant="outline">
-              창 닫기
-            </Button>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <div className="flex flex-col space-y-2">
+              {/* 재시도 버튼 */}
+              <Button 
+                onClick={() => {
+                  setError("")
+                  setLoading(false)
+                  checkLoginStatus()
+                }} 
+                className="w-full"
+              >
+                다시 시도
+              </Button>
+              
+              {/* 팝업인 경우에만 창 닫기 버튼 표시 */}
+              {window.parent !== window && (
+                <Button onClick={() => window.close()} variant="outline" className="w-full">
+                  창 닫기
+                </Button>
+              )}
+              
+              {/* 일반 페이지인 경우 홈으로 이동 */}
+              {window.parent === window && (
+                <Button onClick={() => window.location.href = '/'} variant="outline" className="w-full">
+                  홈으로 이동
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -392,7 +509,15 @@ function ConsentPageContent() {
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>정보를 불러오는 중...</p>
+            <p className="mb-4">
+              {isLoggedIn === null ? '로그인 상태 확인 중...' : 
+               isLoggedIn === false ? '로그인 확인 완료, 정보 처리 중...' :
+               '사용자 정보를 불러오는 중...'}
+            </p>
+            {/* 30초 이상 로딩 시 문제 해결 안내 */}
+            <div className="text-xs text-gray-500">
+              페이지 로딩이 오래 걸리면 새로고침을 시도해보세요.
+            </div>
           </CardContent>
         </Card>
       </div>
