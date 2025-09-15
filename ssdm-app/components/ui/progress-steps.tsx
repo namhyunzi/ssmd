@@ -10,26 +10,24 @@ interface ProgressStepsProps {
 
 export default function ProgressSteps({ currentStep, steps }: ProgressStepsProps) {
   return (
-    <div className="w-full max-w-2xl mx-auto mb-8">
-      <div className="flex items-center justify-center space-x-8">
-        {steps.map((step) => {
-          const isCurrent = step.number === currentStep
-          
-          return (
-            <div key={step.number} className="text-center">
-              <div className={`
-                text-lg font-medium
-                ${isCurrent 
-                  ? 'text-blue-600' 
-                  : 'text-gray-400'
-                }
-              `}>
-                {step.number} {step.title}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+    <div className="text-xs text-gray-500">
+      {steps.map((step, index) => {
+        const isCurrent = step.number === currentStep
+        
+        return (
+          <span key={step.number}>
+            <span className={`
+              ${isCurrent 
+                ? 'text-primary' 
+                : 'text-gray-500'
+              }
+            `}>
+              {step.number} {step.title}
+            </span>
+            {index < steps.length - 1 && <span className="mx-1">→</span>}
+          </span>
+        )
+      })}
     </div>
   )
 }

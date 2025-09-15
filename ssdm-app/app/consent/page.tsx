@@ -45,67 +45,6 @@ function ConsentPageContent() {
     return () => clearTimeout(timer)
   }, [shopId, mallId])
 
-  // 로그인 상태가 확인되면 사용자 데이터 로드
-  useEffect(() => {
-    if (isLoggedIn) {
-      loadUserData()
-    }
-  }, [isLoggedIn])
-
-  // 사용자 데이터 로드 (메타데이터 + 복호화)
-  const loadUserData = async () => {
-    try {
-      console.log('=== 사용자 데이터 로드 시작 ===')
-      
-      // Firebase Auth에서 현재 사용자 가져오기
-      const { auth } = await import('@/lib/firebase')
-      const currentUser = auth.currentUser
-      
-      if (!currentUser) {
-        console.log('현재 로그인된 사용자가 없습니다')
-        return
-      }
-      
-      console.log('현재 사용자 UID:', currentUser.uid)
-      
-      // Firebase Realtime Database에서 사용자 메타데이터 가져오기
-      const { realtimeDb } = await import('@/lib/firebase')
-      const { ref, get } = await import('firebase/database')
-      
-      // userProfileMetadata/{uid}에서 메타데이터 조회
-      const metadataRef = ref(realtimeDb, `userProfileMetadata/${currentUser.uid}`)
-      const metadataSnapshot = await get(metadataRef)
-      
-      if (!metadataSnapshot.exists()) {
-        console.log('사용자 메타데이터가 없습니다')
-        return
-      }
-      
-      const metadata = metadataSnapshot.val()
-      console.log('메타데이터:', metadata)
-      
-      // 로컬 저장소에서 암호화된 데이터 복호화
-      const { loadProfileFromLocal } = await import('@/lib/data-storage')
-      const localData = loadProfileFromLocal()
-      
-      if (!localData) {
-        console.log('로컬 저장소에 암호화된 데이터가 없습니다')
-        return
-      }
-      
-      console.log('복호화된 사용자 데이터:', localData)
-      
-      // 복호화된 데이터를 userInfo에 설정
-      setUserInfo(localData)
-      
-      // 쇼핑몰 정보도 로드
-      await loadMallInfo()
-      
-    } catch (error) {
-      console.error('사용자 데이터 로드 실패:', error)
-      setError('사용자 데이터를 불러오는 중 오류가 발생했습니다.')
-    }
-  }
 
 
   // 추가정보 입력 후 데이터 새로고침
@@ -225,6 +164,15 @@ function ConsentPageContent() {
         console.log('개인정보 존재함')
         setHasProfileData(true)
         
+        // 개인정보 복호화해서 userInfo에 설정
+        const { loadProfileFromLocal } = await import('@/lib/data-storage')
+        const decryptedData = loadProfileFromLocal()
+        
+        if (decryptedData) {
+          console.log('복호화된 사용자 데이터:', decryptedData)
+          setUserInfo(decryptedData)
+        }
+        
         // 쇼핑몰 정보 로드
         await loadMallInfo()
         
@@ -251,15 +199,21 @@ function ConsentPageContent() {
       }
       
       // Firebase에서 쇼핑몰 정보 조회
-      const { getDatabase, ref, get } = await import('firebase/database')
-      const db = getDatabase()
-      const mallRef = ref(db, `malls/${mallId}`)
+      const { realtimeDb } = await import('@/lib/firebase')
+      const { ref, get } = await import('firebase/database')
+      
+      const mallRef = ref(realtimeDb, `malls/${mallId}`)
       const mallSnapshot = await get(mallRef)
       
       if (mallSnapshot.exists()) {
         const mallData = mallSnapshot.val()
         console.log('쇼핑몰 정보 로드 완료:', mallData)
-        setMallInfo(mallData)
+        setMallInfo({
+          ...mallData,
+          mallId,
+          name: mallData.mallName || mallId, // admin에서 저장한 한글 이름 사용
+          requiredFields: mallData.allowedFields || []
+        })
       } else {
         console.log('쇼핑몰 정보를 찾을 수 없음')
         setError('쇼핑몰 정보를 찾을 수 없습니다.')
@@ -520,14 +474,15 @@ function ConsentPageContent() {
     )
   }
 
+
   const progressSteps = [
     {
       number: 1,
-      title: "장바구니"
+      title: "추가정보 입력"
     },
     {
       number: 2,
-      title: "정보제공동의"
+      title: "개인정보 제공 동의"
     }
   ]
 
@@ -543,9 +498,11 @@ function ConsentPageContent() {
         <div className="flex justify-center">
           <div className="w-full max-w-lg relative">
             {/* 오른쪽 상단 단계 표시 */}
-            <div className="absolute -top-8 right-0 text-xs text-gray-500">
-              <span className="text-gray-500">1 추가정보 입력</span>
-              <span className="mx-1">2 개인정보 제공 동의</span>
+            <div className="absolute -top-8 right-0">
+              <ProgressSteps 
+                steps={progressSteps} 
+                currentStep={2}
+              />
             </div>
             
             <Card className="w-full">
