@@ -185,7 +185,7 @@ export async function sendApiKeyEmail(
           
           <div style="text-align: center; color: #666; font-size: 14px; line-height: 1.6;">
             <p style="margin: 0 0 8px 0;">API 연동 관련 문의사항이 있으시면 언제든 연락주세요.</p>
-            <p style="margin: 0;">기술 지원: support@ssmd.com</p>
+            <p style="margin: 0;">기술 지원: ${process.env.SUPPORT_EMAIL || 'support@ssmd.com'}</p>
           </div>
           
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">

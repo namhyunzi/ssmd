@@ -17,8 +17,21 @@ export async function POST(request: NextRequest) {
     const { getDatabase, ref, get } = await import('firebase/database')
     const db = getDatabase()
     
+    // shopId로 매핑된 uid 찾기
+    const mappingRef = ref(db, `userMappings/${mallId}/${shopId}`)
+    const mappingSnapshot = await get(mappingRef)
+    
+    if (!mappingSnapshot.exists()) {
+      return NextResponse.json(
+        { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+    
+    const uid = mappingSnapshot.val().uid
+    
     // 사용자 동의 상태 확인
-    const consentRef = ref(db, `userConsents/${shopId}/${mallId}`)
+    const consentRef = ref(db, `userConsents/${uid}/${mallId}`)
     const consentSnapshot = await get(consentRef)
     
     if (!consentSnapshot.exists()) {
@@ -46,7 +59,13 @@ export async function POST(request: NextRequest) {
     }
 
     // JWT 발급
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
+    const jwtSecret = process.env.JWT_SECRET
+    if (!jwtSecret) {
+      return NextResponse.json(
+        { error: 'JWT_SECRET이 설정되지 않았습니다.' },
+        { status: 500 }
+      )
+    }
     const jwtPayload = {
       shopId: shopId,
       mallId: mallId,
@@ -55,11 +74,11 @@ export async function POST(request: NextRequest) {
     }
 
     const token = jwt.sign(jwtPayload, jwtSecret, {
-      expiresIn: '15m' // 15분 만료
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m'
     })
 
     // JWT 발급 기록 저장 (선택사항)
-    const jwtRecordRef = ref(db, `jwtRecords/${shopId}/${mallId}`)
+    const jwtRecordRef = ref(db, `jwtRecords/${uid}/${mallId}`)
     await import('firebase/database').then(({ set }) => {
       set(jwtRecordRef, {
         issuedAt: new Date().toISOString(),

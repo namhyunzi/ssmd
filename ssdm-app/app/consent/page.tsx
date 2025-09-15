@@ -21,29 +21,63 @@ function ConsentPageContent() {
   
   const searchParams = useSearchParams()
   const router = useRouter()
-  const shopId = searchParams.get('shopId')
-  const mallId = searchParams.get('mallId')
-  const uid = searchParams.get('uid')
+  const token = searchParams.get('token')
+  const [shopId, setShopId] = useState<string | null>(null)
+  const [mallId, setMallId] = useState<string | null>(null)
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
-    console.log('shopId:', shopId, 'mallId:', mallId)
+    console.log('token:', token)
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
     
-    if (!shopId || !mallId) {
-      console.log('파라미터 누락')
-      setError("필수 파라미터가 누락되었습니다. (shopId, mallId 필요)")
+    if (!token) {
+      console.log('토큰 누락')
+      setError("JWT 토큰이 누락되었습니다.")
       return
     }
 
-    console.log('로그인 상태 확인 시작')
-    // 약간의 지연을 두고 Firebase 초기화 확인
-    const timer = setTimeout(() => {
-      checkLoginStatus()
-    }, 100) // 100ms 지연으로 Firebase 초기화 대기
-    
-    return () => clearTimeout(timer)
-  }, [shopId, mallId])
+    // JWT 토큰 검증 및 파라미터 추출
+    verifyToken()
+  }, [token])
+
+  // JWT 토큰 검증 함수
+  const verifyToken = async () => {
+    try {
+      console.log('JWT 토큰 검증 시작')
+      
+      const response = await fetch('/api/verify-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token })
+      })
+      
+      if (response.ok) {
+        const { valid, payload } = await response.json()
+        
+        if (valid && payload) {
+          console.log('JWT 토큰 검증 성공:', payload)
+          setShopId(payload.shopId)
+          setMallId(payload.mallId)
+          
+          // 로그인 상태 확인 시작
+          const timer = setTimeout(() => {
+            checkLoginStatus()
+          }, 100) // 100ms 지연으로 Firebase 초기화 대기
+          
+          return () => clearTimeout(timer)
+        } else {
+          throw new Error('JWT 토큰이 유효하지 않습니다.')
+        }
+      } else {
+        throw new Error('JWT 토큰 검증 실패')
+      }
+    } catch (error) {
+      console.error('JWT 토큰 검증 실패:', error)
+      setError('JWT 토큰 검증 중 오류가 발생했습니다.')
+    }
+  }
 
 
 
@@ -198,6 +232,12 @@ function ConsentPageContent() {
         return
       }
       
+      if (!token) {
+        console.log('token이 없음')
+        setError('JWT 토큰이 제공되지 않았습니다.')
+        return
+      }
+      
       // Firebase에서 쇼핑몰 정보 조회
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, get } = await import('firebase/database')
@@ -208,6 +248,9 @@ function ConsentPageContent() {
       if (mallSnapshot.exists()) {
         const mallData = mallSnapshot.val()
         console.log('쇼핑몰 정보 로드 완료:', mallData)
+        
+        // JWT 토큰은 이미 verifyToken에서 검증되었으므로 추가 검증 불필요
+        
         setMallInfo({
           ...mallData,
           mallId,
@@ -248,7 +291,7 @@ function ConsentPageContent() {
       if (missingFields.length > 0) {
         console.log('누락된 필드가 있음 - 추가정보 입력 페이지로 리디렉션')
         // 추가정보 입력 페이지로 리디렉션
-        const additionalInfoUrl = `/additional-info?userId=${encodeURIComponent(uid || '')}&apiKey=${encodeURIComponent(mallInfo.apiKey || '')}&mallId=${encodeURIComponent(mallId || '')}&shopId=${encodeURIComponent(shopId || '')}`
+        const additionalInfoUrl = `/additional-info?token=${encodeURIComponent(token || '')}&mallId=${encodeURIComponent(mallId || '')}&shopId=${encodeURIComponent(shopId || '')}`
         window.location.href = additionalInfoUrl
         return
       }
@@ -347,7 +390,7 @@ function ConsentPageContent() {
       const { getDatabase, ref, set } = await import('firebase/database')
       const db = getDatabase()
       
-      const consentRef = ref(db, `userConsents/${uid}/${mallId}`)
+      const consentRef = ref(db, `userConsents/${shopId}/${mallId}`)
       await set(consentRef, {
         consentType: consentType,
         timestamp: new Date().toISOString(),
@@ -359,7 +402,10 @@ function ConsentPageContent() {
       if (consentType === "once") {
         const response = await fetch('/api/issue-jwt', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ 
             shopId: shopId, 
             mallId: mallId 
@@ -502,6 +548,7 @@ function ConsentPageContent() {
   ]
 
   console.log('=== 디버깅 정보 ===')
+  console.log('token:', token)
   console.log('mallInfo:', mallInfo)
   console.log('mallInfo.requiredFields:', mallInfo?.requiredFields)
   console.log('userInfo:', userInfo)

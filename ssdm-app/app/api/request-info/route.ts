@@ -34,7 +34,10 @@ interface ViewerSession {
  */
 function verifyJwtToken(token: string): JwtPayload | null {
   try {
-    const secret = process.env.JWT_SECRET || 'ssmd-default-secret-key';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET이 설정되지 않았습니다.');
+    }
     const decoded = jwt.verify(token, secret) as JwtPayload;
     
     // 만료 시간 확인
@@ -162,7 +165,13 @@ export async function POST(request: NextRequest) {
     await set(sessionRef, viewerSession);
 
     // 보안 뷰어 URL 생성
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: 'NEXT_PUBLIC_BASE_URL이 설정되지 않았습니다.' },
+        { status: 500 }
+      );
+    }
     // sessionType에 따라 동적으로 뷰어 타입 결정
     const viewerType = sessionType === 'paper' ? 'delivery-manager' : 'delivery-driver';
     const viewerUrl = `${baseUrl}/secure-viewer/${viewerType}?session=${sessionId}`;

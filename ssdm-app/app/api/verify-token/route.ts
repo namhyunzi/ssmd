@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { jwt: token } = body
+    const { token } = body
 
     if (!token) {
       return NextResponse.json(
@@ -25,45 +25,35 @@ export async function POST(request: NextRequest) {
     try {
       const decoded = jwt.verify(token, jwtSecret) as any
       
-      // JWT에서 사용자 정보 추출
-      const { userId, mallId, apiKey, consentType } = decoded
+      // JWT에서 정보 추출
+      const { shopId, mallId, exp } = decoded
       
-      // 개인정보 조회 (실시간 복호화)
-      const { loadFromLocalStorage } = require('@/lib/data-storage')
-      const { decryptData } = require('@/lib/encryption')
-      
-      const localData = loadFromLocalStorage()
-      
-      if (!localData || !localData.encrypted) {
+      // 만료시간 확인
+      if (exp && exp < Date.now() / 1000) {
         return NextResponse.json(
-          { error: '개인정보를 찾을 수 없습니다.' },
-          { status: 404 }
+          { error: 'JWT 토큰이 만료되었습니다.' },
+          { status: 401 }
         )
       }
       
-      // 실시간 복호화
-      const decryptedDataString = decryptData(localData.encryptedData, localData.key)
-      const profileData = JSON.parse(decryptedDataString)
-      
-      // 필요한 개인정보만 반환
-      const personalInfo = {
-        name: profileData.name,
-        phone: profileData.phone,
-        address: profileData.address,
-        detailAddress: profileData.detailAddress,
-        zipCode: profileData.zipCode,
-        email: profileData.email
+      // 필수 필드 확인
+      if (!shopId || !mallId) {
+        return NextResponse.json(
+          { error: 'JWT 토큰에 필수 정보가 누락되었습니다.' },
+          { status: 400 }
+        )
       }
       
       return NextResponse.json({
         valid: true,
-        personalInfo: personalInfo,
-        consentType: consentType,
-        userId: userId,
-        mallId: mallId
+        payload: {
+          shopId,
+          mallId
+        }
       })
       
     } catch (jwtError) {
+      console.error('JWT 검증 실패:', jwtError)
       return NextResponse.json(
         { error: '유효하지 않은 JWT 토큰입니다.' },
         { status: 401 }
@@ -78,6 +68,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-
-
