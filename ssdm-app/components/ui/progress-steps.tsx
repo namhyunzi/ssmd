@@ -24,7 +24,7 @@ export default function ProgressSteps({ currentStep, steps }: ProgressStepsProps
             `}>
               {step.number} {step.title}
             </span>
-            {index < steps.length - 1 && <span className="mx-1 text-gray-500">→</span>}
+            {index < steps.length - 1 && <span className="mx-1 text-gray-500"> </span>}
           </span>
         )
       })}

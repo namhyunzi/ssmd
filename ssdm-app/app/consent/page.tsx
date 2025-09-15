@@ -380,6 +380,11 @@ function ConsentPageContent() {
               jwt: jwt,
               timestamp: new Date().toISOString()
             }, '*')
+            
+            // 팝업 닫기
+            setTimeout(() => {
+              window.close()
+            }, 500) // 0.5초 후 팝업 닫기
           }
         } else {
           throw new Error('JWT 발급 실패')
@@ -395,6 +400,11 @@ function ConsentPageContent() {
             mallId,
             timestamp: new Date().toISOString()
           }, '*')
+          
+          // 팝업 닫기
+          setTimeout(() => {
+            window.close()
+          }, 500) // 0.5초 후 팝업 닫기
         }
       }
 
@@ -417,6 +427,11 @@ function ConsentPageContent() {
         mallId,
         timestamp: new Date().toISOString()
       }, '*')
+      
+      // 팝업 닫기
+      setTimeout(() => {
+        window.close()
+      }, 500) // 0.5초 후 팝업 닫기
     }
   }
 
@@ -598,7 +613,7 @@ function ConsentPageContent() {
                   onClick={handleConsent}
                   disabled={loading}
                 >
-                  {loading ? '처리중...' : '동의하기'}
+                  동의하기
                 </Button>
               </div>
             </CardContent>
