@@ -288,7 +288,7 @@ function ConsentPageContent() {
       
       switch (field) {
         case 'name': return userInfo.name || ''
-        case 'phone': return userInfo.phone || ''
+        case 'phone': return formatPhoneNumber(userInfo.phone || '')
         case 'address': return userInfo.address || ''
         case 'detailAddress': return userInfo.detailAddress || ''
         case 'zipCode': return userInfo.zipCode || ''
@@ -494,16 +494,17 @@ function ConsentPageContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto p-4">
+        {/* 단계 표시 */}
+        <div className="flex justify-end mb-4">
+          <ProgressSteps 
+            steps={progressSteps} 
+            currentStep={2}
+          />
+        </div>
+        
         {/* 메인 콘텐츠 */}
         <div className="flex justify-center">
-          <div className="w-full max-w-lg relative">
-            {/* 오른쪽 상단 단계 표시 */}
-            <div className="absolute -top-8 right-0">
-              <ProgressSteps 
-                steps={progressSteps} 
-                currentStep={2}
-              />
-            </div>
+          <div className="w-full max-w-lg">
             
             <Card className="w-full">
             <CardHeader className="text-center pb-4">
@@ -512,7 +513,7 @@ function ConsentPageContent() {
                 <CardTitle className="text-xl">개인정보 제공 동의</CardTitle>
               </div>
               <p className="text-sm text-muted-foreground">
-                {mallInfo.name}에서 다음 개인정보를 요청하고 있습니다.
+                <span className="text-primary font-medium">{mallInfo.name}</span>에서 다음 개인정보를 요청하고 있습니다.
               </p>
             </CardHeader>
 

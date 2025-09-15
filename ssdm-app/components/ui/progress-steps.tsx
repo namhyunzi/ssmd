@@ -10,7 +10,7 @@ interface ProgressStepsProps {
 
 export default function ProgressSteps({ currentStep, steps }: ProgressStepsProps) {
   return (
-    <div className="text-xs text-gray-500">
+    <div className="text-xs">
       {steps.map((step, index) => {
         const isCurrent = step.number === currentStep
         
@@ -24,7 +24,7 @@ export default function ProgressSteps({ currentStep, steps }: ProgressStepsProps
             `}>
               {step.number} {step.title}
             </span>
-            {index < steps.length - 1 && <span className="mx-1">→</span>}
+            {index < steps.length - 1 && <span className="mx-1 text-gray-500">→</span>}
           </span>
         )
       })}
