@@ -29,27 +29,33 @@ export default function LoginPage() {
   // 이미 로그인된 사용자는 대시보드로 리다이렉트 (신규 사용자가 아닐 때만)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && !showTermsPopup) {
+      if (user && !showTermsPopup && !pendingGoogleUser) {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
         
+        console.log('useEffect에서 사용자 감지:', {
+          uid: user.uid,
+          isNewUser: isNewUser,
+          showTermsPopup: showTermsPopup,
+          pendingGoogleUser: !!pendingGoogleUser
+        })
+        
         if (!isNewUser) {
-          // 로그인 후 돌아갈 URL이 있는지 확인
+          // 기존 사용자만 리디렉션 처리
           const redirectUrl = localStorage.getItem('redirect_after_login')
           if (redirectUrl) {
             localStorage.removeItem('redirect_after_login')
             router.push(redirectUrl)
           } else {
-            // 기존 사용자만 대시보드로 이동
             router.push('/dashboard')
           }
         }
-        // 신규 사용자는 handleGoogleLogin에서 처리
+        // 신규 사용자는 handleGoogleLogin에서 처리 (useEffect에서 건드리지 않음)
       }
     })
 
     return () => unsubscribe()
-  }, [router, showTermsPopup])
+  }, [router, showTermsPopup, pendingGoogleUser])
 
   // 컴포넌트 마운트 시 로컬 스토리지에서 실패 횟수와 제한 시간 확인
   useEffect(() => {
@@ -174,6 +180,7 @@ export default function LoginPage() {
       
       if (isNewUser) {
         // 신규 사용자의 경우 약관 동의 팝업 표시
+        console.log('신규 사용자 감지 - 약관동의 팝업 표시')
         setPendingGoogleUser(result.user)
         setShowTermsPopup(true)
       } else {
