@@ -861,7 +861,9 @@ function ConsentPageContent() {
             <Button 
               className="flex-1 bg-primary hover:bg-primary/90"
               onClick={handleConsent}
+              disabled={loading}
             >
+              {loading ? '처리중...' : '동의하기'}
             </Button>
           </div>
         </CardContent>
