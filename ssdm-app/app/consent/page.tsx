@@ -593,6 +593,14 @@ function ConsentPageContent() {
   }
 
   const handleReject = async () => {
+    console.log('=== 거부하기 버튼 클릭됨 ===')
+    console.log('현재 시간:', new Date().toISOString())
+    console.log('mallInfo:', mallInfo)
+    console.log('shopId:', shopId)
+    console.log('mallId:', mallId)
+    console.log('userInfo:', userInfo)
+    console.log('팝업 환경 여부:', window.parent !== window)
+    
     if (window.parent !== window) {
       // API를 통해 쇼핑몰에 거부 결과 전달
       try {
