@@ -157,6 +157,7 @@ function ConsentPageContent() {
         console.log('로그인되지 않음 - 처리 방법 결정')
         
         // 외부 팝업인 경우 부모 창에 로그인 필요 메시지 전달
+        /**if (window.parent !== window) {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
@@ -165,13 +166,15 @@ function ConsentPageContent() {
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
-        } else {
+        } else 
+         */{
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
           const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
           localStorage.setItem('redirect_after_login', currentUrl)
           // 외부 팝업에서 온 경우를 표시
           localStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
+        }
         return
       }
       
