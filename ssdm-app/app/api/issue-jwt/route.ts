@@ -1,164 +1,84 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { realtimeDb } from '@/lib/firebase';
-import { ref, get } from 'firebase/database';
-import jwt from 'jsonwebtoken';
+import { NextRequest, NextResponse } from 'next/server'
+import jwt from 'jsonwebtoken'
 
-interface IssueJwtRequest {
-  userId: string;  // 쇼핑몰의 사용자 ID
-}
-
-interface JwtPayload {
-  uid: string;
-  mallId: string;
-  exp: number;
-  iat: number;
-}
-
-/**
- * API Key 검증 함수
- */
-async function validateApiKey(apiKey: string): Promise<string | null> {
-  try {
-    const apiKeyRef = ref(realtimeDb, `apiKeys/${apiKey}`);
-    const snapshot = await get(apiKeyRef);
-    
-    if (!snapshot.exists()) {
-      return null;
-    }
-    
-    const apiKeyData = snapshot.val();
-    if (!apiKeyData.isActive) {
-      return null;
-    }
-    
-    return apiKeyData.mallId;
-  } catch (error) {
-    console.error('API Key 검증 오류:', error);
-    return null;
-  }
-}
-
-/**
- * userId로 UID 생성 또는 기존 UID 반환
- */
-async function getOrCreateUid(userId: string, mallId: string): Promise<string> {
-  // UID 형식: {mallId}_{userId}
-  const uid = `${mallId}_${userId}`;
-  
-  // TODO: Firebase에서 기존 UID 확인 로직
-  // const existingUid = await checkExistingUid(userId, mallId);
-  // if (existingUid) return existingUid;
-  
-  // 임시로 항상 새 UID 반환 (실제로는 기존 UID가 있으면 재활용)
-  return uid;
-}
-
-/**
- * JWT 토큰 생성
- */
-function createJwtToken(payload: Omit<JwtPayload, 'exp' | 'iat'>, expiresIn: number): string {
-  const secret = process.env.JWT_SECRET || 'ssmd-default-secret-key';
-  
-  const now = Math.floor(Date.now() / 1000);
-  const jwtPayload: JwtPayload = {
-    ...payload,
-    iat: now,
-    exp: now + expiresIn
-  };
-
-  return jwt.sign(jwtPayload, secret, { algorithm: 'HS256' });
-}
-
-
-/**
- * JWT 발급 API
- * POST /api/issue-jwt
- */
 export async function POST(request: NextRequest) {
   try {
-    // Authorization 헤더에서 API Key 추출
-    const authorization = request.headers.get('authorization');
-    if (!authorization || !authorization.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Authorization 헤더가 필요합니다.' },
-        { status: 401 }
-      );
-    }
+    const body = await request.json()
+    const { shopId, mallId } = body
 
-    const apiKey = authorization.replace('Bearer ', '');
-    
-    const { userId }: IssueJwtRequest = await request.json();
-
-    // 입력값 검증
-    if (!userId) {
+    if (!shopId || !mallId) {
       return NextResponse.json(
-        { error: 'userId는 필수입니다.' },
+        { error: '필수 파라미터가 누락되었습니다.' },
         { status: 400 }
-      );
+      )
     }
 
-    // API Key 검증
-    const mallId = await validateApiKey(apiKey);
-    if (!mallId) {
-      return NextResponse.json(
-        { error: '유효하지 않은 API Key입니다.' },
-        { status: 401 }
-      );
-    }
-
-    // 쇼핑몰 존재 여부 확인
-    const mallRef = ref(realtimeDb, `malls/${mallId}`);
-    const mallSnapshot = await get(mallRef);
+    // Firebase에서 "항상 허용" 상태 확인
+    const { getDatabase, ref, get } = await import('firebase/database')
+    const db = getDatabase()
     
-    if (!mallSnapshot.exists()) {
+    // 사용자 동의 상태 확인
+    const consentRef = ref(db, `userConsents/${shopId}/${mallId}`)
+    const consentSnapshot = await get(consentRef)
+    
+    if (!consentSnapshot.exists()) {
       return NextResponse.json(
-        { error: '등록되지 않은 쇼핑몰입니다.' },
-        { status: 400 }
-      );
+        { error: '개인정보 제공 동의가 필요합니다.' },
+        { status: 403 }
+      )
     }
 
-    // userId로 UID 생성 또는 기존 UID 반환
-    const uid = await getOrCreateUid(userId, mallId);
+    const consentData = consentSnapshot.val()
+    const isAlwaysAllow = consentData.consentType === 'always'
+    
+    if (isAlwaysAllow) {
+      // 6개월 경과 여부 확인
+      const consentDate = new Date(consentData.timestamp)
+      const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
+      const isExpired = consentDate < sixMonthsAgo
+      
+      if (isExpired) {
+        return NextResponse.json(
+          { error: '개인정보 제공 동의가 만료되었습니다. 다시 동의해주세요.' },
+          { status: 403 }
+        )
+      }
+    }
 
-    // JWT 토큰 생성 (UID 기반)
-    const expiresIn = 3600; // 1시간 고정
-    const token = createJwtToken(
-      {
-        uid,
-        mallId
-      },
-      expiresIn
-    );
+    // JWT 발급
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
+    const jwtPayload = {
+      shopId: shopId,
+      mallId: mallId,
+      consentType: consentData.consentType,
+      timestamp: new Date().toISOString()
+    }
 
-    console.log(`JWT 발급 성공: ${uid} (${expiresIn}초)`);
+    const token = jwt.sign(jwtPayload, jwtSecret, {
+      expiresIn: '15m' // 15분 만료
+    })
+
+    // JWT 발급 기록 저장 (선택사항)
+    const jwtRecordRef = ref(db, `jwtRecords/${shopId}/${mallId}`)
+    await import('firebase/database').then(({ set }) => {
+      set(jwtRecordRef, {
+        issuedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        consentType: consentData.consentType
+      })
+    })
 
     return NextResponse.json({
       jwt: token,
-      expiresIn
-    });
+      expiresIn: '15m',
+      consentType: consentData.consentType
+    })
 
   } catch (error) {
-    console.error('JWT 발급 API 오류:', error);
+    console.error('JWT 발급 실패:', error)
     return NextResponse.json(
-      { 
-        error: 'JWT 발급 중 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류'
-      },
+      { error: 'JWT 발급 중 오류가 발생했습니다.' },
       { status: 500 }
-    );
+    )
   }
-}
-
-/**
- * CORS 처리
- */
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
 }

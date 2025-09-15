@@ -1,28 +1,29 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Shield, X, User, Phone, MapPin, Info, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import ProgressSteps from "@/components/ui/progress-steps"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import AdditionalInfoPopup from "@/components/popups/additional-info-popup"
-
-interface ConsentPageProps {}
 
 function ConsentPageContent() {
   const [consentType, setConsentType] = useState<string>("once")
   const [loading, setLoading] = useState(false)
   const [hasProfileData, setHasProfileData] = useState<boolean>(false)
+  const [dataRefreshKey, setDataRefreshKey] = useState<number>(0)
   const [mallInfo, setMallInfo] = useState<any>(null)
   const [error, setError] = useState<string>("")
-  const [showAdditionalInfo, setShowAdditionalInfo] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
   
   const searchParams = useSearchParams()
+  const router = useRouter()
   const shopId = searchParams.get('shopId')
   const mallId = searchParams.get('mallId')
+  const uid = searchParams.get('uid')
+  const fields = searchParams.get('fields')
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
@@ -43,6 +44,18 @@ function ConsentPageContent() {
     
     return () => clearTimeout(timer)
   }, [shopId, mallId])
+
+  // 추가정보 입력 후 데이터 새로고침
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const fromAdditionalInfo = urlParams.get('fromAdditionalInfo')
+    
+    if (fromAdditionalInfo === 'true') {
+      // 추가정보 입력 후 이동한 경우 데이터 새로고침
+      setDataRefreshKey(prev => prev + 1)
+      console.log('추가정보 입력 후 이동 - 데이터 새로고침')
+    }
+  }, [])
 
   const checkLoginStatus = async () => {
     try {
@@ -83,297 +96,171 @@ function ConsentPageContent() {
         setError(errorMessage)
         return
       }
+
+      console.log('Firebase Auth 상태 확인 시작')
       
-      // Auth 상태 확인을 위한 타임아웃 설정 (5초)
-      const currentUser = await Promise.race([
-        new Promise<any>((resolve) => {
+      // Firebase Auth 상태 확인
+      const currentUser = await new Promise<any>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Firebase Auth 상태 확인 시간 초과'))
+        }, 10000) // 10초 타임아웃
+        
+        try {
           const unsubscribe = onAuthStateChanged(auth, (user) => {
-            console.log('Auth state changed:', !!user, user?.uid)
+            clearTimeout(timeout)
             unsubscribe()
             resolve(user)
           })
-        }),
-        new Promise<null>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('로그인 상태 확인 타임아웃'))
-          }, 5000)
-        })
-      ])
-      
-      if (!currentUser) {
-        // 로그인되지 않은 경우 → 부모 창에 로그인 요청 또는 로그인 페이지로 리디렉션
-        console.log('로그인되지 않음 - 처리 방법 결정')
-        
-        // 외부 팝업인 경우 부모 창에 로그인 필요 메시지 전달
-        if (window.parent !== window) {
-          window.parent.postMessage({
-            type: 'login_required',
-            message: '로그인이 필요합니다.',
-            returnUrl: `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
-          }, '*')
-          
-          // 팝업 환경에서는 에러 메시지 표시
-          setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
-        } else {
-          // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
-          localStorage.setItem('redirect_after_login', currentUrl)
-          // 외부 팝업에서 온 경우를 표시
-          localStorage.setItem('from_external_popup', 'true')
-          window.location.href = '/'
+        } catch (authError) {
+          clearTimeout(timeout)
+          reject(authError)
         }
-        return
-      }
+      })
       
-      console.log('=== 로그인 상태 확인 완료 ===')
-      console.log('로그인된 사용자 UID:', currentUser.uid)
-      console.log('쿼리 파라미터 - shopId:', shopId, 'mallId:', mallId)
-      
-      setIsLoggedIn(true)
-      // 로그인된 경우 동의 프로세스 진행
-      await initializeUserConnection()
-      
-    } catch (error: any) {
-      console.error('로그인 상태 확인 오류:', error)
-      
-      if (error?.message?.includes('타임아웃')) {
-        setError('로그인 상태 확인이 시간 초과되었습니다. 페이지를 새로고침해주세요.')
-      } else {
-        setError('로그인 상태를 확인할 수 없습니다. 네트워크 연결을 확인하고 다시 시도해주세요.')
-      }
-    }
-  }
-
-  const initializeUserConnection = async () => {
-    try {
-      setLoading(true)
-      
-      // 1. 쇼핑몰의 등록된 허용 필드 조회
-      const { getMallAllowedFields } = await import('@/lib/data-storage')
-      const allowedFields = await getMallAllowedFields(mallId!)
-      
-      if (!allowedFields || allowedFields.length === 0) {
-        setError('쇼핑몰의 허용 필드가 설정되지 않았습니다.')
-        return
-      }
-      
-      // 2. 로그인된 사용자의 실제 Firebase UID 사용
-      const { auth } = await import('@/lib/firebase')
-      const currentUser = auth.currentUser
+      console.log('Firebase Auth 상태 확인 완료:', !!currentUser)
       
       if (!currentUser) {
-        setError('로그인된 사용자 정보를 찾을 수 없습니다.')
-        return
-      }
-      
-      const userId = currentUser.uid
-      console.log('사용할 실제 사용자 UID:', userId)
-      
-      // 3. 사용자 데이터 로드
-      await loadUserData(userId, allowedFields)
-      
-    } catch (error) {
-      console.error('사용자 연결 초기화 오류:', error)
-      setError('사용자 연결 초기화 중 오류가 발생했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadUserData = async (uid: string, requiredFields: string[]) => {
-    try {
-      // Firebase Auth UID를 그대로 사용 (별도 파싱 불필요)
-      const userId = uid
-      
-      console.log('=== 사용자 데이터 로드 디버깅 ===')
-      console.log('Firebase Auth UID:', uid)
-      console.log('조회할 경로: users/' + userId)
-      
-      // Firebase에서 사용자 데이터 로드
-      const { realtimeDb } = await import('@/lib/firebase')
-      const { ref, get } = await import('firebase/database')
-      
-      // users/{uid}에서 사용자 기본 정보 조회
-      const userRef = ref(realtimeDb, `users/${userId}`)
-      const userSnapshot = await get(userRef)
-      
-      console.log('사용자 데이터 존재 여부:', userSnapshot.exists())
-      
-      if (!userSnapshot.exists()) {
-        console.log('사용자 정보를 찾을 수 없습니다. userId:', userId)
-        console.log('사용자 데이터가 없으므로 로그인 페이지로 리디렉션')
-        
-        // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+        console.log('로그인되지 않음 - 로그인 페이지로 리디렉션')
+        const currentUrl = window.location.href
         localStorage.setItem('redirect_after_login', currentUrl)
         window.location.href = '/'
         return
       }
       
-      const userData = userSnapshot.val()
+      console.log('로그인된 사용자 확인:', currentUser.uid)
+      setIsLoggedIn(true)
       
-      // userProfileMetadata/{uid}에서 암호화된 개인정보 메타데이터 조회
-      const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`)
-      const metadataSnapshot = await get(metadataRef)
+      // 개인정보 존재 여부 확인
+      await checkProfileData()
       
-      let personalData = {}
-      if (metadataSnapshot.exists()) {
-        const metadata = metadataSnapshot.val()
-        
-        // 로컬 저장소에서 개인정보 존재 여부만 확인
-        const { loadFromLocalStorage } = await import('@/lib/data-storage')
-        const localData = loadFromLocalStorage()
-        
-        if (localData && localData.encrypted) {
-          // 개인정보가 암호화되어 저장되어 있음
-          setHasProfileData(true)
-        } else {
-          // 개인정보가 없음
-          setHasProfileData(false)
-        }
+    } catch (error: any) {
+      console.error('로그인 상태 확인 실패:', error)
+      
+      // 구체적인 에러 메시지 제공
+      let errorMessage = '로그인 상태 확인 중 오류가 발생했습니다.'
+      if (error?.message?.includes('시간 초과')) {
+        errorMessage = '로그인 상태 확인 시간이 초과되었습니다. 페이지를 새로고침해주세요.'
+      } else if (error?.message?.includes('network')) {
+        errorMessage = '네트워크 연결을 확인하고 다시 시도해주세요.'
       } else {
-        // 메타데이터가 없으면 기본 정보만 사용
-        personalData = {
-          name: userData.displayName?.split('/')[0] || '',
-          phone: '',
-          address: '',
-          detailAddress: '',
-          zipCode: '',
-          email: userData.email || ''
-        }
+        errorMessage = '로그인 상태 확인 중 오류가 발생했습니다. 페이지를 새로고침해주세요.'
       }
       
-      // 기본 정보와 개인정보 병합
-      const mergedUserData = {
-        ...userData,
-        ...personalData
-      }
+      setError(errorMessage)
+    }
+  }
+
+  const checkProfileData = async () => {
+    try {
+      console.log('개인정보 존재 여부 확인 시작')
       
-      // 1. 프로필 완료 여부 확인
-      if (!userData.profileCompleted) {
-        // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
-        console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
-        localStorage.setItem('redirect_after_profile', currentUrl)
-        window.location.href = '/profile-setup'
+      // 로컬 저장소에서 개인정보 존재 여부 확인
+      const { loadFromLocalStorage } = require('@/lib/data-storage')
+      const localData = loadFromLocalStorage()
+      
+      if (localData && localData.encrypted) {
+        console.log('개인정보 존재함')
+        setHasProfileData(true)
+        
+        // 쇼핑몰 정보 로드
+        await loadMallInfo()
+        
+        // 필수 필드 확인 및 추가정보 입력 페이지로 리디렉션
+        await checkRequiredFields()
+      } else {
+        console.log('개인정보 없음')
+        setHasProfileData(false)
+        setError('개인정보가 등록되지 않았습니다. 프로필 설정을 먼저 완료해주세요.')
+      }
+    } catch (error) {
+      console.error('개인정보 확인 실패:', error)
+      setError('개인정보 확인 중 오류가 발생했습니다.')
+    }
+  }
+
+  const loadMallInfo = async () => {
+    try {
+      console.log('쇼핑몰 정보 로드 시작')
+      
+      if (!mallId) {
+        console.log('mallId가 없음')
         return
       }
       
-      // 2. 누락된 필드 확인
-      const missingFields = requiredFields.filter(field => {
-        const value = mergedUserData[field as keyof typeof mergedUserData]
-        return !value || value.trim() === ""
-      })
+      // Firebase에서 쇼핑몰 정보 조회
+      const { getDatabase, ref, get } = await import('firebase/database')
+      const db = getDatabase()
+      const mallRef = ref(db, `malls/${mallId}`)
+      const mallSnapshot = await get(mallRef)
       
-      if (missingFields.length > 0) {
-        // 요청 정보보다 적게 입력한 사람 → 추가정보 입력
-        setShowAdditionalInfo(true)
-        // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
-        const mallIdFromUid = mallId
-        
-        // Firebase에서 실제 쇼핑몰 정보 조회
-        const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
-        const mallSnapshot = await get(mallRef)
-        
-        if (mallSnapshot.exists()) {
-          const mallData = mallSnapshot.val()
-          setMallInfo({
-            mallId: mallIdFromUid,
-            mallName: mallData.mallName || mallIdFromUid,
-            requiredFields
-          })
-        } else {
-          setMallInfo({
-            mallId: mallIdFromUid,
-            mallName: mallIdFromUid, // 기본값으로 mallId 사용
-            requiredFields
-          })
-        }
+      if (mallSnapshot.exists()) {
+        const mallData = mallSnapshot.val()
+        console.log('쇼핑몰 정보 로드 완료:', mallData)
+        setMallInfo(mallData)
       } else {
-        // 모든 정보가 충분한 경우 → 동의 절차 진행
-        // 개인정보는 상태에 저장하지 않음 (SSDM 중개 원칙)
-        // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
-        const mallIdFromUid = mallId
-        
-        // Firebase에서 실제 쇼핑몰 정보 조회
-        const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
-        const mallSnapshot = await get(mallRef)
-        
-        if (mallSnapshot.exists()) {
-          const mallData = mallSnapshot.val()
-          setMallInfo({
-            mallId: mallIdFromUid,
-            mallName: mallData.mallName || mallIdFromUid,
-            requiredFields
-          })
-        } else {
-          setMallInfo({
-            mallId: mallIdFromUid,
-            mallName: mallIdFromUid, // 기본값으로 mallId 사용
-            requiredFields
-          })
-        }
+        console.log('쇼핑몰 정보를 찾을 수 없음')
+        setError('쇼핑몰 정보를 찾을 수 없습니다.')
       }
     } catch (error) {
-      console.error('사용자 데이터 로드 오류:', error)
-      setError('사용자 정보를 불러오는 중 오류가 발생했습니다.')
+      console.error('쇼핑몰 정보 로드 실패:', error)
+      setError('쇼핑몰 정보 로드 중 오류가 발생했습니다.')
     }
   }
 
-  const getExpiryDate = () => {
-    const today = new Date()
-    const expiryDate = new Date(today.setMonth(today.getMonth() + 6))
-    return expiryDate.toLocaleDateString('ko-KR', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
-  }
-
-  const getFieldIcon = (field: string) => {
-    switch (field) {
-      case 'name': return <User className="h-4 w-4" />
-      case 'phone': return <Phone className="h-4 w-4" />
-      case 'address': return <MapPin className="h-4 w-4" />
-      case 'detailAddress': return <MapPin className="h-4 w-4" />
-      case 'zipCode': return <MapPin className="h-4 w-4" />
-      case 'email': return <Info className="h-4 w-4" />
-      default: return <Info className="h-4 w-4" />
+  const checkRequiredFields = async () => {
+    try {
+      console.log('필수 필드 확인 시작')
+      
+      if (!mallInfo || !fields) {
+        console.log('mallInfo 또는 fields가 없음')
+        return
+      }
+      
+      // 요청된 필드들을 배열로 변환
+      const requestedFields = fields.split(',').map(field => field.trim())
+      console.log('요청된 필드들:', requestedFields)
+      
+      // 누락된 필드 확인
+      const missingFields = requestedFields.filter(field => {
+        const value = getFieldValue(field)
+        return !value || value.trim() === ''
+      })
+      
+      console.log('누락된 필드들:', missingFields)
+      
+      if (missingFields.length > 0) {
+        console.log('누락된 필드가 있음 - 추가정보 입력 페이지로 리디렉션')
+        // 추가정보 입력 페이지로 리디렉션
+        const additionalInfoUrl = `/additional-info?userId=${encodeURIComponent(uid || '')}&apiKey=${encodeURIComponent(mallInfo.apiKey || '')}&mallId=${encodeURIComponent(mallId || '')}&fields=${encodeURIComponent(fields)}&shopId=${encodeURIComponent(shopId || '')}`
+        window.location.href = additionalInfoUrl
+        return
+      }
+      
+      console.log('모든 필수 필드가 입력됨')
+    } catch (error) {
+      console.error('필수 필드 확인 실패:', error)
+      setError('필수 필드 확인 중 오류가 발생했습니다.')
     }
   }
 
-  const getFieldLabel = (field: string) => {
-    switch (field) {
-      case 'name': return '이름'
-      case 'phone': return '휴대폰번호'
-      case 'address': return '주소'
-      case 'detailAddress': return '상세주소'
-      case 'zipCode': return '우편번호'
-      case 'email': return '이메일'
-      default: return field
-    }
-  }
-
+  // 전화번호 포맷팅 함수
   const formatPhoneNumber = (phone: string) => {
     if (!phone) return ''
     
-    // 숫자만 추출
     const numbers = phone.replace(/\D/g, '')
     
     if (numbers.length === 11) {
-      // 010-1234-5678 형식 (가장 일반적)
       return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
     } else if (numbers.length === 10) {
-      // 02-123-4567 형식 (서울 지역번호 등)
       return `${numbers.slice(0, 2)}-${numbers.slice(2, 5)}-${numbers.slice(5)}`
     }
     
-    return phone // 포맷팅할 수 없으면 원본 반환
+    return phone
   }
 
+  // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시
   const getFieldValue = (field: string) => {
     try {
-      // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시
       const { loadFromLocalStorage } = require('@/lib/data-storage')
       const { decryptData } = require('@/lib/encryption')
       const localData = loadFromLocalStorage()
@@ -401,6 +288,40 @@ function ConsentPageContent() {
     }
   }
 
+  const getFieldIcon = (field: string) => {
+    switch (field) {
+      case 'name': return <User className="h-4 w-4" />
+      case 'phone': return <Phone className="h-4 w-4" />
+      case 'address': return <MapPin className="h-4 w-4" />
+      case 'detailAddress': return <MapPin className="h-4 w-4" />
+      case 'zipCode': return <MapPin className="h-4 w-4" />
+      case 'email': return <Info className="h-4 w-4" />
+      default: return <Info className="h-4 w-4" />
+    }
+  }
+
+  const getFieldLabel = (field: string) => {
+    switch (field) {
+      case 'name': return '이름'
+      case 'phone': return '휴대폰번호'
+      case 'address': return '주소'
+      case 'detailAddress': return '상세주소'
+      case 'zipCode': return '우편번호'
+      case 'email': return '이메일'
+      default: return field
+    }
+  }
+
+  const getExpiryDate = () => {
+    const sixMonthsFromNow = new Date()
+    sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6)
+    return sixMonthsFromNow.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
   const handleConsent = async () => {
     if (!mallInfo || !shopId || !mallId) return
     
@@ -409,25 +330,62 @@ function ConsentPageContent() {
 
     setLoading(true)
     try {
-      // 동의 결과를 부모 창(쇼핑몰)에 전달
-      if (window.parent !== window) {
-        window.parent.postMessage({
-          type: 'consent_result',
-          agreed: true,
-          consentType,
-          shopId,
-          mallId,
-          timestamp: new Date().toISOString()
-        }, '*')
+      // Firebase에 동의 내역 저장
+      const { getDatabase, ref, set } = await import('firebase/database')
+      const db = getDatabase()
+      
+      const consentRef = ref(db, `userConsents/${uid}/${mallId}`)
+      await set(consentRef, {
+        consentType: consentType,
+        timestamp: new Date().toISOString(),
+        fields: fields,
+        shopId: shopId
+      })
+
+      // "이번만 허용"인 경우 JWT 발급
+      if (consentType === "once") {
+        const response = await fetch('/api/issue-jwt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            shopId: shopId, 
+            mallId: mallId 
+          })
+        })
+        
+        if (response.ok) {
+          const { jwt } = await response.json()
+          
+          // 동의 결과를 부모 창(쇼핑몰)에 전달 (JWT 포함)
+          if (window.parent !== window) {
+            window.parent.postMessage({
+              type: 'consent_result',
+              agreed: true,
+              consentType,
+              shopId,
+              mallId,
+              jwt: jwt,
+              timestamp: new Date().toISOString()
+            }, '*')
+          }
+        } else {
+          throw new Error('JWT 발급 실패')
+        }
+      } else {
+        // "항상 허용"인 경우 JWT 없이 동의 결과만 전달
+        if (window.parent !== window) {
+          window.parent.postMessage({
+            type: 'consent_result',
+            agreed: true,
+            consentType,
+            shopId,
+            mallId,
+            timestamp: new Date().toISOString()
+          }, '*')
+        }
       }
 
-      // 동의 내역 저장 (6개월 허용인 경우)
-      if (consentType === "always") {
-        // TODO: 서버에 동의 내역 저장 API 호출
-        console.log(`6개월 동의 저장: ${consentId}, 만료일: ${getExpiryDate()}`)
-      }
-
-      console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}`)
+      console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}, consentType: ${consentType}`)
 
     } catch (error) {
       console.error('동의 처리 오류:', error)
@@ -446,44 +404,6 @@ function ConsentPageContent() {
         mallId,
         timestamp: new Date().toISOString()
       }, '*')
-    }
-  }
-
-  const handleAdditionalInfoComplete = async (additionalData: { [key: string]: string }) => {
-    try {
-      // 추가정보 입력 완료 후 사용자 정보 업데이트
-      setShowAdditionalInfo(false)
-      
-      // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
-      // 추가 입력된 데이터만 처리
-      
-      // 개인정보는 상태에 저장하지 않음 (SSDM 중개 원칙)
-      
-      // 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
-      // Firebase에서 실제 쇼핑몰 정보 조회
-      const { realtimeDb } = await import('@/lib/firebase')
-      const { ref, get } = await import('firebase/database')
-      const mallRef = ref(realtimeDb, `malls/${mallId}`)
-      const mallSnapshot = await get(mallRef)
-      
-      if (mallSnapshot.exists()) {
-        const mallData = mallSnapshot.val()
-        setMallInfo({
-          mallId,
-          mallName: mallData.mallName || mallId,
-          requiredFields: mallInfo?.requiredFields || []
-        })
-      } else {
-        setMallInfo({
-          mallId,
-          mallName: mallId, // 기본값으로 mallId 사용
-          requiredFields: mallInfo?.requiredFields || []
-        })
-      }
-      
-    } catch (error) {
-      console.error('추가정보 완료 처리 오류:', error)
-      setError('추가정보 처리 중 오류가 발생했습니다.')
     }
   }
 
@@ -533,135 +453,138 @@ function ConsentPageContent() {
   if (!hasProfileData || !mallInfo) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="mb-4">
-              {isLoggedIn === null ? '로그인 상태 확인 중...' : 
-               isLoggedIn === false ? '로그인 확인 완료, 정보 처리 중...' :
-               '사용자 정보를 불러오는 중...'}
-            </p>
-            {/* 30초 이상 로딩 시 문제 해결 안내 */}
-            <div className="text-xs text-gray-500">
-              페이지 로딩이 오래 걸리면 새로고침을 시도해보세요.
-            </div>
-          </CardContent>
-        </Card>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>데이터를 불러오는 중...</p>
+        </div>
       </div>
     )
   }
 
+  const progressSteps = [
+    {
+      number: 1,
+      title: "추가정보 입력"
+    },
+    {
+      number: 2,
+      title: "정보제공동의"
+    }
+  ]
+
+  // 표시할 필드들 (요청된 필드들)
+  const displayFields = fields ? fields.split(',').map(field => field.trim()) : []
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center pb-4">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Shield className="h-6 w-6 text-primary" />
-            <CardTitle className="text-xl">개인정보 제공 동의</CardTitle>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-primary">{mallInfo.mallName}</span>에서 
-            다음 개인정보 제공을 요청했습니다.
-          </p>
-        </CardHeader>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto p-4">
+        {/* 진행 표시줄 */}
+        <ProgressSteps 
+          currentStep={2} 
+          steps={progressSteps}
+        />
 
-        <CardContent className="space-y-6">
-          {/* 제공될 정보 */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-900">제공될 개인정보</h3>
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-              {mallInfo.requiredFields.map((field: string) => (
-                <div key={field} className="flex items-center space-x-3">
-                  <div className="text-gray-500">
-                    {getFieldIcon(field)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">
-                      {getFieldLabel(field)}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {getFieldValue(field)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* 메인 콘텐츠 */}
+        <div className="flex justify-center">
+          <Card className="w-full max-w-lg">
+            <CardHeader className="text-center pb-4">
+              <div className="flex items-center justify-center space-x-2 mb-4">
+                <Shield className="h-6 w-6 text-primary" />
+                <CardTitle className="text-xl">개인정보 제공 동의</CardTitle>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {mallInfo.name}에서 다음 개인정보를 요청하고 있습니다.
+              </p>
+            </CardHeader>
 
-          {/* 동의 방식 선택 */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-900">동의 방식</h3>
-            <RadioGroup value={consentType} onValueChange={setConsentType}>
+            <CardContent className="space-y-6">
+              {/* 제공될 정보 */}
               <div className="space-y-3">
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                  <RadioGroupItem value="once" id="once" />
-                  <Label htmlFor="once" className="flex-1 cursor-pointer">
-                    <div>
-                      <div className="font-medium">이번만 허용</div>
-                      <div className="text-sm text-muted-foreground">
-                        이번 주문에만 정보를 제공합니다.
+                <h3 className="text-sm font-medium text-gray-900">제공될 개인정보</h3>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  {displayFields.map((field) => (
+                    <div key={field} className="flex items-center space-x-3">
+                      <div className="text-gray-500">
+                        {getFieldIcon(field)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">
+                          {getFieldLabel(field)}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {getFieldValue(field)}
+                        </div>
                       </div>
                     </div>
-                  </Label>
-                </div>
-                
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                  <RadioGroupItem value="always" id="always" />
-                  <Label htmlFor="always" className="flex-1 cursor-pointer">
-                    <div>
-                      <div className="font-medium">항상 허용</div>
-                      <div className="text-sm text-muted-foreground">
-                        {getExpiryDate()}까지 자동으로 정보를 제공합니다.
-                      </div>
-                    </div>
-                  </Label>
+                  ))}
                 </div>
               </div>
-            </RadioGroup>
-          </div>
 
-          {/* 안내 정보 */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="flex items-start space-x-2">
-              <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-800">
-                항상 허용을 선택하시면 6개월 후 자동으로 만료되며, 
-                설정에서 언제든 연결을 해제할 수 있습니다.
-              </p>
-            </div>
-          </div>
+              {/* 동의 방식 선택 */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-gray-900">동의 방식</h3>
+                <RadioGroup value={consentType} onValueChange={setConsentType}>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="once" id="once" />
+                      <Label htmlFor="once" className="flex-1 cursor-pointer">
+                        <div>
+                          <div className="font-medium">이번만 허용</div>
+                          <div className="text-sm text-muted-foreground">
+                            이번 주문에만 정보를 제공합니다.
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="always" id="always" />
+                      <Label htmlFor="always" className="flex-1 cursor-pointer">
+                        <div>
+                          <div className="font-medium">항상 허용</div>
+                          <div className="text-sm text-muted-foreground">
+                            {getExpiryDate()}까지 자동으로 정보를 제공합니다.
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
 
-          {/* 버튼 */}
-          <div className="flex space-x-3">
-            <Button 
-              variant="outline" 
-              className="flex-1" 
-              onClick={handleReject}
-              disabled={loading}
-            >
-              거부
-            </Button>
-            <Button 
-              className="flex-1 bg-primary hover:bg-primary/90"
-              onClick={handleConsent}
-              disabled={loading}
-            >
-              {loading ? '처리중...' : '동의하기'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              {/* 안내 정보 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-start space-x-2">
+                  <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-800">
+                    항상 허용을 선택하시면 6개월 후 자동으로 만료되며, 
+                    설정에서 언제든 연결을 해제할 수 있습니다.
+                  </p>
+                </div>
+              </div>
 
-      {/* 추가정보 입력 팝업 */}
-      {mallInfo && (
-        <AdditionalInfoPopup
-          isOpen={showAdditionalInfo}
-          onClose={() => setShowAdditionalInfo(false)}
-          serviceName={mallInfo.mallName}
-          onComplete={handleAdditionalInfoComplete}
-          missingFields={mallInfo.requiredFields}
-        />
-      )}
+              {/* 버튼 */}
+              <div className="flex space-x-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={handleReject}
+                  disabled={loading}
+                >
+                  거부
+                </Button>
+                <Button 
+                  className="flex-1 bg-primary hover:bg-primary/90"
+                  onClick={handleConsent}
+                  disabled={loading}
+                >
+                  {loading ? '처리중...' : '동의하기'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
