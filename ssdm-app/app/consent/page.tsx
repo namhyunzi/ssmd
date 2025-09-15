@@ -202,6 +202,7 @@ function ConsentPageContent() {
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId
+      const currentShopId = shopId
       
       // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
@@ -234,6 +235,7 @@ function ConsentPageContent() {
       setLoading(false)
     }
   }
+
 
   const loadUserData = async (uid: string, requiredFields: string[], mallIdParam?: string) => {
     try {
@@ -425,10 +427,24 @@ function ConsentPageContent() {
     }
   }
 
+  // 휴대폰 번호 포맷팅 함수
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return ''
+    // 숫자만 추출
+    const numbers = phone.replace(/\D/g, '')
+    // 010-1234-5678 형식으로 포맷팅
+    if (numbers.length === 11) {
+      return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
+    } else if (numbers.length === 10) {
+      return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`
+    }
+    return phone
+  }
+
   const getFieldValue = (field: string) => {
     switch (field) {
       case 'name': return userInfo?.name
-      case 'phone': return userInfo?.phone
+      case 'phone': return formatPhoneNumber(userInfo?.phone || '')
       case 'address': return userInfo?.address
       case 'detailAddress': return userInfo?.detailAddress
       case 'zipCode': return userInfo?.zipCode
@@ -450,20 +466,48 @@ function ConsentPageContent() {
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
       if (window.parent !== window) {
+        // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+        const referrer = document.referrer
+        const targetOrigin = referrer ? new URL(referrer).origin : '*'
+        
         window.parent.postMessage({
           type: 'consent_result',
           agreed: true,
           consentType,
           shopId,
           mallId,
-          timestamp: new Date().toISOString()
-        }, '*')
+          timestamp: new Date().toISOString(),
+          jwt: token // JWT 토큰도 함께 전달
+        }, targetOrigin)
+        
+        // 팝업 닫기
+        window.close()
       }
 
-      // 동의 내역 저장 (6개월 허용인 경우)
+      // 동의 내역 저장 (항상 허용인 경우)
       if (consentType === "always") {
-        // TODO: 서버에 동의 내역 저장 API 호출
-        console.log(`6개월 동의 저장: ${consentId}, 만료일: ${getExpiryDate()}`)
+        try {
+          // Firebase Realtime Database에 동의 내역 저장
+          const { realtimeDb } = await import('@/lib/firebase')
+          const { ref, set } = await import('firebase/database')
+          const { auth } = await import('@/lib/firebase')
+          
+          const currentUser = auth.currentUser
+          if (currentUser) {
+            const consentRef = ref(realtimeDb, `userConsents/${currentUser.uid}/${consentId}`)
+            await set(consentRef, {
+              mallId,
+              shopId,
+              consentType,
+              agreed: true,
+              timestamp: new Date().toISOString(),
+              expiryDate: getExpiryDate()
+            })
+            console.log(`항상 허용 동의 저장 완료: ${consentId}`)
+          }
+        } catch (error) {
+          console.error('동의 내역 저장 실패:', error)
+        }
       }
 
       console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}`)
@@ -478,33 +522,62 @@ function ConsentPageContent() {
 
   const handleReject = () => {
     if (window.parent !== window) {
+      // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+      const referrer = document.referrer
+      const targetOrigin = referrer ? new URL(referrer).origin : '*'
+      
       window.parent.postMessage({
         type: 'consent_result',
         agreed: false,
         shopId,
         mallId,
-        timestamp: new Date().toISOString()
-      }, '*')
+        timestamp: new Date().toISOString(),
+        jwt: token // JWT 토큰도 함께 전달
+      }, targetOrigin)
+      
+      // 팝업 닫기
+      window.close()
     }
   }
 
   const handleAdditionalInfoComplete = async (additionalData: { [key: string]: string }) => {
     try {
-      // 추가정보 입력 완료 후 사용자 정보 업데이트
-      setShowAdditionalInfo(false)
+      setLoading(true)
       
-      // 기존 사용자 데이터와 추가 입력된 데이터 병합
+      // 1. 기존 암호화된 데이터 로드
+      const { loadProfileFromLocal, saveProfileWithMetadata } = await import('@/lib/data-storage')
+      const existingProfile = loadProfileFromLocal()
+      
+      // 2. 기존 데이터와 추가 데이터 병합
+      const updatedProfile = {
+        name: '',
+        phone: '',
+        address: '',
+        detailAddress: '',
+        zipCode: '',
+        email: '',
+        ...existingProfile,
+        ...additionalData
+      }
+      
+      // 3. 암호화하여 로컬 저장소에 저장 (기존 함수 사용)
+      const { auth } = await import('@/lib/firebase')
+      const currentUser = auth.currentUser
+      if (currentUser) {
+        await saveProfileWithMetadata(currentUser, updatedProfile)
+      }
+      
+      // 4. UI 상태 업데이트
+      setShowAdditionalInfo(false)
       const updatedUserData = {
         ...userInfo,
         ...additionalData
       }
-      
       setUserInfo(updatedUserData)
       
-      // 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
-      // Firebase에서 실제 쇼핑몰 정보 조회
+      // 5. 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
       const { realtimeDb } = await import('@/lib/firebase')
-      const { ref, get } = await import('firebase/database')
+      const { get, ref } = await import('firebase/database')
       const mallRef = ref(realtimeDb, `malls/${mallId}`)
       const mallSnapshot = await get(mallRef)
       
@@ -526,6 +599,8 @@ function ConsentPageContent() {
     } catch (error) {
       console.error('추가정보 완료 처리 오류:', error)
       setError('추가정보 처리 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -657,7 +732,7 @@ function ConsentPageContent() {
                   <RadioGroupItem value="always" id="always" />
                   <Label htmlFor="always" className="flex-1 cursor-pointer">
                     <div>
-                      <div className="font-medium">6개월간 허용</div>
+                      <div className="font-medium">항상 허용</div>
                       <div className="text-sm text-muted-foreground">
                         {getExpiryDate()}까지 자동으로 정보를 제공합니다.
                       </div>
@@ -673,8 +748,7 @@ function ConsentPageContent() {
             <div className="flex items-start space-x-2">
               <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-800">
-                6개월 허용을 선택하시면 설정에서 언제든 연결을 해제할 수 있습니다. 
-                제공된 정보는 배송 목적으로만 사용되며, 주문 완료 후 안전하게 삭제됩니다.
+                항상 허용을 선택하시면 설정에서 언제든 연결을 해제할 수 있습니다.
               </p>
             </div>
           </div>
