@@ -66,9 +66,9 @@ function ConsentPageContent() {
           setShopId(payload.shopId)
           setMallId(payload.mallId)
           
-          // 로그인 상태 확인 시작
+          // 로그인 상태 확인 시작 (파라미터 직접 전달)
           const timer = setTimeout(() => {
-            checkLoginStatus()
+            checkLoginStatus(payload.shopId, payload.mallId)
           }, 100) // 100ms 지연으로 Firebase 초기화 대기
           
           return () => clearTimeout(timer)
@@ -84,12 +84,17 @@ function ConsentPageContent() {
     }
   }
 
-  const checkLoginStatus = async () => {
+  const checkLoginStatus = async (shopIdParam?: string, mallIdParam?: string) => {
     try {
       console.log('Firebase import 시작')
-      console.log('현재 shopId:', shopId, 'mallId:', mallId)
       
-      if (!shopId || !mallId) {
+      // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
+      const currentShopId = shopIdParam || shopId
+      const currentMallId = mallIdParam || mallId
+      
+      console.log('현재 shopId:', currentShopId, 'mallId:', currentMallId)
+      
+      if (!currentShopId || !currentMallId) {
         console.log('shopId 또는 mallId가 없습니다.')
         setError("필수 파라미터가 누락되었습니다. (shopId, mallId 필요)")
         return
@@ -156,14 +161,14 @@ function ConsentPageContent() {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
-            returnUrl: `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+            returnUrl: `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
           }, '*')
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+          const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
           localStorage.setItem('redirect_after_login', currentUrl)
           // 외부 팝업에서 온 경우를 표시
           localStorage.setItem('from_external_popup', 'true')
@@ -174,11 +179,11 @@ function ConsentPageContent() {
       
       console.log('=== 로그인 상태 확인 완료 ===')
       console.log('로그인된 사용자 UID:', currentUser.uid)
-      console.log('JWT에서 추출된 파라미터 - shopId:', shopId, 'mallId:', mallId)
+      console.log('JWT에서 추출된 파라미터 - shopId:', currentShopId, 'mallId:', currentMallId)
       
       setIsLoggedIn(true)
       // 로그인된 경우 동의 프로세스 진행
-      await initializeUserConnection()
+      await initializeUserConnection(currentMallId)
       
     } catch (error: any) {
       console.error('로그인 상태 확인 오류:', error)
@@ -191,13 +196,16 @@ function ConsentPageContent() {
     }
   }
 
-  const initializeUserConnection = async () => {
+  const initializeUserConnection = async (mallIdParam?: string) => {
     try {
       setLoading(true)
       
+      // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
+      const currentMallId = mallIdParam || mallId
+      
       // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
-      const allowedFields = await getMallAllowedFields(mallId!)
+      const allowedFields = await getMallAllowedFields(currentMallId!)
       
       if (!allowedFields || allowedFields.length === 0) {
         setError('쇼핑몰의 허용 필드가 설정되지 않았습니다.')
@@ -217,7 +225,7 @@ function ConsentPageContent() {
       console.log('사용할 실제 사용자 UID:', userId)
       
       // 3. 사용자 데이터 로드
-      await loadUserData(userId, allowedFields)
+      await loadUserData(userId, allowedFields, currentMallId || undefined)
       
     } catch (error) {
       console.error('사용자 연결 초기화 오류:', error)
@@ -227,7 +235,7 @@ function ConsentPageContent() {
     }
   }
 
-  const loadUserData = async (uid: string, requiredFields: string[]) => {
+  const loadUserData = async (uid: string, requiredFields: string[], mallIdParam?: string) => {
     try {
       // Firebase Auth UID를 그대로 사용 (별도 파싱 불필요)
       const userId = uid
@@ -251,7 +259,8 @@ function ConsentPageContent() {
         console.log('사용자 데이터가 없으므로 로그인 페이지로 리디렉션')
         
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+        const currentMallId = mallIdParam || mallId
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
         localStorage.setItem('redirect_after_login', currentUrl)
         window.location.href = '/'
         return
@@ -314,7 +323,8 @@ function ConsentPageContent() {
       if (!userData.profileCompleted) {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
+        const currentMallId = mallIdParam || mallId
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
         localStorage.setItem('redirect_after_profile', currentUrl)
         window.location.href = '/profile-setup'
         return
@@ -329,8 +339,8 @@ function ConsentPageContent() {
       if (missingFields.length > 0) {
         // 요청 정보보다 적게 입력한 사람 → 추가정보 입력
         setShowAdditionalInfo(true)
-        // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
-        const mallIdFromUid = mallId
+        // 쇼핑몰 ID는 파라미터에서 가져옴
+        const mallIdFromUid = mallIdParam || mallId
         
         // Firebase에서 실제 쇼핑몰 정보 조회
         const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
@@ -353,8 +363,8 @@ function ConsentPageContent() {
       } else {
         // 모든 정보가 충분한 경우 → 동의 절차 진행
         setUserInfo(mergedUserData)
-        // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
-        const mallIdFromUid = mallId
+        // 쇼핑몰 ID는 파라미터에서 가져옴
+        const mallIdFromUid = mallIdParam || mallId
         
         // Firebase에서 실제 쇼핑몰 정보 조회
         const mallRef = ref(realtimeDb, `malls/${mallIdFromUid}`)
@@ -535,7 +545,13 @@ function ConsentPageContent() {
                 onClick={() => {
                   setError("")
                   setLoading(false)
-                  checkLoginStatus()
+                  // JWT 토큰이 있으면 다시 검증 시도
+                  const jwtFromUrl = searchParams.get('jwt')
+                  if (jwtFromUrl) {
+                    verifyToken(jwtFromUrl)
+                  } else {
+                    checkLoginStatus()
+                  }
                 }} 
                 className="w-full"
               >
