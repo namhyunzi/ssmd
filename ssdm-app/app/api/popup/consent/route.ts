@@ -27,8 +27,11 @@ export async function POST(request: NextRequest) {
         )
       }
       
+      // 공개키 정리 (이스케이프된 개행 문자를 실제 개행 문자로 변환)
+      const cleanPublicKey = decodedWithoutVerify.publicKey.replace(/\\n/g, '\n')
+      
       // 공개키로 JWT 검증
-      const decoded = jwt.verify(token, decodedWithoutVerify.publicKey) as any
+      const decoded = jwt.verify(token, cleanPublicKey) as any
       
       // JWT에서 정보 추출
       const { shopId, mallId, apiKey } = decoded
