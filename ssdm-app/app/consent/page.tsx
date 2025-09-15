@@ -581,41 +581,37 @@ function ConsentPageContent() {
     console.log('shopId:', shopId)
     console.log('mallId:', mallId)
     console.log('userInfo:', userInfo)
-    console.log('팝업 환경 여부:', window.parent !== window)
+    // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+    const referrer = document.referrer
+    const targetOrigin = referrer ? new URL(referrer).origin : '*'
     
-    if (window.parent !== window) {
-      // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
-      const referrer = document.referrer
-      const targetOrigin = referrer ? new URL(referrer).origin : '*'
-      
-      console.log('postMessage로 거부 결과 전달:', {
-        type: 'consent_result',
-        agreed: false,
-        consentType: 'once',
-        shopId,
-        mallId,
-        jwt: token,
-        timestamp: new Date().toISOString()
-      })
-      
-      // 1. 결과 전달
+    console.log('postMessage로 거부 결과 전달:', {
+      type: 'consent_result',
+      agreed: false,
+      consentType: 'once',
+      shopId,
+      mallId,
+      jwt: token,
+      timestamp: new Date().toISOString()
+    })
+    
+    // 1. 결과 전달
+    window.parent.postMessage({
+      type: 'consent_result',
+      agreed: false,
+      consentType: 'once',
+      shopId,
+      mallId,
+      jwt: token,
+      timestamp: new Date().toISOString()
+    }, targetOrigin)
+    
+    // 2. 팝업 닫기 요청
+    setTimeout(() => {
       window.parent.postMessage({
-        type: 'consent_result',
-        agreed: false,
-        consentType: 'once',
-        shopId,
-        mallId,
-        jwt: token,
-        timestamp: new Date().toISOString()
+        type: 'close_popup'
       }, targetOrigin)
-      
-      // 2. 팝업 닫기 요청
-      setTimeout(() => {
-        window.parent.postMessage({
-          type: 'close_popup'
-        }, targetOrigin)
-      }, 100)
-    }
+    }, 100)
   }
 
   const handleAdditionalInfoComplete = async (additionalData: { [key: string]: string }) => {
