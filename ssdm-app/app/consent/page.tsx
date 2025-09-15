@@ -22,6 +22,7 @@ function ConsentPageContent() {
   const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
+  const [ssdmPopup, setSSMDPopup] = useState<Window | null>(null)
   
   const searchParams = useSearchParams()
 
@@ -494,23 +495,24 @@ function ConsentPageContent() {
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
       if (window.parent !== window) {
-        // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
-        const referrer = document.referrer
-        const targetOrigin = referrer ? new URL(referrer).origin : '*'
+        // postMessage로 결과 전달 (쇼핑몰에서 origin 확인)
         
         // postMessage로 동의 결과 전달
         window.parent.postMessage({
           type: 'consent_result',
           agreed: true,
           consentType,
-          timestamp: new Date().toISOString(),
-          jwt: token
-        }, targetOrigin)
+          shopId,
+          mallId,
+          jwt: token,
+          timestamp: new Date().toISOString()
+        }, '*')
         
-        // 팝업 닫기 요청
+        
+        // 팝업 닫기는 쇼핑몰에서 처리하도록 요청
         window.parent.postMessage({
           type: 'close_popup'
-        }, targetOrigin)
+        }, '*')
         
         // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
         setTimeout(() => {
@@ -559,14 +561,21 @@ function ConsentPageContent() {
 
   const handleReject = async () => {
     if (window.parent !== window) {
-      // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
-      const referrer = document.referrer
-      const targetOrigin = referrer ? new URL(referrer).origin : '*'
+      // postMessage로 거부 결과 전달
+      window.parent.postMessage({
+        type: 'consent_result',
+        agreed: false,
+        consentType: 'once',
+        shopId,
+        mallId,
+        jwt: token,
+        timestamp: new Date().toISOString()
+      }, '*')
       
-      // 팝업 닫기 요청만 전달 (거부 시에는 토큰이나 결과 정보 불필요)
+      // 팝업 닫기는 쇼핑몰에서 처리하도록 요청
       window.parent.postMessage({
         type: 'close_popup'
-      }, targetOrigin)
+      }, '*')
     }
   }
 
