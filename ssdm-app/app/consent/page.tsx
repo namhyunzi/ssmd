@@ -453,6 +453,34 @@ function ConsentPageContent() {
     }
   }
 
+  // 동의 내역 저장 함수
+  const saveConsentData = async (consentId: string, mallId: string, shopId: string, consentType: string) => {
+    if (consentType === "always") {
+      try {
+        // Firebase Realtime Database에 동의 내역 저장
+        const { realtimeDb } = await import('@/lib/firebase')
+        const { ref, set } = await import('firebase/database')
+        const { auth } = await import('@/lib/firebase')
+        
+        const currentUser = auth.currentUser
+        if (currentUser) {
+          const consentRef = ref(realtimeDb, `userConsents/${currentUser.uid}/${consentId}`)
+          await set(consentRef, {
+            mallId,
+            shopId,
+            consentType,
+            agreed: true,
+            timestamp: new Date().toISOString(),
+            expiryDate: getExpiryDate()
+          })
+          console.log(`항상 허용 동의 저장 완료: ${consentId}`)
+        }
+      } catch (error) {
+        console.error('동의 내역 저장 실패:', error)
+      }
+    }
+  }
+
   const handleConsent = async () => {
     if (!mallInfo || !shopId || !mallId) {
       console.log('handleConsent: 필수 파라미터 누락', { mallInfo: !!mallInfo, shopId, mallId })
@@ -470,18 +498,27 @@ function ConsentPageContent() {
         const referrer = document.referrer
         const targetOrigin = referrer ? new URL(referrer).origin : '*'
         
+        // postMessage로 동의 결과 전달
         window.parent.postMessage({
           type: 'consent_result',
           agreed: true,
           consentType,
-          shopId,
-          mallId,
           timestamp: new Date().toISOString(),
-          jwt: token // JWT 토큰도 함께 전달
+          jwt: token
         }, targetOrigin)
         
-        // 팝업 닫기
-        window.close()
+        // 팝업 닫기 요청
+        window.parent.postMessage({
+          type: 'close_popup'
+        }, targetOrigin)
+        
+        // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
+        setTimeout(() => {
+          saveConsentData(consentId, mallId, shopId, consentType)
+        }, 100)
+      } else {
+        // 일반 페이지인 경우 동의 내역 저장
+        await saveConsentData(consentId, mallId, shopId, consentType)
       }
 
       // 동의 내역 저장 (항상 허용인 경우)
@@ -520,23 +557,16 @@ function ConsentPageContent() {
     }
   }
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (window.parent !== window) {
       // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
       const referrer = document.referrer
       const targetOrigin = referrer ? new URL(referrer).origin : '*'
       
+      // 팝업 닫기 요청만 전달 (거부 시에는 토큰이나 결과 정보 불필요)
       window.parent.postMessage({
-        type: 'consent_result',
-        agreed: false,
-        shopId,
-        mallId,
-        timestamp: new Date().toISOString(),
-        jwt: token // JWT 토큰도 함께 전달
+        type: 'close_popup'
       }, targetOrigin)
-      
-      // 팝업 닫기
-      window.close()
     }
   }
 
