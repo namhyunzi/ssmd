@@ -14,6 +14,7 @@ function ConsentPageContent() {
   const [loading, setLoading] = useState(false)
   const [hasProfileData, setHasProfileData] = useState<boolean>(false)
   const [dataRefreshKey, setDataRefreshKey] = useState<number>(0)
+  const [userInfo, setUserInfo] = useState<any>(null)
   const [mallInfo, setMallInfo] = useState<any>(null)
   const [error, setError] = useState<string>("")
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
@@ -23,7 +24,6 @@ function ConsentPageContent() {
   const shopId = searchParams.get('shopId')
   const mallId = searchParams.get('mallId')
   const uid = searchParams.get('uid')
-  const fields = searchParams.get('fields')
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
@@ -211,13 +211,13 @@ function ConsentPageContent() {
     try {
       console.log('필수 필드 확인 시작')
       
-      if (!mallInfo || !fields) {
-        console.log('mallInfo 또는 fields가 없음')
+      if (!mallInfo || !mallInfo.requiredFields) {
+        console.log('mallInfo 또는 requiredFields가 없음')
         return
       }
       
       // 요청된 필드들을 배열로 변환
-      const requestedFields = fields.split(',').map(field => field.trim())
+      const requestedFields = mallInfo.requiredFields
       console.log('요청된 필드들:', requestedFields)
       
       // 누락된 필드 확인
@@ -261,25 +261,24 @@ function ConsentPageContent() {
   // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시
   const getFieldValue = (field: string) => {
     try {
-      const { loadFromLocalStorage } = require('@/lib/data-storage')
-      const { decryptData } = require('@/lib/encryption')
-      const localData = loadFromLocalStorage()
+      // 로컬 저장소에서 직접 복호화해서 가져오기
+      const { loadProfileFromLocal } = require('@/lib/data-storage')
+      const profileData = loadProfileFromLocal()
       
-      if (!localData || !localData.encrypted) {
+      if (!profileData || !profileData.profile) {
+        console.log('로컬 프로필 데이터가 없습니다')
         return ''
       }
       
-      // 실시간 복호화
-      const decryptedDataString = decryptData(localData.encryptedData, localData.key)
-      const profileData = JSON.parse(decryptedDataString)
+      console.log('getFieldValue 호출:', { field, profileData: profileData.profile })
       
       switch (field) {
-        case 'name': return profileData.name || ''
-        case 'phone': return formatPhoneNumber(profileData.phone || '')
-        case 'address': return profileData.address || ''
-        case 'detailAddress': return profileData.detailAddress || ''
-        case 'zipCode': return profileData.zipCode || ''
-        case 'email': return profileData.email || ''
+        case 'name': return profileData.profile.name || ''
+        case 'phone': return profileData.profile.phone || ''
+        case 'address': return profileData.profile.address || ''
+        case 'detailAddress': return profileData.profile.detailAddress || ''
+        case 'zipCode': return profileData.profile.zipCode || ''
+        case 'email': return profileData.profile.email || ''
         default: return ''
       }
     } catch (error) {
@@ -464,7 +463,7 @@ function ConsentPageContent() {
   const progressSteps = [
     {
       number: 1,
-      title: "추가정보 입력"
+      title: "장바구니"
     },
     {
       number: 2,
@@ -472,17 +471,22 @@ function ConsentPageContent() {
     }
   ]
 
-  // 표시할 필드들 (요청된 필드들)
-  const displayFields = fields ? fields.split(',').map(field => field.trim()) : []
+  // 표시할 필드들 (쇼핑몰에서 요청한 필드들)
+  const displayFields = mallInfo?.requiredFields || []
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto p-4">
-        {/* 진행 표시줄 */}
-        <ProgressSteps 
-          currentStep={2} 
-          steps={progressSteps}
-        />
+        {/* 오른쪽 상단 단계 표시 */}
+        <div className="flex justify-end mb-4">
+          <div className="flex items-center space-x-2 bg-white rounded-lg px-3 py-2 shadow-sm border">
+            <span className="text-xs text-gray-500">1 장바구니</span>
+            <span className="text-xs text-gray-300">→</span>
+            <span className="text-xs text-primary font-medium">2 주문/결제</span>
+            <span className="text-xs text-gray-300">→</span>
+            <span className="text-xs text-gray-500">3 주문완료</span>
+          </div>
+        </div>
 
         {/* 메인 콘텐츠 */}
         <div className="flex justify-center">
