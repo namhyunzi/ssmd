@@ -27,7 +27,7 @@ function ConsentPageContent() {
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
-    console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
+    console.log('현재 환경: 팝업')
     
     // URL 파라미터에서 JWT 토큰 가져오기
     const jwtFromUrl = searchParams.get('jwt')
@@ -717,18 +717,10 @@ function ConsentPageContent() {
               </Button>
               
               {/* 팝업인 경우에만 창 닫기 버튼 표시 */}
-              {window.parent !== window && (
-                <Button onClick={() => window.close()} variant="outline" className="w-full">
-                  창 닫기
-                </Button>
-              )}
-              
-              {/* 일반 페이지인 경우 홈으로 이동 */}
-              {window.parent === window && (
-                <Button onClick={() => window.location.href = '/'} variant="outline" className="w-full">
-                  홈으로 이동
-                </Button>
-              )}
+              {/* 팝업 창 닫기 */}
+              <Button onClick={() => window.close()} variant="outline" className="w-full">
+                창 닫기
+              </Button>
             </div>
           </CardContent>
         </Card>
