@@ -860,19 +860,53 @@ function ConsentPageContent() {
           <div className="flex space-x-3">
             <Button 
               variant="outline" 
-              className="flex-1" 
-              onClick={handleReject}
+              className="flex-1 cursor-pointer" 
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                console.log('거부 버튼 클릭 이벤트 발생!')
+                handleReject()
+              }}
               disabled={loading}
+              style={{ pointerEvents: loading ? 'none' : 'auto' }}
             >
               거부
             </Button>
             <Button 
-              className="flex-1 bg-primary hover:bg-primary/90"
-              onClick={handleConsent}
+              className="flex-1 bg-primary hover:bg-primary/90 cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                console.log('동의하기 버튼 클릭 이벤트 발생!')
+                handleConsent()
+              }}
               disabled={loading}
+              style={{ pointerEvents: loading ? 'none' : 'auto' }}
             >
               {loading ? '처리중...' : '동의하기'}
             </Button>
+          </div>
+          
+          {/* 테스트 버튼 */}
+          <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-xs text-yellow-800 mb-2">테스트 버튼 (클릭 이벤트 확인용):</p>
+            <button 
+              className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              onClick={() => {
+                console.log('=== 테스트 버튼 클릭됨 ===')
+                alert('테스트 버튼이 클릭되었습니다!')
+              }}
+            >
+              테스트 클릭
+            </button>
+          </div>
+          
+          {/* 디버깅 정보 */}
+          <div className="text-xs text-gray-500 mt-2">
+            <p>Loading 상태: {loading ? 'true' : 'false'}</p>
+            <p>mallInfo 존재: {mallInfo ? 'true' : 'false'}</p>
+            <p>shopId: {shopId || '없음'}</p>
+            <p>mallId: {mallId || '없음'}</p>
           </div>
         </CardContent>
       </Card>
