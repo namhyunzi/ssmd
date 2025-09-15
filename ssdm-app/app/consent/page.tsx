@@ -22,7 +22,6 @@ function ConsentPageContent() {
   const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
-  const [ssdmPopup, setSSMDPopup] = useState<Window | null>(null)
   
   const searchParams = useSearchParams()
 
@@ -483,6 +482,14 @@ function ConsentPageContent() {
   }
 
   const handleConsent = async () => {
+    console.log('=== 동의하기 버튼 클릭됨 ===')
+    console.log('현재 시간:', new Date().toISOString())
+    console.log('mallInfo:', mallInfo)
+    console.log('shopId:', shopId)
+    console.log('mallId:', mallId)
+    console.log('consentType:', consentType)
+    console.log('userInfo:', userInfo)
+    
     if (!mallInfo || !shopId || !mallId) {
       console.log('handleConsent: 필수 파라미터 누락', { mallInfo: !!mallInfo, shopId, mallId })
       return
@@ -495,24 +502,50 @@ function ConsentPageContent() {
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
       if (window.parent !== window) {
-        // postMessage로 결과 전달 (쇼핑몰에서 origin 확인)
+        // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+        const referrer = document.referrer
+        const targetOrigin = referrer ? new URL(referrer).origin : '*'
         
-        // postMessage로 동의 결과 전달
-        window.parent.postMessage({
-          type: 'consent_result',
-          agreed: true,
-          consentType,
-          shopId,
-          mallId,
-          jwt: token,
-          timestamp: new Date().toISOString()
-        }, '*')
+        // API를 통해 쇼핑몰에 동의 결과 전달
+        try {
+          const callbackUrl = referrer ? `${referrer}/api/consent-callback` : null
+          
+          if (callbackUrl) {
+            const response = await fetch('/api/consent-result', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                shopId,
+                mallId,
+                agreed: true,
+                consentType,
+                jwt: token,
+                timestamp: new Date().toISOString(),
+                callbackUrl
+              })
+            })
+            
+            if (response.ok) {
+              console.log('동의 결과가 쇼핑몰에 전달되었습니다.')
+            } else {
+              console.error('쇼핑몰 콜백 실패')
+            }
+          }
+        } catch (error) {
+          console.error('API 호출 실패:', error)
+        }
         
         
-        // 팝업 닫기는 쇼핑몰에서 처리하도록 요청
-        window.parent.postMessage({
-          type: 'close_popup'
-        }, '*')
+        // 팝업 닫기 시도 (백업)
+        setTimeout(() => {
+          try {
+            window.close()
+          } catch (error) {
+            console.log('팝업 닫기 실패:', error)
+          }
+        }, 100)
         
         // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
         setTimeout(() => {
@@ -561,21 +594,44 @@ function ConsentPageContent() {
 
   const handleReject = async () => {
     if (window.parent !== window) {
-      // postMessage로 거부 결과 전달
-      window.parent.postMessage({
-        type: 'consent_result',
-        agreed: false,
-        consentType: 'once',
-        shopId,
-        mallId,
-        jwt: token,
-        timestamp: new Date().toISOString()
-      }, '*')
+      // API를 통해 쇼핑몰에 거부 결과 전달
+      try {
+        const referrer = document.referrer
+        const callbackUrl = referrer ? `${referrer}/api/consent-callback` : null
+        
+        if (callbackUrl) {
+          const response = await fetch('/api/consent-result', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              shopId,
+              mallId,
+              agreed: false,
+              consentType: 'once',
+              jwt: token,
+              timestamp: new Date().toISOString(),
+              callbackUrl
+            })
+          })
+          
+          if (response.ok) {
+            console.log('거부 결과가 쇼핑몰에 전달되었습니다.')
+          } else {
+            console.error('쇼핑몰 콜백 실패')
+          }
+        }
+      } catch (error) {
+        console.error('API 호출 실패:', error)
+      }
       
-      // 팝업 닫기는 쇼핑몰에서 처리하도록 요청
-      window.parent.postMessage({
-        type: 'close_popup'
-      }, '*')
+      // 팝업 닫기 시도
+      try {
+        window.close()
+      } catch (error) {
+        console.log('팝업 닫기 실패:', error)
+      }
     }
   }
 
