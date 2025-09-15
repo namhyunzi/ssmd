@@ -27,7 +27,7 @@ function ConsentPageContent() {
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
-    console.log('현재 환경: 팝업')
+    console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
     
     // URL 파라미터에서 JWT 토큰 가져오기
     const jwtFromUrl = searchParams.get('jwt')
@@ -157,7 +157,7 @@ function ConsentPageContent() {
         console.log('로그인되지 않음 - 처리 방법 결정')
         
         // 외부 팝업인 경우 부모 창에 로그인 필요 메시지 전달
-        /**if (window.parent !== window) {
+        if (window.parent !== window) {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
@@ -166,8 +166,7 @@ function ConsentPageContent() {
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
-        } else 
-         */{
+        } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
           const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
           localStorage.setItem('redirect_after_login', currentUrl)
@@ -502,10 +501,9 @@ function ConsentPageContent() {
     setLoading(true)
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
+      if (window.parent !== window) {
         // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
-        const referrer = document.referrer
-        const targetOrigin = referrer ? new URL(referrer).origin : '*'
-        console.log("targetOrigin 확인",targetOrigin);
+        const targetOrigin = process.env.NEXT_PUBLIC_BASE_URL!
         
         console.log('postMessage로 동의 결과 전달:', {
           type: 'consent_result',
@@ -539,8 +537,10 @@ function ConsentPageContent() {
         setTimeout(() => {
           saveConsentData(consentId, mallId, shopId, consentType)
         }, 100)
+      } else {
         // 일반 페이지인 경우 동의 내역 저장
         await saveConsentData(consentId, mallId, shopId, consentType)
+      }
 
       // 동의 내역 저장 (항상 허용인 경우)
       if (consentType === "always") {
@@ -585,37 +585,41 @@ function ConsentPageContent() {
     console.log('shopId:', shopId)
     console.log('mallId:', mallId)
     console.log('userInfo:', userInfo)
-    // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
-    const referrer = document.referrer
-    const targetOrigin = referrer ? new URL(referrer).origin : '*'
+    console.log('팝업 환경 여부:', window.parent !== window)
     
-    console.log('postMessage로 거부 결과 전달:', {
-      type: 'consent_result',
-      agreed: false,
-      consentType: 'once',
-      shopId,
-      mallId,
-      jwt: token,
-      timestamp: new Date().toISOString()
-    })
-    
-    // 1. 결과 전달
-    window.parent.postMessage({
-      type: 'consent_result',
-      agreed: false,
-      consentType: 'once',
-      shopId,
-      mallId,
-      jwt: token,
-      timestamp: new Date().toISOString()
-    }, targetOrigin)
-    
-    // 2. 팝업 닫기 요청
-    setTimeout(() => {
+    if (window.parent !== window) {
+      // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+      const referrer = document.referrer
+      const targetOrigin = referrer ? new URL(referrer).origin : '*'
+      
+      console.log('postMessage로 거부 결과 전달:', {
+        type: 'consent_result',
+        agreed: false,
+        consentType: 'once',
+        shopId,
+        mallId,
+        jwt: token,
+        timestamp: new Date().toISOString()
+      })
+      
+      // 1. 결과 전달
       window.parent.postMessage({
-        type: 'close_popup'
+        type: 'consent_result',
+        agreed: false,
+        consentType: 'once',
+        shopId,
+        mallId,
+        jwt: token,
+        timestamp: new Date().toISOString()
       }, targetOrigin)
-    }, 100)
+      
+      // 2. 팝업 닫기 요청
+      setTimeout(() => {
+        window.parent.postMessage({
+          type: 'close_popup'
+        }, targetOrigin)
+      }, 100)
+    }
   }
 
   const handleAdditionalInfoComplete = async (additionalData: { [key: string]: string }) => {
@@ -712,10 +716,18 @@ function ConsentPageContent() {
               </Button>
               
               {/* 팝업인 경우에만 창 닫기 버튼 표시 */}
-              {/* 팝업 창 닫기 */}
-              <Button onClick={() => window.close()} variant="outline" className="w-full">
-                창 닫기
-              </Button>
+              {window.parent !== window && (
+                <Button onClick={() => window.close()} variant="outline" className="w-full">
+                  창 닫기
+                </Button>
+              )}
+              
+              {/* 일반 페이지인 경우 홈으로 이동 */}
+              {window.parent === window && (
+                <Button onClick={() => window.location.href = '/'} variant="outline" className="w-full">
+                  홈으로 이동
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
