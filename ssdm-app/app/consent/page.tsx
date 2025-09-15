@@ -45,6 +45,69 @@ function ConsentPageContent() {
     return () => clearTimeout(timer)
   }, [shopId, mallId])
 
+  // 로그인 상태가 확인되면 사용자 데이터 로드
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadUserData()
+    }
+  }, [isLoggedIn])
+
+  // 사용자 데이터 로드 (메타데이터 + 복호화)
+  const loadUserData = async () => {
+    try {
+      console.log('=== 사용자 데이터 로드 시작 ===')
+      
+      // Firebase Auth에서 현재 사용자 가져오기
+      const { auth } = await import('@/lib/firebase')
+      const currentUser = auth.currentUser
+      
+      if (!currentUser) {
+        console.log('현재 로그인된 사용자가 없습니다')
+        return
+      }
+      
+      console.log('현재 사용자 UID:', currentUser.uid)
+      
+      // Firebase Realtime Database에서 사용자 메타데이터 가져오기
+      const { realtimeDb } = await import('@/lib/firebase')
+      const { ref, get } = await import('firebase/database')
+      
+      // userProfileMetadata/{uid}에서 메타데이터 조회
+      const metadataRef = ref(realtimeDb, `userProfileMetadata/${currentUser.uid}`)
+      const metadataSnapshot = await get(metadataRef)
+      
+      if (!metadataSnapshot.exists()) {
+        console.log('사용자 메타데이터가 없습니다')
+        return
+      }
+      
+      const metadata = metadataSnapshot.val()
+      console.log('메타데이터:', metadata)
+      
+      // 로컬 저장소에서 암호화된 데이터 복호화
+      const { loadProfileFromLocal } = await import('@/lib/data-storage')
+      const localData = loadProfileFromLocal()
+      
+      if (!localData) {
+        console.log('로컬 저장소에 암호화된 데이터가 없습니다')
+        return
+      }
+      
+      console.log('복호화된 사용자 데이터:', localData)
+      
+      // 복호화된 데이터를 userInfo에 설정
+      setUserInfo(localData)
+      
+      // 쇼핑몰 정보도 로드
+      await loadMallInfo()
+      
+    } catch (error) {
+      console.error('사용자 데이터 로드 실패:', error)
+      setError('사용자 데이터를 불러오는 중 오류가 발생했습니다.')
+    }
+  }
+
+
   // 추가정보 입력 후 데이터 새로고침
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -221,7 +284,7 @@ function ConsentPageContent() {
       console.log('요청된 필드들:', requestedFields)
       
       // 누락된 필드 확인
-      const missingFields = requestedFields.filter(field => {
+      const missingFields = requestedFields.filter((field: string) => {
         const value = getFieldValue(field)
         return !value || value.trim() === ''
       })
@@ -231,7 +294,7 @@ function ConsentPageContent() {
       if (missingFields.length > 0) {
         console.log('누락된 필드가 있음 - 추가정보 입력 페이지로 리디렉션')
         // 추가정보 입력 페이지로 리디렉션
-        const additionalInfoUrl = `/additional-info?userId=${encodeURIComponent(uid || '')}&apiKey=${encodeURIComponent(mallInfo.apiKey || '')}&mallId=${encodeURIComponent(mallId || '')}&fields=${encodeURIComponent(fields)}&shopId=${encodeURIComponent(shopId || '')}`
+        const additionalInfoUrl = `/additional-info?userId=${encodeURIComponent(uid || '')}&apiKey=${encodeURIComponent(mallInfo.apiKey || '')}&mallId=${encodeURIComponent(mallId || '')}&shopId=${encodeURIComponent(shopId || '')}`
         window.location.href = additionalInfoUrl
         return
       }
@@ -261,28 +324,25 @@ function ConsentPageContent() {
   // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시
   const getFieldValue = (field: string) => {
     try {
-      // 로컬 저장소에서 직접 복호화해서 가져오기
-      const { loadProfileFromLocal } = require('@/lib/data-storage')
-      const profileData = loadProfileFromLocal()
-      
-      if (!profileData || !profileData.profile) {
-        console.log('로컬 프로필 데이터가 없습니다')
+      // userInfo에서 직접 가져오기 (이미 복호화된 데이터)
+      if (!userInfo) {
+        console.log('userInfo가 없습니다')
         return ''
       }
       
-      console.log('getFieldValue 호출:', { field, profileData: profileData.profile })
+      console.log('getFieldValue 호출:', { field, userInfo })
       
       switch (field) {
-        case 'name': return profileData.profile.name || ''
-        case 'phone': return profileData.profile.phone || ''
-        case 'address': return profileData.profile.address || ''
-        case 'detailAddress': return profileData.profile.detailAddress || ''
-        case 'zipCode': return profileData.profile.zipCode || ''
-        case 'email': return profileData.profile.email || ''
+        case 'name': return userInfo.name || ''
+        case 'phone': return userInfo.phone || ''
+        case 'address': return userInfo.address || ''
+        case 'detailAddress': return userInfo.detailAddress || ''
+        case 'zipCode': return userInfo.zipCode || ''
+        case 'email': return userInfo.email || ''
         default: return ''
       }
     } catch (error) {
-      console.error('개인정보 복호화 실패:', error)
+      console.error('개인정보 표시 실패:', error)
       return ''
     }
   }
@@ -337,7 +397,7 @@ function ConsentPageContent() {
       await set(consentRef, {
         consentType: consentType,
         timestamp: new Date().toISOString(),
-        fields: fields,
+        fields: mallInfo.requiredFields,
         shopId: shopId
       })
 
@@ -471,26 +531,24 @@ function ConsentPageContent() {
     }
   ]
 
-  // 표시할 필드들 (쇼핑몰에서 요청한 필드들)
-  const displayFields = mallInfo?.requiredFields || []
+  console.log('=== 디버깅 정보 ===')
+  console.log('mallInfo:', mallInfo)
+  console.log('mallInfo.requiredFields:', mallInfo?.requiredFields)
+  console.log('userInfo:', userInfo)
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto p-4">
-        {/* 오른쪽 상단 단계 표시 */}
-        <div className="flex justify-end mb-4">
-          <div className="flex items-center space-x-2 bg-white rounded-lg px-3 py-2 shadow-sm border">
-            <span className="text-xs text-gray-500">1 장바구니</span>
-            <span className="text-xs text-gray-300">→</span>
-            <span className="text-xs text-primary font-medium">2 주문/결제</span>
-            <span className="text-xs text-gray-300">→</span>
-            <span className="text-xs text-gray-500">3 주문완료</span>
-          </div>
-        </div>
-
         {/* 메인 콘텐츠 */}
         <div className="flex justify-center">
-          <Card className="w-full max-w-lg">
+          <div className="w-full max-w-lg relative">
+            {/* 오른쪽 상단 단계 표시 */}
+            <div className="absolute -top-8 right-0 text-xs text-gray-500">
+              <span className="text-gray-500">1 추가정보 입력</span>
+              <span className="mx-1">2 개인정보 제공 동의</span>
+            </div>
+            
+            <Card className="w-full">
             <CardHeader className="text-center pb-4">
               <div className="flex items-center justify-center space-x-2 mb-4">
                 <Shield className="h-6 w-6 text-primary" />
@@ -506,7 +564,7 @@ function ConsentPageContent() {
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-gray-900">제공될 개인정보</h3>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                  {displayFields.map((field) => (
+                  {(mallInfo.requiredFields || []).map((field: string) => (
                     <div key={field} className="flex items-center space-x-3">
                       <div className="text-gray-500">
                         {getFieldIcon(field)}
@@ -586,7 +644,8 @@ function ConsentPageContent() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
