@@ -506,45 +506,32 @@ function ConsentPageContent() {
         const referrer = document.referrer
         const targetOrigin = referrer ? new URL(referrer).origin : '*'
         
-        // API를 통해 쇼핑몰에 동의 결과 전달
-        try {
-          const callbackUrl = referrer ? `${referrer}/api/consent-callback` : null
-          
-          if (callbackUrl) {
-            const response = await fetch('/api/consent-result', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                shopId,
-                mallId,
-                agreed: true,
-                consentType,
-                jwt: token,
-                timestamp: new Date().toISOString(),
-                callbackUrl
-              })
-            })
-            
-            if (response.ok) {
-              console.log('동의 결과가 쇼핑몰에 전달되었습니다.')
-            } else {
-              console.error('쇼핑몰 콜백 실패')
-            }
-          }
-        } catch (error) {
-          console.error('API 호출 실패:', error)
-        }
+        console.log('postMessage로 동의 결과 전달:', {
+          type: 'consent_result',
+          agreed: true,
+          consentType,
+          shopId,
+          mallId,
+          jwt: token,
+          timestamp: new Date().toISOString()
+        })
         
+        // 1. 결과 전달
+        window.parent.postMessage({
+          type: 'consent_result',
+          agreed: true,
+          consentType,
+          shopId,
+          mallId,
+          jwt: token,
+          timestamp: new Date().toISOString()
+        }, targetOrigin)
         
-        // 팝업 닫기 시도 (백업)
+        // 2. 팝업 닫기 요청
         setTimeout(() => {
-          try {
-            window.close()
-          } catch (error) {
-            console.log('팝업 닫기 실패:', error)
-          }
+          window.parent.postMessage({
+            type: 'close_popup'
+          }, targetOrigin)
         }, 100)
         
         // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
@@ -602,44 +589,37 @@ function ConsentPageContent() {
     console.log('팝업 환경 여부:', window.parent !== window)
     
     if (window.parent !== window) {
-      // API를 통해 쇼핑몰에 거부 결과 전달
-      try {
-        const referrer = document.referrer
-        const callbackUrl = referrer ? `${referrer}/api/consent-callback` : null
-        
-        if (callbackUrl) {
-          const response = await fetch('/api/consent-result', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              shopId,
-              mallId,
-              agreed: false,
-              consentType: 'once',
-              jwt: token,
-              timestamp: new Date().toISOString(),
-              callbackUrl
-            })
-          })
-          
-          if (response.ok) {
-            console.log('거부 결과가 쇼핑몰에 전달되었습니다.')
-          } else {
-            console.error('쇼핑몰 콜백 실패')
-          }
-        }
-      } catch (error) {
-        console.error('API 호출 실패:', error)
-      }
+      // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+      const referrer = document.referrer
+      const targetOrigin = referrer ? new URL(referrer).origin : '*'
       
-      // 팝업 닫기 시도
-      try {
-        window.close()
-      } catch (error) {
-        console.log('팝업 닫기 실패:', error)
-      }
+      console.log('postMessage로 거부 결과 전달:', {
+        type: 'consent_result',
+        agreed: false,
+        consentType: 'once',
+        shopId,
+        mallId,
+        jwt: token,
+        timestamp: new Date().toISOString()
+      })
+      
+      // 1. 결과 전달
+      window.parent.postMessage({
+        type: 'consent_result',
+        agreed: false,
+        consentType: 'once',
+        shopId,
+        mallId,
+        jwt: token,
+        timestamp: new Date().toISOString()
+      }, targetOrigin)
+      
+      // 2. 팝업 닫기 요청
+      setTimeout(() => {
+        window.parent.postMessage({
+          type: 'close_popup'
+        }, targetOrigin)
+      }, 100)
     }
   }
 
@@ -858,9 +838,8 @@ function ConsentPageContent() {
 
           {/* 버튼 */}
           <div className="flex space-x-3">
-            <Button 
-              variant="outline" 
-              className="flex-1 cursor-pointer" 
+            <button 
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -868,46 +847,24 @@ function ConsentPageContent() {
                 handleReject()
               }}
               disabled={loading}
-              style={{ pointerEvents: loading ? 'none' : 'auto' }}
             >
               거부
-            </Button>
-            <Button 
-              className="flex-1 bg-primary hover:bg-primary/90 cursor-pointer"
+            </button>
+            <button 
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
               onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                console.log('동의하기 버튼 클릭 이벤트 발생!')
-                handleConsent()
+                e.preventDefault();
+                e.stopPropagation();
+                alert('동의하기 버튼 클릭됨!');
+                console.log('동의하기 버튼 클릭 이벤트 발생!');
+                handleConsent();
               }}
               disabled={loading}
-              style={{ pointerEvents: loading ? 'none' : 'auto' }}
             >
               {loading ? '처리중...' : '동의하기'}
-            </Button>
-          </div>
-          
-          {/* 테스트 버튼 */}
-          <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded">
-            <p className="text-xs text-yellow-800 mb-2">테스트 버튼 (클릭 이벤트 확인용):</p>
-            <button 
-              className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-              onClick={() => {
-                console.log('=== 테스트 버튼 클릭됨 ===')
-                alert('테스트 버튼이 클릭되었습니다!')
-              }}
-            >
-              테스트 클릭
             </button>
           </div>
           
-          {/* 디버깅 정보 */}
-          <div className="text-xs text-gray-500 mt-2">
-            <p>Loading 상태: {loading ? 'true' : 'false'}</p>
-            <p>mallInfo 존재: {mallInfo ? 'true' : 'false'}</p>
-            <p>shopId: {shopId || '없음'}</p>
-            <p>mallId: {mallId || '없음'}</p>
-          </div>
         </CardContent>
       </Card>
 
