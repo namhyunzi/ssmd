@@ -118,6 +118,8 @@ function ConsentPageContent() {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
           const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(mallId || '')}`
           localStorage.setItem('redirect_after_login', currentUrl)
+          // 외부 팝업에서 온 경우를 표시
+          localStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
         }
         return

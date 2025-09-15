@@ -32,19 +32,31 @@ export default function LoginPage() {
       if (user && !showTermsPopup && !pendingGoogleUser) {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
+        const fromExternalPopup = localStorage.getItem('from_external_popup')
         
         console.log('useEffect에서 사용자 감지:', {
           uid: user.uid,
           isNewUser: isNewUser,
           showTermsPopup: showTermsPopup,
-          pendingGoogleUser: !!pendingGoogleUser
+          pendingGoogleUser: !!pendingGoogleUser,
+          fromExternalPopup: fromExternalPopup
         })
+        
+        // 외부 팝업에서 온 경우 약관동의 팝업 강제 표시
+        if (fromExternalPopup === 'true' && isNewUser) {
+          console.log('외부 팝업에서 온 신규 사용자 - 약관동의 팝업 강제 표시')
+          localStorage.removeItem('from_external_popup')
+          setPendingGoogleUser(user)
+          setShowTermsPopup(true)
+          return
+        }
         
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
           const redirectUrl = localStorage.getItem('redirect_after_login')
           if (redirectUrl) {
             localStorage.removeItem('redirect_after_login')
+            localStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
             router.push('/dashboard')
