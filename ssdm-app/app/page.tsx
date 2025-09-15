@@ -252,8 +252,10 @@ export default function LoginPage() {
       // 회원가입 완료 화면 표시
       setSignupStep("complete")
       
-      // 2초 후 프로필 설정 페이지로 이동
+      // 2초 후 프로필 설정 페이지로 이동 (신규 가입자는 개인정보 입력 필수)
       setTimeout(() => {
+        // 신규 가입자는 항상 프로필 설정부터 완료해야 함
+        // redirect URL은 profile-setup에서 처리하도록 그대로 유지
         router.push("/profile-setup")
       }, 2000)
       

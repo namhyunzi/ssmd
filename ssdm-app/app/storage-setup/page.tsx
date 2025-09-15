@@ -207,11 +207,21 @@ export default function StorageSetupPage() {
           // 성공 토스트 표시 후 즉시 대시보드로 이동
           showToastMessage("개인정보가 안전하게 저장되었습니다.", "success")
           
-          // 토스트 표시 후 1초 뒤 대시보드로 이동
+          // 토스트 표시 후 1초 뒤 원래 페이지 또는 대시보드로 이동
           setTimeout(() => {
-            console.log('대시보드로 이동...')
             clearTempData() // 임시 세션 삭제
-            router.push('/dashboard')
+            
+            // 로그인 후 돌아갈 URL이 있는지 확인
+            const redirectUrl = localStorage.getItem('redirect_after_login') || localStorage.getItem('redirect_after_profile')
+            if (redirectUrl) {
+              console.log('원래 페이지로 이동:', redirectUrl)
+              localStorage.removeItem('redirect_after_login')
+              localStorage.removeItem('redirect_after_profile')
+              router.push(redirectUrl)
+            } else {
+              console.log('대시보드로 이동...')
+              router.push('/dashboard')
+            }
           }, 1000)
         } else {
           console.log('프로필 저장 실패')
