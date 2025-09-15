@@ -14,7 +14,7 @@ interface ConsentPageProps {}
 function ConsentPageContent() {
   const [consentType, setConsentType] = useState<string>("once")
   const [loading, setLoading] = useState(false)
-  const [userInfo, setUserInfo] = useState<any>(null)
+  const [hasProfileData, setHasProfileData] = useState<boolean>(false)
   const [mallInfo, setMallInfo] = useState<any>(null)
   const [error, setError] = useState<string>("")
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false)
@@ -220,30 +220,16 @@ function ConsentPageContent() {
       if (metadataSnapshot.exists()) {
         const metadata = metadataSnapshot.val()
         
-        // 로컬 저장소에서 암호화된 개인정보 복호화
-        const { loadProfileFromLocal } = await import('@/lib/data-storage')
-        const decryptedProfile = loadProfileFromLocal()
+        // 로컬 저장소에서 개인정보 존재 여부만 확인
+        const { loadFromLocalStorage } = await import('@/lib/data-storage')
+        const localData = loadFromLocalStorage()
         
-        if (decryptedProfile) {
-          // 복호화된 개인정보 사용
-          personalData = {
-            name: decryptedProfile.name || userData.displayName?.split('/')[0] || '',
-            phone: decryptedProfile.phone || '',
-            address: decryptedProfile.address || '',
-            detailAddress: decryptedProfile.detailAddress || '',
-            zipCode: decryptedProfile.zipCode || '',
-            email: decryptedProfile.email || userData.email || ''
-          }
+        if (localData && localData.encrypted) {
+          // 개인정보가 암호화되어 저장되어 있음
+          setHasProfileData(true)
         } else {
-          // 복호화 실패 시 기본 정보만 사용
-          personalData = {
-            name: userData.displayName?.split('/')[0] || '',
-            phone: '',
-            address: '',
-            detailAddress: '',
-            zipCode: '',
-            email: userData.email || ''
-          }
+          // 개인정보가 없음
+          setHasProfileData(false)
         }
       } else {
         // 메타데이터가 없으면 기본 정보만 사용
@@ -305,7 +291,7 @@ function ConsentPageContent() {
         }
       } else {
         // 모든 정보가 충분한 경우 → 동의 절차 진행
-        setUserInfo(mergedUserData)
+        // 개인정보는 상태에 저장하지 않음 (SSDM 중개 원칙)
         // 쇼핑몰 ID는 쿼리 파라미터에서 가져옴
         const mallIdFromUid = mallId
         
@@ -368,15 +354,50 @@ function ConsentPageContent() {
     }
   }
 
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return ''
+    
+    // 숫자만 추출
+    const numbers = phone.replace(/\D/g, '')
+    
+    if (numbers.length === 11) {
+      // 010-1234-5678 형식 (가장 일반적)
+      return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
+    } else if (numbers.length === 10) {
+      // 02-123-4567 형식 (서울 지역번호 등)
+      return `${numbers.slice(0, 2)}-${numbers.slice(2, 5)}-${numbers.slice(5)}`
+    }
+    
+    return phone // 포맷팅할 수 없으면 원본 반환
+  }
+
   const getFieldValue = (field: string) => {
-    switch (field) {
-      case 'name': return userInfo?.name
-      case 'phone': return userInfo?.phone
-      case 'address': return userInfo?.address
-      case 'detailAddress': return userInfo?.detailAddress
-      case 'zipCode': return userInfo?.zipCode
-      case 'email': return userInfo?.email
-      default: return ''
+    try {
+      // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시
+      const { loadFromLocalStorage } = require('@/lib/data-storage')
+      const { decryptData } = require('@/lib/encryption')
+      const localData = loadFromLocalStorage()
+      
+      if (!localData || !localData.encrypted) {
+        return ''
+      }
+      
+      // 실시간 복호화
+      const decryptedDataString = decryptData(localData.encryptedData, localData.key)
+      const profileData = JSON.parse(decryptedDataString)
+      
+      switch (field) {
+        case 'name': return profileData.name || ''
+        case 'phone': return formatPhoneNumber(profileData.phone || '')
+        case 'address': return profileData.address || ''
+        case 'detailAddress': return profileData.detailAddress || ''
+        case 'zipCode': return profileData.zipCode || ''
+        case 'email': return profileData.email || ''
+        default: return ''
+      }
+    } catch (error) {
+      console.error('개인정보 복호화 실패:', error)
+      return ''
     }
   }
 
@@ -433,13 +454,10 @@ function ConsentPageContent() {
       // 추가정보 입력 완료 후 사용자 정보 업데이트
       setShowAdditionalInfo(false)
       
-      // 기존 사용자 데이터와 추가 입력된 데이터 병합
-      const updatedUserData = {
-        ...userInfo,
-        ...additionalData
-      }
+      // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
+      // 추가 입력된 데이터만 처리
       
-      setUserInfo(updatedUserData)
+      // 개인정보는 상태에 저장하지 않음 (SSDM 중개 원칙)
       
       // 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
       // Firebase에서 실제 쇼핑몰 정보 조회
@@ -512,7 +530,7 @@ function ConsentPageContent() {
     )
   }
 
-  if (!userInfo || !mallInfo) {
+  if (!hasProfileData || !mallInfo) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -591,7 +609,7 @@ function ConsentPageContent() {
                   <RadioGroupItem value="always" id="always" />
                   <Label htmlFor="always" className="flex-1 cursor-pointer">
                     <div>
-                      <div className="font-medium">6개월간 허용</div>
+                      <div className="font-medium">항상 허용</div>
                       <div className="text-sm text-muted-foreground">
                         {getExpiryDate()}까지 자동으로 정보를 제공합니다.
                       </div>
@@ -607,8 +625,8 @@ function ConsentPageContent() {
             <div className="flex items-start space-x-2">
               <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-800">
-                6개월 허용을 선택하시면 설정에서 언제든 연결을 해제할 수 있습니다. 
-                제공된 정보는 배송 목적으로만 사용되며, 주문 완료 후 안전하게 삭제됩니다.
+                항상 허용을 선택하시면 6개월 후 자동으로 만료되며, 
+                설정에서 언제든 연결을 해제할 수 있습니다.
               </p>
             </div>
           </div>

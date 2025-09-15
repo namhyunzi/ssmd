@@ -148,33 +148,43 @@ export default function ProfileEditPage() {
           const profileMetadata = await getUserProfile(user)
           console.log('프로필 메타데이터:', profileMetadata)
           
-          // 2. 로컬에서 실제 개인정보 데이터 로드
-          const localProfileData = loadProfileFromLocal()
-          console.log('로컬 프로필 데이터:', localProfileData)
+          // 2. SSDM 중개 원칙: 개인정보를 상태에 저장하지 않고 실시간 복호화
+          const { loadFromLocalStorage, decryptData } = await import('@/lib/data-storage')
+          const { decryptData: decrypt } = await import('@/lib/encryption')
+          const localData = loadFromLocalStorage()
           
-          if (localProfileData) {
-            // 로컬에서 복호화된 개인정보를 각 필드에 설정
-            setName(localProfileData.name || "")
-            
-            // 전화번호 포맷팅 (010-1234-5678 형태)
-            const phone = localProfileData.phone || ""
-            if (phone && phone.length >= 10) {
-              // 숫자만 추출
-              const numbers = phone.replace(/\D/g, '')
-              if (numbers.length === 11) {
-                setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`)
-              } else if (numbers.length === 10) {
-                setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`)
+          if (localData && localData.encrypted) {
+            try {
+              // 실시간 복호화
+              const decryptedDataString = decrypt(localData.encryptedData, localData.key)
+              const localProfileData = JSON.parse(decryptedDataString)
+              console.log('실시간 복호화된 프로필 데이터:', localProfileData)
+              
+              // 복호화된 개인정보를 각 필드에 설정
+              setName(localProfileData.name || "")
+              
+              // 전화번호 포맷팅 (010-1234-5678 형태)
+              const phone = localProfileData.phone || ""
+              if (phone && phone.length >= 10) {
+                // 숫자만 추출
+                const numbers = phone.replace(/\D/g, '')
+                if (numbers.length === 11) {
+                  setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`)
+                } else if (numbers.length === 10) {
+                  setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`)
+                } else {
+                  setPhone(phone)
+                }
               } else {
                 setPhone(phone)
               }
-            } else {
-              setPhone(phone)
+              
+              setAddress(localProfileData.address || "")
+              setDetailAddress(localProfileData.detailAddress || "")
+              setZipCode(localProfileData.zipCode || "")
+            } catch (error) {
+              console.error('개인정보 복호화 실패:', error)
             }
-            
-            setAddress(localProfileData.address || "")
-            setDetailAddress(localProfileData.detailAddress || "")
-            setZipCode(localProfileData.zipCode || "")
           }
           
           // 3. 이메일 정보 설정

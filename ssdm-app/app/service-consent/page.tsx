@@ -40,11 +40,11 @@ function ServiceConsentContent() {
           const profile = await getUserProfile(user)
           setUserProfile(profile)
           
-          // 로컬 저장소에서 실제 개인정보 데이터 로드
-          const localData = loadProfileFromLocal()
-          if (localData && localData.profile) {
-            setLocalProfile(localData.profile)
-          }
+          // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
+          // 로컬 저장소에 개인정보가 있는지만 확인
+          const { loadFromLocalStorage } = await import('@/lib/data-storage')
+          const localData = loadFromLocalStorage()
+          setLocalProfile(localData && localData.encrypted ? { hasData: true } : { hasData: false })
           
           // 서비스 동의 데이터 로드
           const userConsents = await getUserServiceConsents(user)

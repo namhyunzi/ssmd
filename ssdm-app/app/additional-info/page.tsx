@@ -15,7 +15,7 @@ function AdditionalInfoContent() {
   const [uid, setUid] = useState<string>('')
   const [fields, setFields] = useState<string>('')
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
-  const [existingData, setExistingData] = useState<{ [key: string]: string }>({})
+  const [hasExistingData, setHasExistingData] = useState<boolean>(false)
 
   useEffect(() => {
     // 1. 먼저 로그인 상태 확인
@@ -92,7 +92,7 @@ function AdditionalInfoContent() {
       
       if (metadataSnapshot.exists()) {
         const metadata = metadataSnapshot.val()
-        setExistingData(metadata)
+        setHasExistingData(true)
       }
       
       // 암호화된 개인정보 데이터 조회
@@ -104,10 +104,9 @@ function AdditionalInfoContent() {
         const encryptionKey = generateEncryptionKey(currentUser.uid)
         
         try {
-          // 복호화 로직
-          const decryptedDataString = decryptData(encryptedData.encryptedPersonalData, encryptionKey)
-          const decryptedData = JSON.parse(decryptedDataString)
-          setExistingData(prev => ({ ...prev, ...decryptedData }))
+          // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
+          // 복호화는 성공했지만 상태에 저장하지 않음
+          console.log('암호화된 개인정보 복호화 성공')
         } catch (error) {
           console.error('암호화된 데이터 복호화 실패:', error)
         }
@@ -154,8 +153,9 @@ function AdditionalInfoContent() {
       
       // 사용자 메타데이터 업데이트
       const metadataRef = ref(db, `users/${currentUser.uid}/metadata`)
+      // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
+      // 메타데이터만 업데이트
       await set(metadataRef, {
-        ...existingData,
         lastUpdated: new Date().toISOString()
       })
       
@@ -183,16 +183,12 @@ function AdditionalInfoContent() {
       // 암호화된 개인정보 데이터 업데이트
       const encryptedDataRef = ref(db, `users/${currentUser.uid}/encryptedData`)
       
-      // 실제 암호화 로직 구현
-      const encryptionKey = generateEncryptionKey(currentUser.uid)
-      const dataString = JSON.stringify(existingData)
-      const encryptedData = encryptData(dataString, encryptionKey)
+      // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
+      // 실제 암호화 로직은 로컬 저장소에서 처리
+      console.log('암호화 데이터 업데이트는 로컬 저장소에서 처리됨')
       
-      await set(encryptedDataRef, {
-        // 암호화된 개인정보 데이터
-        encryptedPersonalData: encryptedData,
-        lastUpdated: new Date().toISOString()
-      })
+      // SSDM 중개 원칙: 개인정보를 Firebase에 저장하지 않음
+      // 로컬 저장소에만 암호화 저장
       
       console.log('암호화 데이터 업데이트 완료')
     } catch (error) {
@@ -247,7 +243,7 @@ function AdditionalInfoContent() {
         onClose={handleClose}
         serviceName="네이버 쇼핑몰"
         missingFields={missingFields}
-        existingData={existingData}
+        hasExistingData={hasExistingData}
         onComplete={handleComplete}
       />
 

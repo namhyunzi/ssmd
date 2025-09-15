@@ -13,11 +13,11 @@ interface AdditionalInfoPopupProps {
   onClose: () => void
   serviceName: string
   missingFields: string[]
-  existingData?: { [key: string]: string } // 기존 데이터
+  hasExistingData?: boolean // 기존 데이터 존재 여부
   onComplete?: (data: { [key: string]: string }) => void
 }
 
-export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, missingFields, existingData = {}, onComplete }: AdditionalInfoPopupProps) {
+export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, missingFields, hasExistingData = false, onComplete }: AdditionalInfoPopupProps) {
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [zipCode, setZipCode] = useState("")

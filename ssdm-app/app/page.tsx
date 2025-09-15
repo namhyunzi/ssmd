@@ -23,7 +23,6 @@ export default function LoginPage() {
   const [toastSubMessage, setToastSubMessage] = useState("")
   const [showTermsPopup, setShowTermsPopup] = useState(false)
   const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
-  const [signupStep, setSignupStep] = useState<"form" | "complete">("form")
   const router = useRouter()
 
   // 이미 로그인된 사용자는 대시보드로 리다이렉트 (신규 사용자가 아닐 때만)
@@ -288,13 +287,14 @@ export default function LoginPage() {
       // 신규 사용자 처리 플래그 정리
       localStorage.removeItem('is_new_user_processing')
       
-      // 회원가입 완료 화면 표시
-      setSignupStep("complete")
+      // 회원가입 완료 토스트 표시
+      setToastMessage("회원가입이 완료되었습니다.")
+      setToastSubMessage("개인정보 입력 페이지로 이동합니다.")
+      setShowToast(true)
       
-      // 2초 후 프로필 설정 페이지로 이동 (신규 가입자는 개인정보 입력 필수)
+      // 2초 후 개인정보 입력 페이지로 이동
       setTimeout(() => {
-        // 신규 가입자는 항상 프로필 설정부터 완료해야 함
-        // redirect URL은 profile-setup에서 처리하도록 그대로 유지
+        setShowToast(false)
         router.push("/profile-setup")
       }, 2000)
       
@@ -339,27 +339,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      {signupStep === "complete" && (
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-primary">SSDM</h1>
-          <p className="text-sm text-muted-foreground">개인정보보호</p>
-        </div>
-      )}
-      
       <Card className="w-full max-w-md">
-        {signupStep === "form" && (
-          <CardHeader className="text-center space-y-4">
-            {/* SSDM Logo */}
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-primary">SSDM</h1>
-              <p className="text-sm text-muted-foreground">개인정보보호</p>
-            </div>
-          </CardHeader>
-        )}
+        <CardHeader className="text-center space-y-4">
+          {/* SSDM Logo */}
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-primary">SSDM</h1>
+            <p className="text-sm text-muted-foreground">개인정보보호</p>
+          </div>
+        </CardHeader>
 
         <CardContent className="space-y-4">
-          {signupStep === "form" ? (
-          <>
           {/* Login Form */}
           <div className="space-y-3">
             <Input 
@@ -439,33 +428,17 @@ export default function LoginPage() {
               회원가입
             </Link>
           </div>
-          </>
-          ) : (
-            <div className="text-center space-y-6 py-8">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900">회원가입이 완료되었습니다!</h2>
-            </div>
-          )}
         </CardContent>
 
-        {signupStep === "form" && (
-          <>
-            {/* Updated bottom text */}
-            <div className="border-t border-border p-4 text-center">
-              <Link href="/support" className="text-sm text-muted-foreground hover:text-primary">
-                로그인에 문제가 있으신가요?
-              </Link>
-            </div>
-          </>
-        )}
+        {/* Updated bottom text */}
+        <div className="border-t border-border p-4 text-center">
+          <Link href="/support" className="text-sm text-muted-foreground hover:text-primary">
+            로그인에 문제가 있으신가요?
+          </Link>
+        </div>
       </Card>
 
       {/* 약관 동의 팝업 */}
-      {console.log('팝업 렌더링 상태:', { showTermsPopup, pendingGoogleUser: !!pendingGoogleUser })}
       <TermsConsentPopup
         isOpen={showTermsPopup}
         onClose={handleTermsClose}
@@ -477,11 +450,11 @@ export default function LoginPage() {
       {/* 토스트 메시지 */}
       {showToast && (
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
-          <div className="bg-gray-800 text-white px-6 py-4 rounded-lg shadow-lg">
+          <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg">
             <div className="text-center">
               <p className="text-sm font-medium">{toastMessage}</p>
               {toastSubMessage && (
-                <p className="text-xs mt-1 text-gray-300">{toastSubMessage}</p>
+                <p className="text-xs mt-1 text-green-100">{toastSubMessage}</p>
               )}
             </div>
           </div>
