@@ -70,6 +70,38 @@ function ConsentPageContent() {
     }
   }, [])
 
+  // 사용자 매핑 정보 확인 및 생성 함수
+  const ensureUserMapping = async (shopId: string, mallId: string) => {
+    try {
+      console.log('사용자 매핑 정보 확인 시작:', { shopId, mallId })
+      
+      // API Key는 환경변수에서 가져오거나 기본값 사용
+      const apiKey = 'morebooks-d084074eab9cf4f23b1453a2518c8e8d' // 임시로 하드코딩
+      
+      const response = await fetch('/api/generate-uid', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({ userId: shopId })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('사용자 매핑 정보 확인/생성 완료:', data)
+        return data.uid
+      } else {
+        const errorData = await response.json()
+        console.error('사용자 매핑 정보 생성 실패:', errorData)
+        throw new Error(`매핑 정보 생성 실패: ${errorData.error}`)
+      }
+    } catch (error) {
+      console.error('사용자 매핑 정보 확인/생성 오류:', error)
+      throw error
+    }
+  }
+
   // JWT 토큰 검증 함수
   const verifyToken = async (jwtToken: string) => {
     try {
@@ -90,6 +122,9 @@ function ConsentPageContent() {
           console.log('JWT 토큰 검증 성공:', payload)
           setShopId(payload.shopId)
           setMallId(payload.mallId)
+          
+          // UID 생성 및 매핑 정보 저장
+          await ensureUserMapping(payload.shopId, payload.mallId)
           
           // 로그인 상태 확인 시작 (파라미터 직접 전달)
           const timer = setTimeout(() => {
