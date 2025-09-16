@@ -25,8 +25,13 @@ export async function POST(request: NextRequest) {
     // shopId로 매핑된 uid 찾기
     const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
     console.log('매핑 참조 경로:', `userMappings/${mallId}/${shopId}`)
-    const mappingSnapshot = await get(mappingRef)
-    console.log('매핑 스냅샷 존재 여부:', mappingSnapshot.exists())
+    try {
+      const mappingSnapshot = await get(mappingRef)
+      console.log('매핑 스냅샷 존재 여부:', mappingSnapshot.exists())
+    } catch (mappingError) {
+      console.error('매핑 정보 조회 오류:', mappingError)
+      throw mappingError
+    }
     
     if (!mappingSnapshot.exists()) {
       console.log('사용자 매핑 정보 없음')
@@ -42,8 +47,13 @@ export async function POST(request: NextRequest) {
     // 사용자 동의 상태 확인 (새로운 테이블 구조)
     const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}`)
     console.log('동의 참조 경로:', `mallServiceConsents/${uid}/${mallId}`)
-    const consentSnapshot = await get(consentRef)
-    console.log('동의 스냅샷 존재 여부:', consentSnapshot.exists())
+    try {
+      const consentSnapshot = await get(consentRef)
+      console.log('동의 스냅샷 존재 여부:', consentSnapshot.exists())
+    } catch (consentError) {
+      console.error('동의 정보 조회 오류:', consentError)
+      throw consentError
+    }
     
     if (!consentSnapshot.exists()) {
       console.log('쇼핑몰 서비스 동의 없음')
@@ -55,6 +65,16 @@ export async function POST(request: NextRequest) {
 
     const consentData = consentSnapshot.val()
     console.log('동의 데이터:', consentData)
+    
+    // isActive가 true인지 확인
+    if (!consentData.isActive) {
+      console.log('동의가 비활성화됨')
+      return NextResponse.json(
+        { error: '개인정보 제공 동의가 비활성화되었습니다.' },
+        { status: 403 }
+      )
+    }
+    
     const isAlwaysAllow = consentData.consentType === 'always'
     
     if (isAlwaysAllow) {
@@ -70,6 +90,9 @@ export async function POST(request: NextRequest) {
         )
       }
     }
+    
+    // isActive가 true이면 consentType에 관계없이 JWT 발급
+    console.log('동의 타입:', consentData.consentType, 'isActive:', consentData.isActive, 'JWT 발급 진행')
 
     // JWT 발급
     console.log('JWT 발급 시작')
@@ -86,6 +109,7 @@ export async function POST(request: NextRequest) {
       shopId: shopId,
       mallId: mallId,
       consentType: consentData.consentType,
+      purpose: "delivery", // 택배사용 JWT
       timestamp: new Date().toISOString(),
       exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15분 후 만료
     }
