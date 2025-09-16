@@ -23,11 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import Link from "next/link"
+import ApiKeyModal from "@/components/popups/api-key-modal"
 
 interface Mall {
   mallId: string;
   mallName: string;
-  apiKey: string;
   allowedFields: string[];
   contactEmail?: string;
   description?: string;
@@ -42,6 +42,19 @@ export default function MallManagementPage() {
   const [malls, setMalls] = useState<Mall[]>([])
   const [filteredMalls, setFilteredMalls] = useState<Mall[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [apiKeyModal, setApiKeyModal] = useState<{
+    isOpen: boolean
+    apiKey: string
+    mallName: string
+    expiresAt: string
+    isReissue: boolean
+  }>({
+    isOpen: false,
+    apiKey: '',
+    mallName: '',
+    expiresAt: '',
+    isReissue: false
+  })
   const [searchTerm, setSearchTerm] = useState("")
   const [emailFilter, setEmailFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -213,9 +226,21 @@ export default function MallManagementPage() {
             alert(`쇼핑몰 등록 완료!\n\n⚠️ 이메일 발송 중 오류가 발생했습니다. 쇼핑몰 목록에서 수동으로 발송해주세요.`)
           }
         } else if (newMall.contactEmail && newMall.contactEmail.trim()) {
-          alert(`쇼핑몰 등록 완료!\n\n📋 나중에 이메일 발송 가능합니다.`)
+          setApiKeyModal({
+            isOpen: true,
+            apiKey: result.apiKey,
+            mallName: newMall.mallName,
+            expiresAt: result.expiresAt,
+            isReissue: false
+          })
         } else {
-          alert(`쇼핑몰 등록 완료!\n\n📋 담당자에게 API Key를 전달해주세요. 쇼핑몰 목록에서 확인 가능합니다.`)
+          setApiKeyModal({
+            isOpen: true,
+            apiKey: result.apiKey,
+            mallName: newMall.mallName,
+            expiresAt: result.expiresAt,
+            isReissue: false
+          })
         }
         
         setIsDialogOpen(false)
@@ -232,47 +257,8 @@ export default function MallManagementPage() {
   }
 
   const handleSendEmail = async (mall: Mall) => {
-    if (!mall.contactEmail) {
-      alert('이메일 주소가 등록되지 않았습니다.')
-      return
-    }
-
-    try {
-      const emailResponse = await fetch('/api/send-apikey', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toEmail: mall.contactEmail,
-          mallName: mall.mallName,
-          mallId: mall.mallId,
-          apiKey: mall.apiKey,
-          allowedFields: mall.allowedFields
-        })
-      })
-      
-      if (emailResponse.ok) {
-        // 이메일 발송 상태 업데이트
-        await fetch('/api/update-email-status', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'admin_secret_key_12345'
-          },
-          body: JSON.stringify({
-            mallId: mall.mallId,
-            emailSent: true
-          })
-        })
-        
-        alert(`${mall.contactEmail}로 API Key를 발송했습니다.`)
-        loadMalls() // 목록 새로고침
-      } else {
-        alert('이메일 발송에 실패했습니다.')
-      }
-    } catch (error) {
-      console.error('이메일 발송 오류:', error)
-      alert('이메일 발송 중 오류가 발생했습니다.')
-    }
+    // API Key가 Firebase에 저장되지 않으므로 수동 이메일 발송 불가능
+    alert('API Key가 환경변수로만 관리되므로 수동 이메일 발송이 불가능합니다.\n등록/재발급 시에만 이메일 발송이 가능합니다.')
   }
 
   const handleFieldChange = (fieldId: string, checked: boolean) => {
@@ -660,7 +646,7 @@ export default function MallManagementPage() {
                 
                 <div>
                   <Label className="text-xs text-gray-500">API Key</Label>
-                  <p className="font-mono text-sm">****{mall.apiKey.slice(-8)}</p>
+                  <p className="text-sm text-gray-600">환경변수로 관리됨</p>
                 </div>
 
                 {mall.contactEmail && (
@@ -777,6 +763,16 @@ export default function MallManagementPage() {
         )}
 
       </div>
+
+      {/* API Key 모달 */}
+      <ApiKeyModal
+        isOpen={apiKeyModal.isOpen}
+        onClose={() => setApiKeyModal(prev => ({ ...prev, isOpen: false }))}
+        apiKey={apiKeyModal.apiKey}
+        mallName={apiKeyModal.mallName}
+        expiresAt={apiKeyModal.expiresAt}
+        isReissue={apiKeyModal.isReissue}
+      />
     </div>
   )
 }

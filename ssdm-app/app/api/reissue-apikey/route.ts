@@ -58,17 +58,6 @@ export async function POST(request: NextRequest) {
 
     const mallData = mallSnapshot.val();
     
-    // 기존 API Key 비활성화 (삭제하지 않고 비활성화)
-    if (mallData.apiKey) {
-      const oldApiKeyRef = ref(realtimeDb, `apiKeys/${mallData.apiKey}`);
-      await set(oldApiKeyRef, {
-        mallId,
-        isActive: false,
-        deactivatedAt: new Date().toISOString(),
-        reason: 'reissued'
-      });
-    }
-
     // 새 API Key 생성
     const newApiKey = generateApiKey(mallId);
     
@@ -77,10 +66,9 @@ export async function POST(request: NextRequest) {
     newExpiresAt.setFullYear(newExpiresAt.getFullYear() + 1);
     const newExpiresAtISO = newExpiresAt.toISOString();
 
-    // 쇼핑몰 데이터 업데이트 (선택적 필드 포함)
+    // 쇼핑몰 데이터 업데이트 (API Key는 환경변수로만 관리)
     const updatedMallData = {
       ...mallData,
-      apiKey: newApiKey,
       expiresAt: newExpiresAtISO,
       emailSent: false, // 재발급 시 이메일 발송 상태 초기화
       updatedAt: new Date().toISOString(),
@@ -91,14 +79,6 @@ export async function POST(request: NextRequest) {
     };
 
     await set(mallRef, updatedMallData);
-
-    // 새 API Key 인덱스 저장
-    const newApiKeyRef = ref(realtimeDb, `apiKeys/${newApiKey}`);
-    await set(newApiKeyRef, {
-      mallId,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    });
 
     console.log(`API Key 재발급 성공: ${mallId} (${mallData.mallName})`);
 

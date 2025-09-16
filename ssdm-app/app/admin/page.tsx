@@ -24,11 +24,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import Link from "next/link"
+import ApiKeyModal from "@/components/popups/api-key-modal"
 
 interface Mall {
   mallId: string;           // 영문 식별자 (키로 사용)
   mallName: string;
-  apiKey: string;
   allowedFields: string[];
   allowedDomains?: string[]; // 허용 도메인 목록
   contactEmail?: string;
@@ -44,6 +44,19 @@ export default function AdminPage() {
   const [malls, setMalls] = useState<Mall[]>([])
   const [filteredMalls, setFilteredMalls] = useState<Mall[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [apiKeyModal, setApiKeyModal] = useState<{
+    isOpen: boolean
+    apiKey: string
+    mallName: string
+    expiresAt: string
+    isReissue: boolean
+  }>({
+    isOpen: false,
+    apiKey: '',
+    mallName: '',
+    expiresAt: '',
+    isReissue: false
+  })
   const [dialogMode, setDialogMode] = useState<'create' | 'reissue' | 'email-send'>('create')
   const [editingMall, setEditingMall] = useState<Mall | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -212,17 +225,49 @@ export default function AdminPage() {
               })
             })
             
-            alert(`쇼핑몰 등록 완료!\n\nAPI Key: ${result.apiKey}\n\n📧 ${newMall.contactEmail}로 연동 정보를 발송했습니다.`)
+            setApiKeyModal({
+              isOpen: true,
+              apiKey: result.apiKey,
+              mallName: newMall.mallName,
+              expiresAt: result.expiresAt,
+              isReissue: false
+            })
           } else {
-            alert(`쇼핑몰 등록 완료!\nAPI Key: ${result.apiKey}\n\n⚠️ 이메일 발송에 실패했습니다. 수동으로 전달해주세요.`)
+            setApiKeyModal({
+              isOpen: true,
+              apiKey: result.apiKey,
+              mallName: newMall.mallName,
+              expiresAt: result.expiresAt,
+              isReissue: false
+            })
+            alert('⚠️ 이메일 발송에 실패했습니다. 수동으로 전달해주세요.')
           }
         } catch (emailError) {
-          alert(`쇼핑몰 등록 완료!\nAPI Key: ${result.apiKey}\n\n⚠️ 이메일 발송 중 오류가 발생했습니다.`)
+          setApiKeyModal({
+            isOpen: true,
+            apiKey: result.apiKey,
+            mallName: newMall.mallName,
+            expiresAt: result.expiresAt,
+            isReissue: false
+          })
+          alert('⚠️ 이메일 발송 중 오류가 발생했습니다.')
         }
       } else if (newMall.contactEmail && newMall.contactEmail.trim()) {
-        alert(`쇼핑몰 등록 완료!\nAPI Key: ${result.apiKey}\n\n📋 나중에 이메일 발송 가능합니다.`)
+        setApiKeyModal({
+          isOpen: true,
+          apiKey: result.apiKey,
+          mallName: newMall.mallName,
+          expiresAt: result.expiresAt,
+          isReissue: false
+        })
       } else {
-        alert(`쇼핑몰 등록 완료!\nAPI Key: ${result.apiKey}\n\n📋 담당자에게 수동으로 전달해주세요.`)
+        setApiKeyModal({
+          isOpen: true,
+          apiKey: result.apiKey,
+          mallName: newMall.mallName,
+          expiresAt: result.expiresAt,
+          isReissue: false
+        })
       }
       
       closeDialog()
@@ -282,17 +327,49 @@ export default function AdminPage() {
               })
             })
             
-            alert(`API Key 재발급 완료!\n\n새 API Key: ${result.apiKey}\n만료일: ${new Date(result.expiresAt).toLocaleDateString('ko-KR')}\n\n📧 ${newMall.contactEmail}로 연동 정보를 발송했습니다.`)
+            setApiKeyModal({
+              isOpen: true,
+              apiKey: result.apiKey,
+              mallName: editingMall.mallName,
+              expiresAt: result.expiresAt,
+              isReissue: true
+            })
           } else {
-            alert(`API Key 재발급 완료!\n\n새 API Key: ${result.apiKey}\n만료일: ${new Date(result.expiresAt).toLocaleDateString('ko-KR')}\n\n⚠️ 이메일 발송에 실패했습니다. 수동으로 전달해주세요.`)
+            setApiKeyModal({
+              isOpen: true,
+              apiKey: result.apiKey,
+              mallName: editingMall.mallName,
+              expiresAt: result.expiresAt,
+              isReissue: true
+            })
+            alert('⚠️ 이메일 발송에 실패했습니다. 수동으로 전달해주세요.')
           }
         } catch (emailError) {
-          alert(`API Key 재발급 완료!\n\n새 API Key: ${result.apiKey}\n만료일: ${new Date(result.expiresAt).toLocaleDateString('ko-KR')}\n\n⚠️ 이메일 발송 중 오류가 발생했습니다.`)
+          setApiKeyModal({
+            isOpen: true,
+            apiKey: result.apiKey,
+            mallName: editingMall.mallName,
+            expiresAt: result.expiresAt,
+            isReissue: true
+          })
+          alert('⚠️ 이메일 발송 중 오류가 발생했습니다.')
         }
       } else if (newMall.contactEmail && newMall.contactEmail.trim()) {
-        alert(`API Key 재발급 완료!\n\n새 API Key: ${result.apiKey}\n만료일: ${new Date(result.expiresAt).toLocaleDateString('ko-KR')}\n\n📋 나중에 이메일 발송 가능합니다.`)
+        setApiKeyModal({
+          isOpen: true,
+          apiKey: result.apiKey,
+          mallName: editingMall.mallName,
+          expiresAt: result.expiresAt,
+          isReissue: true
+        })
       } else {
-        alert(`API Key 재발급 완료!\n\n새 API Key: ${result.apiKey}\n만료일: ${new Date(result.expiresAt).toLocaleDateString('ko-KR')}\n\n📋 담당자에게 수동으로 전달해주세요.`)
+        setApiKeyModal({
+          isOpen: true,
+          apiKey: result.apiKey,
+          mallName: editingMall.mallName,
+          expiresAt: result.expiresAt,
+          isReissue: true
+        })
       }
       
       closeDialog()
@@ -312,107 +389,17 @@ export default function AdminPage() {
   }
 
   const handleSendEmail = async (mall: Mall) => {
-    if (!mall.contactEmail) {
-      // 이메일이 없으면 기존 팝업을 이메일 발송 모드로 열기
-      setDialogMode('email-send')
-      setEditingMall(mall)
-      setNewMall({
-        mallName: mall.mallName,
-        englishId: mall.mallId,  // mallId가 englishId와 동일
-        allowedFields: mall.allowedFields,
-        allowedDomains: mall.allowedDomains || [],
-        contactEmail: '', // 이메일만 입력받기
-        description: mall.description || '',
-        sendEmailImmediately: true
-      })
-      setIsDialogOpen(true)
-      return
-    }
-
-    try {
-      const emailResponse = await fetch('/api/send-apikey', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toEmail: mall.contactEmail,
-          mallName: mall.mallName,
-          mallId: mall.mallId,
-          apiKey: mall.apiKey,
-          allowedFields: mall.allowedFields
-        })
-      })
-      
-      if (emailResponse.ok) {
-        // 이메일 발송 상태 업데이트
-        await fetch('/api/update-email-status', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'admin_secret_key_12345'
-          },
-          body: JSON.stringify({
-            mallId: mall.mallId,
-            emailSent: true
-          })
-        })
-        
-        alert(`${mall.contactEmail}로 API Key를 발송했습니다.`)
-        loadMalls() // 목록 새로고침
-      } else {
-        alert('이메일 발송에 실패했습니다.')
-      }
-    } catch (error) {
-      console.error('이메일 발송 오류:', error)
-      alert('이메일 발송 중 오류가 발생했습니다.')
-    }
+    // API Key가 Firebase에 저장되지 않으므로 수동 이메일 발송 불가능
+    alert('API Key가 환경변수로만 관리되므로 수동 이메일 발송이 불가능합니다.\n등록/재발급 시에만 이메일 발송이 가능합니다.')
   }
 
   const handleEmailSend = async () => {
-    if (!editingMall || !newMall.contactEmail) {
-      alert('이메일 주소를 입력해주세요.')
-      return
-    }
-
-    try {
-      const emailResponse = await fetch('/api/send-apikey', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toEmail: newMall.contactEmail,
-          mallName: editingMall.mallName,
-          mallId: editingMall.mallId,
-          apiKey: editingMall.apiKey,
-          allowedFields: editingMall.allowedFields
-        })
-      })
-      
-      if (emailResponse.ok) {
-        // 이메일 발송 상태 업데이트
-        await fetch('/api/update-email-status', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'admin_secret_key_12345'
-          },
-          body: JSON.stringify({
-            mallId: editingMall.mallId,
-            emailSent: true
-          })
-        })
-        
-        alert(`${newMall.contactEmail}로 API Key를 발송했습니다.`)
-        setIsDialogOpen(false)
-        setEditingMall(null)
-        setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
-        setEmailError("")
-        loadMalls() // 목록 새로고침
-      } else {
-        alert('이메일 발송에 실패했습니다.')
-      }
-    } catch (error) {
-      console.error('이메일 발송 오류:', error)
-      alert('이메일 발송 중 오류가 발생했습니다.')
-    }
+    // API Key가 Firebase에 저장되지 않으므로 수동 이메일 발송 불가능
+    alert('API Key가 환경변수로만 관리되므로 수동 이메일 발송이 불가능합니다.\n등록/재발급 시에만 이메일 발송이 가능합니다.')
+    setIsDialogOpen(false)
+    setEditingMall(null)
+    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+    setEmailError("")
   }
 
   const handleReissueApiKey = (mall: Mall) => {
@@ -890,7 +877,7 @@ export default function AdminPage() {
                 
                 <div>
                   <Label className="text-xs text-gray-500">API Key</Label>
-                  <p className="font-mono text-sm">{mall.mallId}-****{mall.apiKey.slice(-8)}</p>
+                  <p className="text-sm text-gray-600">환경변수로 관리됨</p>
                 </div>
                 
                 <div>
@@ -1067,6 +1054,16 @@ export default function AdminPage() {
 
 
       </div>
+
+      {/* API Key 모달 */}
+      <ApiKeyModal
+        isOpen={apiKeyModal.isOpen}
+        onClose={() => setApiKeyModal(prev => ({ ...prev, isOpen: false }))}
+        apiKey={apiKeyModal.apiKey}
+        mallName={apiKeyModal.mallName}
+        expiresAt={apiKeyModal.expiresAt}
+        isReissue={apiKeyModal.isReissue}
+      />
     </div>
   )
 }

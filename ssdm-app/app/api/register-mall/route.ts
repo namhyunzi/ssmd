@@ -13,7 +13,6 @@ interface RegisterMallRequest {
 
 interface MallData {
   mallName: string        // 표시용 이름
-  apiKey: string
   allowedFields: string[]
   contactEmail: string
   description: string
@@ -156,10 +155,9 @@ export async function POST(request: NextRequest) {
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     const expiresAtISO = expiresAt.toISOString();
 
-    // 쇼핑몰 데이터 저장
+    // 쇼핑몰 데이터 저장 (API Key는 환경변수로만 관리)
     const mallData: MallData = {
       mallName,
-      apiKey,
       allowedFields: requiredFields,
       contactEmail: contactEmail || '',
       description: description || '',
@@ -173,14 +171,6 @@ export async function POST(request: NextRequest) {
     // englishId를 키로 사용
     const mallRef = ref(realtimeDb, `malls/${englishId}`);
     await set(mallRef, mallData);
-
-    // API Key 인덱스 저장 (빠른 조회를 위해)
-    const apiKeyRef = ref(realtimeDb, `apiKeys/${apiKey}`);
-    await set(apiKeyRef, {
-      mallId: englishId,  // englishId를 mallId로 사용
-      isActive: true,
-      createdAt: new Date().toISOString()
-    });
 
     console.log(`쇼핑몰 등록 성공: ${englishId} (${mallName})`);
 

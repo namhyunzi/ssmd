@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
 import { Shield, X, User, Phone, MapPin, Info, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import AdditionalInfoPopup from "@/components/popups/additional-info-popup"
+import jwt from 'jsonwebtoken'
 
 interface ConsentPageProps {}
 
@@ -22,62 +22,85 @@ function ConsentPageContent() {
   const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
-  
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
     
-    // URL 파라미터에서 JWT 토큰 가져오기
-    const jwtFromUrl = searchParams.get('jwt')
-    console.log('URL에서 가져온 JWT:', jwtFromUrl ? '존재함' : '없음')
-    
-    if (!jwtFromUrl) {
-      console.log('토큰 누락')
-      setError("JWT 토큰이 누락되었습니다.")
-      return
+    // postMessage 리스너 추가
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data.type === 'init_consent') {
+        const { jwt: jwtToken } = event.data
+        if (jwtToken) {
+          try {
+            // 환경변수의 API Key로 JWT 검증
+            const apiKey = process.env.PRIVACY_SYSTEM_API_KEY || 'morebooks-d084074eab9cf4f23b1453a2518c8e8d'
+            const payload = jwt.verify(jwtToken, apiKey, { algorithms: ['HS256'] }) as any
+            const mallId = payload.mallId  // JWT 페이로드에서 mallId 추출
+            
+            // Firebase에서 해당 mallId의 허용 도메인 조회
+            const { realtimeDb } = await import('@/lib/firebase')
+            const { ref, get } = await import('firebase/database')
+            const mallRef = ref(realtimeDb, `malls/${mallId}`)
+            const mallSnapshot = await get(mallRef)
+            
+            let allowedOrigins = ['http://localhost:3000', 'https://morebooks.vercel.app'] // 기본값
+            if (mallSnapshot.exists()) {
+              const mallData = mallSnapshot.val()
+              allowedOrigins = mallData.allowedDomains || allowedOrigins
+            }
+            
+            // 도메인 검증
+            if (!allowedOrigins.includes(event.origin)) {
+              console.warn('신뢰할 수 없는 도메인에서 메시지 수신:', event.origin)
+              return
+            }
+            
+            console.log('postMessage로 JWT 수신:', jwtToken ? '존재함' : '없음')
+            setToken(jwtToken)
+            
+            // JWT 토큰 검증 및 파라미터 추출
+            verifyToken(jwtToken)
+            
+          } catch (error) {
+            console.error('JWT 검증 또는 도메인 조회 실패:', error)
+            setError("JWT 토큰 검증 중 오류가 발생했습니다.")
+          }
+        } else {
+          console.log('JWT 토큰 누락')
+          setError("JWT 토큰이 누락되었습니다.")
+        }
+      }
     }
 
-    setToken(jwtFromUrl)
-    
-    // JWT 토큰 검증 및 파라미터 추출
-    verifyToken(jwtFromUrl)
-  }, [searchParams])
+    // 메시지 리스너 등록
+    window.addEventListener('message', handleMessage)
 
-  // JWT 토큰 검증 함수
+    // 컴포넌트 언마운트 시 리스너 제거
+    return () => {
+      window.removeEventListener('message', handleMessage)
+    }
+  }, [])
+
+  // JWT 토큰 검증 함수 (대칭키 방식)
   const verifyToken = async (jwtToken: string) => {
     try {
-      console.log('JWT 토큰 검증 시작')
+      console.log('JWT 토큰 검증 시작 (대칭키 방식)')
       
-      const response = await fetch('/api/popup/consent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ jwt: jwtToken })
-      })
+      // API Key로 JWT 검증
+      const apiKey = process.env.PRIVACY_SYSTEM_API_KEY || 'morebooks-d084074eab9cf4f23b1453a2518c8e8d'
+      const payload = jwt.verify(jwtToken, apiKey, { algorithms: ['HS256'] }) as any
       
-      if (response.ok) {
-        const { valid, payload } = await response.json()
-        
-        if (valid && payload) {
-          console.log('JWT 토큰 검증 성공:', payload)
-          setShopId(payload.shopId)
-          setMallId(payload.mallId)
-          
-          // 로그인 상태 확인 시작 (파라미터 직접 전달)
-          const timer = setTimeout(() => {
-            checkLoginStatus(payload.shopId, payload.mallId)
-          }, 100) // 100ms 지연으로 Firebase 초기화 대기
-          
-          return () => clearTimeout(timer)
-        } else {
-          throw new Error('JWT 토큰이 유효하지 않습니다.')
-        }
-      } else {
-        throw new Error('JWT 토큰 검증 실패')
-      }
+      console.log('JWT 토큰 검증 성공:', payload)
+      setShopId(payload.shopId)
+      setMallId(payload.mallId)
+      
+      // 로그인 상태 확인 시작 (파라미터 직접 전달)
+      const timer = setTimeout(() => {
+        checkLoginStatus(payload.shopId, payload.mallId)
+      }, 100) // 100ms 지연으로 Firebase 초기화 대기
+      
+      return () => clearTimeout(timer)
     } catch (error) {
       console.error('JWT 토큰 검증 실패:', error)
       setError('JWT 토큰 검증 중 오류가 발생했습니다.')
@@ -161,15 +184,16 @@ function ConsentPageContent() {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
-            returnUrl: `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
+            shopId: currentShopId,
+            mallId: currentMallId
           }, '*')
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-          localStorage.setItem('redirect_after_login', currentUrl)
+          localStorage.setItem('redirect_after_login', '/consent')
+          localStorage.setItem('consent_params', JSON.stringify({ shopId: currentShopId, mallId: currentMallId }))
           // 외부 팝업에서 온 경우를 표시
           localStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
@@ -262,8 +286,8 @@ function ConsentPageContent() {
         
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
         const currentMallId = mallIdParam || mallId
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        localStorage.setItem('redirect_after_login', currentUrl)
+        localStorage.setItem('redirect_after_login', '/consent')
+        localStorage.setItem('consent_params', JSON.stringify({ shopId: shopId, mallId: currentMallId }))
         window.location.href = '/'
         return
       }
@@ -326,8 +350,8 @@ function ConsentPageContent() {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
         const currentMallId = mallIdParam || mallId
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        localStorage.setItem('redirect_after_profile', currentUrl)
+        localStorage.setItem('redirect_after_profile', '/consent')
+        localStorage.setItem('consent_params', JSON.stringify({ shopId: shopId, mallId: currentMallId }))
         window.location.href = '/profile-setup'
         return
       }
@@ -510,15 +534,30 @@ function ConsentPageContent() {
         console.log("window.opener 확인",window.opener);
         console.log("window 확인",window);
         // 팝업으로 열린 경우 - opener를 통해 부모 창에 메시지 전달
-        const ALLOWED_ORIGINS = [
-          'https://morebooks.vercel.app',
-        ]
+        // Firebase에서 허용 도메인 조회
+        let allowedOrigins = ['http://localhost:3000', 'https://morebooks.vercel.app'] // 기본값
+        
+        if (mallId) {
+          try {
+            const { realtimeDb } = await import('@/lib/firebase')
+            const { ref, get } = await import('firebase/database')
+            const mallRef = ref(realtimeDb, `malls/${mallId}`)
+            const mallSnapshot = await get(mallRef)
+            
+            if (mallSnapshot.exists()) {
+              const mallData = mallSnapshot.val()
+              allowedOrigins = mallData.allowedDomains || allowedOrigins
+            }
+          } catch (error) {
+            console.error('허용 도메인 조회 실패:', error)
+          }
+        }
         
         const referrerOrigin = document.referrer ? new URL(document.referrer).origin : null
-        const targetOrigin = ALLOWED_ORIGINS.includes(referrerOrigin) ? referrerOrigin : null
+        const targetOrigin = referrerOrigin && allowedOrigins.includes(referrerOrigin) ? referrerOrigin : null
         
         if (!targetOrigin) {
-          console.error('허용되지 않은 도메인')
+          console.error('허용되지 않은 도메인:', referrerOrigin)
           return
         }
 
@@ -663,9 +702,8 @@ function ConsentPageContent() {
                   setError("")
                   setLoading(false)
                   // JWT 토큰이 있으면 다시 검증 시도
-                  const jwtFromUrl = searchParams.get('jwt')
-                  if (jwtFromUrl) {
-                    verifyToken(jwtFromUrl)
+                  if (token) {
+                    verifyToken(token)
                   } else {
                     checkLoginStatus()
                   }
