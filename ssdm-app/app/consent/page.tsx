@@ -507,9 +507,22 @@ function ConsentPageContent() {
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
       if (window.opener && window.opener !== window) {
+        console.log("window.opener 확인",window.opener);
+        console.log("window 확인",window);
         // 팝업으로 열린 경우 - opener를 통해 부모 창에 메시지 전달
-        const targetOrigin = process.env.NEXT_PUBLIC_BASE_URL!
+        const ALLOWED_ORIGINS = [
+          'https://morebooks.vercel.app',
+        ]
         
+        const referrerOrigin = document.referrer ? new URL(document.referrer).origin : null
+        const targetOrigin = ALLOWED_ORIGINS.includes(referrerOrigin) ? referrerOrigin : null
+        
+        if (!targetOrigin) {
+          console.error('허용되지 않은 도메인')
+          return
+        }
+
+        console.log("targetOrigin 확인",targetOrigin);
         console.log('postMessage로 동의 결과 전달 (팝업):', {
           type: 'consent_result',
           agreed: true,
@@ -533,7 +546,7 @@ function ConsentPageContent() {
         
         // 2. 팝업 닫기
         setTimeout(() => {
-          window.close()
+          //window.close()
         }, 100)
         
         // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
