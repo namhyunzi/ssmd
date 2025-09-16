@@ -25,8 +25,9 @@ export async function POST(request: NextRequest) {
     // shopId로 매핑된 uid 찾기
     const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
     console.log('매핑 참조 경로:', `userMappings/${mallId}/${shopId}`)
+    let mappingSnapshot
     try {
-      const mappingSnapshot = await get(mappingRef)
+      mappingSnapshot = await get(mappingRef)
       console.log('매핑 스냅샷 존재 여부:', mappingSnapshot.exists())
     } catch (mappingError) {
       console.error('매핑 정보 조회 오류:', mappingError)
@@ -47,11 +48,18 @@ export async function POST(request: NextRequest) {
     // 사용자 동의 상태 확인 (새로운 테이블 구조)
     const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}`)
     console.log('동의 참조 경로:', `mallServiceConsents/${uid}/${mallId}`)
+    console.log('Firebase 연결 상태 확인 중...')
+    
+    let consentSnapshot
     try {
-      const consentSnapshot = await get(consentRef)
+      console.log('동의 정보 조회 시작...')
+      consentSnapshot = await get(consentRef)
       console.log('동의 스냅샷 존재 여부:', consentSnapshot.exists())
-    } catch (consentError) {
+      console.log('동의 스냅샷 데이터:', consentSnapshot.val())
+    } catch (consentError: any) {
       console.error('동의 정보 조회 오류:', consentError)
+      console.error('오류 상세:', consentError.message)
+      console.error('오류 코드:', consentError.code)
       throw consentError
     }
     
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // isActive가 true이면 consentType에 관계없이 JWT 발급
+    // isActive가 true이면 once든 always든 JWT 발급 허용
     console.log('동의 타입:', consentData.consentType, 'isActive:', consentData.isActive, 'JWT 발급 진행')
 
     // JWT 발급
