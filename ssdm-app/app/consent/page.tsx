@@ -14,7 +14,7 @@ interface ConsentPageProps {}
 function ConsentPageContent() {
   const [consentType, setConsentType] = useState<string>("once")
   const [loading, setLoading] = useState(false)
-  const [userInfo, setUserInfo] = useState<any>(null)
+  // userInfo 상태 제거 - 실시간 복호화로 변경
   const [mallInfo, setMallInfo] = useState<any>(null)
   const [error, setError] = useState<string>("")
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false)
@@ -364,7 +364,7 @@ function ConsentPageContent() {
         }
       } else {
         // 모든 정보가 충분한 경우 → 동의 절차 진행
-        setUserInfo(mergedUserData)
+        // setUserInfo 제거 - 실시간 복호화 방식으로 변경
         // 쇼핑몰 ID는 파라미터에서 가져옴
         const mallIdFromUid = mallIdParam || mallId
         
@@ -442,13 +442,17 @@ function ConsentPageContent() {
   }
 
   const getFieldValue = (field: string) => {
+    // 실시간으로 복호화해서 반환
+    const { loadProfileFromLocal } = require('@/lib/data-storage')
+    const decryptedProfile = loadProfileFromLocal()
+    
     switch (field) {
-      case 'name': return userInfo?.name
-      case 'phone': return formatPhoneNumber(userInfo?.phone || '')
-      case 'address': return userInfo?.address
-      case 'detailAddress': return userInfo?.detailAddress
-      case 'zipCode': return userInfo?.zipCode
-      case 'email': return userInfo?.email
+      case 'name': return decryptedProfile?.name || ''
+      case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
+      case 'address': return decryptedProfile?.address || ''
+      case 'detailAddress': return decryptedProfile?.detailAddress || ''
+      case 'zipCode': return decryptedProfile?.zipCode || ''
+      case 'email': return decryptedProfile?.email || ''
       default: return ''
     }
   }
@@ -488,7 +492,8 @@ function ConsentPageContent() {
     console.log('shopId:', shopId)
     console.log('mallId:', mallId)
     console.log('consentType:', consentType)
-    console.log('userInfo:', userInfo)
+    // userInfo 로그 제거 - 실시간 복호화 방식으로 변경
+    console.log('개인정보: 실시간 복호화 방식 사용')
     
     if (!mallInfo || !shopId || !mallId) {
       console.log('handleConsent: 필수 파라미터 누락', { mallInfo: !!mallInfo, shopId, mallId })
@@ -501,11 +506,11 @@ function ConsentPageContent() {
     setLoading(true)
     try {
       // 동의 결과를 부모 창(쇼핑몰)에 전달
-      if (window.parent !== window) {
-        // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
+      if (window.opener && window.opener !== window) {
+        // 팝업으로 열린 경우 - opener를 통해 부모 창에 메시지 전달
         const targetOrigin = process.env.NEXT_PUBLIC_BASE_URL!
         
-        console.log('postMessage로 동의 결과 전달:', {
+        console.log('postMessage로 동의 결과 전달 (팝업):', {
           type: 'consent_result',
           agreed: true,
           consentType,
@@ -516,7 +521,7 @@ function ConsentPageContent() {
         })
         
         // 1. 결과 전달
-        window.parent.postMessage({
+        window.opener.postMessage({
           type: 'consent_result',
           agreed: true,
           consentType,
@@ -526,11 +531,9 @@ function ConsentPageContent() {
           timestamp: new Date().toISOString()
         }, targetOrigin)
         
-        // 2. 팝업 닫기 요청
+        // 2. 팝업 닫기
         setTimeout(() => {
-          window.parent.postMessage({
-            type: 'close_popup'
-          }, targetOrigin)
+          window.close()
         }, 100)
         
         // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
@@ -540,32 +543,6 @@ function ConsentPageContent() {
       } else {
         // 일반 페이지인 경우 동의 내역 저장
         await saveConsentData(consentId, mallId, shopId, consentType)
-      }
-
-      // 동의 내역 저장 (항상 허용인 경우)
-      if (consentType === "always") {
-        try {
-          // Firebase Realtime Database에 동의 내역 저장
-          const { realtimeDb } = await import('@/lib/firebase')
-          const { ref, set } = await import('firebase/database')
-          const { auth } = await import('@/lib/firebase')
-          
-          const currentUser = auth.currentUser
-          if (currentUser) {
-            const consentRef = ref(realtimeDb, `userConsents/${currentUser.uid}/${consentId}`)
-            await set(consentRef, {
-              mallId,
-              shopId,
-              consentType,
-              agreed: true,
-              timestamp: new Date().toISOString(),
-              expiryDate: getExpiryDate()
-            })
-            console.log(`항상 허용 동의 저장 완료: ${consentId}`)
-          }
-        } catch (error) {
-          console.error('동의 내역 저장 실패:', error)
-        }
       }
 
       console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}`)
@@ -584,41 +561,14 @@ function ConsentPageContent() {
     console.log('mallInfo:', mallInfo)
     console.log('shopId:', shopId)
     console.log('mallId:', mallId)
-    console.log('userInfo:', userInfo)
-    console.log('팝업 환경 여부:', window.parent !== window)
+    console.log('개인정보: 실시간 복호화 방식 사용')
     
-    if (window.parent !== window) {
-      // URL에서 referrer 정보 확인하여 안전한 도메인으로 전달
-      const referrer = document.referrer
-      const targetOrigin = referrer ? new URL(referrer).origin : '*'
-      
-      console.log('postMessage로 거부 결과 전달:', {
-        type: 'consent_result',
-        agreed: false,
-        consentType: 'once',
-        shopId,
-        mallId,
-        jwt: token,
-        timestamp: new Date().toISOString()
-      })
-      
-      // 1. 결과 전달
-      window.parent.postMessage({
-        type: 'consent_result',
-        agreed: false,
-        consentType: 'once',
-        shopId,
-        mallId,
-        jwt: token,
-        timestamp: new Date().toISOString()
-      }, targetOrigin)
-      
-      // 2. 팝업 닫기 요청
-      setTimeout(() => {
-        window.parent.postMessage({
-          type: 'close_popup'
-        }, targetOrigin)
-      }, 100)
+    // 팝업으로 열린 경우 창 닫기
+    if (window.opener && window.opener !== window) {
+      console.log("window.opener", window.opener);
+      console.log("window", window);
+      console.log('팝업 창 닫기')
+      window.close()
     }
   }
 
@@ -651,11 +601,8 @@ function ConsentPageContent() {
       
       // 4. UI 상태 업데이트
       setShowAdditionalInfo(false)
-      const updatedUserData = {
-        ...userInfo,
-        ...additionalData
-      }
-      setUserInfo(updatedUserData)
+      // setUserInfo 제거 - 실시간 복호화 방식으로 변경
+      // 추가 정보는 로컬 저장소에만 저장됨
       
       // 5. 쇼핑몰 정보도 설정 (동의 화면 표시를 위해)
       const { realtimeDb } = await import('@/lib/firebase')
@@ -735,7 +682,7 @@ function ConsentPageContent() {
     )
   }
 
-  if (!userInfo || !mallInfo) {
+  if (!mallInfo) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
