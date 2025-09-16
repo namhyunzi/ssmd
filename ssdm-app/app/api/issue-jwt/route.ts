@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
     }
 
     // JWT 발급
-    const jwtSecret = process.env.JWT_SECRET
-    if (!jwtSecret) {
+    const apiKey = process.env.PRIVACY_SYSTEM_API_KEY
+    if (!apiKey) {
       return NextResponse.json(
-        { error: 'JWT_SECRET이 설정되지 않았습니다.' },
+        { error: 'PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.' },
         { status: 500 }
       )
     }
@@ -70,11 +70,21 @@ export async function POST(request: NextRequest) {
       shopId: shopId,
       mallId: mallId,
       consentType: consentData.consentType,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15분 후 만료
     }
 
-    const token = jwt.sign(jwtPayload, jwtSecret, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m'
+    const token = jwt.sign(jwtPayload, apiKey, {
+      algorithm: 'HS256'
+    })
+
+    console.log('JWT 발급 성공:', {
+      shopId,
+      mallId,
+      uid,
+      consentType: consentData.consentType,
+      tokenLength: token.length,
+      expiresAt: new Date((jwtPayload.exp) * 1000).toISOString()
     })
 
     // JWT 발급 기록 저장 (선택사항)

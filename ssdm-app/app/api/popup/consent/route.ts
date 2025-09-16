@@ -19,7 +19,13 @@ export async function POST(request: NextRequest) {
 
     try {
       // 환경변수의 API Key로 JWT 검증
-      const apiKey = process.env.PRIVACY_SYSTEM_API_KEY || 'morebooks-d084074eab9cf4f23b1453a2518c8e8d'
+      const apiKey = process.env.PRIVACY_SYSTEM_API_KEY
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.' },
+          { status: 500 }
+        )
+      }
       console.log('환경변수 API Key 사용:', apiKey ? '존재함' : '없음')
       
       // API Key로 JWT 검증

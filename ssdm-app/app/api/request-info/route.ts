@@ -34,11 +34,11 @@ interface ViewerSession {
  */
 function verifyJwtToken(token: string): JwtPayload | null {
   try {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET이 설정되지 않았습니다.');
+    const apiKey = process.env.PRIVACY_SYSTEM_API_KEY;
+    if (!apiKey) {
+      throw new Error('PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.');
     }
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    const decoded = jwt.verify(token, apiKey, { algorithms: ['HS256'] }) as JwtPayload;
     
     // 만료 시간 확인
     const now = Math.floor(Date.now() / 1000);

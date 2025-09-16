@@ -485,20 +485,32 @@ function ConsentPageContent() {
   // 택배사용 JWT 생성 함수
   const generateDeliveryJWT = async (shopId: string, mallId: string) => {
     try {
-      const jwt = await import('jsonwebtoken')
+      console.log('택배사용 JWT 생성 요청:', { shopId, mallId })
       
-      const payload = {
-        shopId: shopId,
-        mallId: mallId,
-        purpose: "delivery",
-        exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15분 후 만료
+      const response = await fetch('/api/issue-jwt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ shopId, mallId })
+      })
+      
+      console.log('JWT 발급 API 응답 상태:', response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('JWT 발급 API 오류:', errorData)
+        throw new Error(`JWT 발급 실패: ${errorData.error}`)
       }
       
-      const apiKey = process.env.PRIVACY_SYSTEM_API_KEY || 'morebooks-d084074eab9cf4f23b1453a2518c8e8d'
-      const deliveryJWT = jwt.sign(payload, apiKey, { algorithm: 'HS256' })
-      
-      console.log('택배사용 JWT 생성 완료:', deliveryJWT)
-      return deliveryJWT
+      const data = await response.json()
+      console.log('택배사용 JWT 생성 완료:', {
+        jwt: data.jwt,
+        expiresIn: data.expiresIn,
+        consentType: data.consentType,
+        tokenLength: data.jwt?.length
+      })
+      return data.jwt
     } catch (error) {
       console.error('택배사용 JWT 생성 실패:', error)
       throw error

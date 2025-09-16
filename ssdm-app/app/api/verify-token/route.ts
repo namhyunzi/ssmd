@@ -14,16 +14,16 @@ export async function POST(request: NextRequest) {
     }
 
     // JWT 검증
-    const jwtSecret = process.env.JWT_SECRET
-    if (!jwtSecret) {
+    const apiKey = process.env.PRIVACY_SYSTEM_API_KEY
+    if (!apiKey) {
       return NextResponse.json(
-        { error: 'JWT_SECRET이 설정되지 않았습니다.' },
+        { error: 'PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.' },
         { status: 500 }
       )
     }
     
     try {
-      const decoded = jwt.verify(token, jwtSecret) as any
+      const decoded = jwt.verify(token, apiKey, { algorithms: ['HS256'] }) as any
       
       // JWT에서 정보 추출
       const { shopId, mallId, exp } = decoded

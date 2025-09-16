@@ -58,17 +58,18 @@ export class PrivacySystemClient {
 
   /**
    * JWT 발급 API
-   * @param uid 사용자 UID (UUID 기반 표준 형식)
+   * @param shopId 쇼핑몰 사용자 ID
+   * @param mallId 쇼핑몰 ID
    * @returns JWT 토큰 정보
    */
-  async issueJWT(uid: string) {
+  async issueJWT(shopId: string, mallId: string) {
     const response = await fetch(`${this.baseUrl}/api/issue-jwt`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`
       },
-      body: JSON.stringify({ uid })
+      body: JSON.stringify({ shopId, mallId })
     });
     
     if (!response.ok) {
@@ -150,23 +151,21 @@ export class PrivacySystemClient {
  */
 export const PrivacyHelpers = {
   /**
-   * UID/JWT 요청 함수
+   * JWT 요청 함수 (기존 JWT 팝업에서 shopId, mallId 사용)
    */
-  async requestPrivacyUIDAndJWT(
-    sessionType: 'paper' | 'qr' = 'paper'
-  ): Promise<{ uid: string, jwt: string }> {
+  async requestPrivacyJWT(
+    shopId: string,
+    mallId: string
+  ): Promise<{ jwt: string }> {
     try {
       const client = new PrivacySystemClient();
       
-      // 1. UID 생성
-      const uidResult = await client.generateUID();
+      // JWT 발급
+      const jwtResult = await client.issueJWT(shopId, mallId);
       
-      // 2. JWT 발급
-      const jwtResult = await client.issueJWT(uidResult.uid);
-      
-      return { uid: uidResult.uid, jwt: jwtResult.jwt };
+      return { jwt: jwtResult.jwt };
     } catch (error) {
-      console.error('UID/JWT 요청 실패:', error);
+      console.error('JWT 요청 실패:', error);
       throw error;
     }
   },
