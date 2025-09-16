@@ -482,6 +482,29 @@ function ConsentPageContent() {
     }
   }
 
+  // 택배사용 JWT 생성 함수
+  const generateDeliveryJWT = async (shopId: string, mallId: string) => {
+    try {
+      const jwt = await import('jsonwebtoken')
+      
+      const payload = {
+        shopId: shopId,
+        mallId: mallId,
+        purpose: "delivery",
+        exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15분 후 만료
+      }
+      
+      const apiKey = process.env.PRIVACY_SYSTEM_API_KEY || 'morebooks-d084074eab9cf4f23b1453a2518c8e8d'
+      const deliveryJWT = jwt.sign(payload, apiKey, { algorithm: 'HS256' })
+      
+      console.log('택배사용 JWT 생성 완료:', deliveryJWT)
+      return deliveryJWT
+    } catch (error) {
+      console.error('택배사용 JWT 생성 실패:', error)
+      throw error
+    }
+  }
+
   // 동의 내역 저장 함수
   const saveConsentData = async (consentId: string, mallId: string, shopId: string, consentType: string) => {
     if (consentType === "always") {
@@ -558,13 +581,16 @@ function ConsentPageContent() {
             
             console.log("사용할 targetOrigin:", targetOrigin);
             
+            // 택배사용 새로운 JWT 생성
+            const deliveryJWT = await generateDeliveryJWT(shopId, mallId)
+            
             console.log('postMessage로 동의 결과 전달 (팝업):', {
               type: 'consent_result',
               agreed: true,
               consentType,
               shopId,
               mallId,
-              jwt: token,
+              jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             })
             
@@ -575,7 +601,7 @@ function ConsentPageContent() {
               consentType,
               shopId,
               mallId,
-              jwt: token,
+              jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             }, targetOrigin)
             
