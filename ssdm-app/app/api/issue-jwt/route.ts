@@ -39,16 +39,16 @@ export async function POST(request: NextRequest) {
     const uid = mappingSnapshot.val().uid
     console.log('찾은 UID:', uid)
     
-    // 사용자 동의 상태 확인
-    const consentRef = ref(realtimeDb, `userConsents/${uid}/${mallId}`)
-    console.log('동의 참조 경로:', `userConsents/${uid}/${mallId}`)
+    // 사용자 동의 상태 확인 (새로운 테이블 구조)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}`)
+    console.log('동의 참조 경로:', `mallServiceConsents/${uid}/${mallId}`)
     const consentSnapshot = await get(consentRef)
     console.log('동의 스냅샷 존재 여부:', consentSnapshot.exists())
     
     if (!consentSnapshot.exists()) {
-      console.log('개인정보 제공 동의 없음')
+      console.log('쇼핑몰 서비스 동의 없음')
       return NextResponse.json(
-        { error: '개인정보 제공 동의가 필요합니다.' },
+        { error: '쇼핑몰 서비스 동의가 필요합니다.' },
         { status: 403 }
       )
     }

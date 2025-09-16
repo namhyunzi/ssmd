@@ -579,31 +579,28 @@ function ConsentPageContent() {
     }
   }
 
-  // 동의 내역 저장 함수
+  // 동의 내역 저장 함수 (새로운 테이블 구조)
   const saveConsentData = async (consentId: string, mallId: string, shopId: string, consentType: string) => {
-    if (consentType === "always") {
-      try {
-        // Firebase Realtime Database에 동의 내역 저장
-        const { realtimeDb } = await import('@/lib/firebase')
-        const { ref, set } = await import('firebase/database')
-        const { auth } = await import('@/lib/firebase')
-        
-        const currentUser = auth.currentUser
-        if (currentUser) {
-          const consentRef = ref(realtimeDb, `userConsents/${currentUser.uid}/${consentId}`)
-          await set(consentRef, {
-            mallId,
-            shopId,
-            consentType,
-            agreed: true,
-            timestamp: new Date().toISOString(),
-            expiryDate: getExpiryDate()
-          })
-          console.log(`항상 허용 동의 저장 완료: ${consentId}`)
-        }
-      } catch (error) {
-        console.error('동의 내역 저장 실패:', error)
-      }
+    try {
+      // generate-uid로 생성된 UID 가져오기
+      const uid = await ensureUserMapping(shopId, mallId)
+      
+      // Firebase Realtime Database에 동의 내역 저장
+      const { realtimeDb } = await import('@/lib/firebase')
+      const { ref, set } = await import('firebase/database')
+      
+      // mallServiceConsents 테이블에 저장
+      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}`)
+      await set(consentRef, {
+        consentType,
+        timestamp: new Date().toISOString(),
+        isActive: true,
+        shopId: shopId
+      })
+      
+      console.log(`쇼핑몰 서비스 동의 저장 완료: ${uid}/${mallId}`)
+    } catch (error) {
+      console.error('동의 내역 저장 실패:', error)
     }
   }
 
@@ -655,8 +652,8 @@ function ConsentPageContent() {
             
             console.log("사용할 targetOrigin:", targetOrigin);
             
-            // 택배사용 새로운 JWT 생성
-            const deliveryJWT = await generateDeliveryJWT(shopId, mallId)
+            // 1. 동의 정보 저장
+            await saveConsentData(consentId, mallId, shopId, consentType)
             
             console.log('postMessage로 동의 결과 전달 (팝업):', {
               type: 'consent_result',
@@ -664,18 +661,16 @@ function ConsentPageContent() {
               consentType,
               shopId,
               mallId,
-              jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             })
             
-            // 1. 결과 전달
+            // 2. 동의 결과 전달 (JWT 제거)
             window.opener.postMessage({
               type: 'consent_result',
               agreed: true,
               consentType,
               shopId,
               mallId,
-              jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             }, targetOrigin)
             
@@ -690,14 +685,9 @@ function ConsentPageContent() {
           return
         }
         
-        // 2. 팝업 닫기
+        // 4. 팝업 닫기
         setTimeout(() => {
           window.close()
-        }, 100)
-        
-        // 팝업 닫기 후 동의 내역 저장 (백그라운드에서 실행)
-        setTimeout(() => {
-          saveConsentData(consentId, mallId, shopId, consentType)
         }, 100)
       } else {
         // 일반 페이지인 경우 동의 내역 저장

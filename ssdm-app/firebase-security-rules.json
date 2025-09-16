@@ -58,6 +58,12 @@
       ".write": true
     },
     
+    // 쇼핑몰 서비스 동의 (개발 환경: 모든 접근 허용)
+    "mallServiceConsents": {
+      ".read": true,
+      ".write": true
+    },
+    
     // 기본 규칙
     ".read": "auth != null",
     ".write": "auth != null"
