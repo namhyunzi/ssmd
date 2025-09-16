@@ -196,14 +196,27 @@ export const PrivacyHelpers = {
    * 동의 요청 함수
    */
   async requestUserConsent(
-    uid: string, 
+    jwt: string, 
     requiredFields: string[], 
     duration: 'once' | 'always'
   ): Promise<boolean> {
     try {
-      // 팝업으로 동의 페이지 열기
-      const consentUrl = `${PRIVACY_CONFIG.baseUrl}/consent?uid=${uid}&fields=${requiredFields.join(',')}`;
+      // 팝업으로 동의 페이지 열기 (JWT 없이)
+      const consentUrl = `${PRIVACY_CONFIG.baseUrl}/consent`;
       const popup = window.open(consentUrl, 'consent', 'width=600,height=800');
+      
+      // 팝업이 로드된 후 JWT 전달
+      const sendJWT = () => {
+        if (popup && !popup.closed) {
+          popup.postMessage({
+            type: 'init_consent',
+            jwt: jwt
+          }, PRIVACY_CONFIG.baseUrl);
+        }
+      };
+      
+      // 팝업 로드 대기 후 JWT 전달
+      setTimeout(sendJWT, 1000);
       
       // 팝업 결과 대기
       return new Promise((resolve) => {

@@ -18,30 +18,22 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // JWT에서 공개키 추출 (먼저 디코딩)
-      const decodedWithoutVerify = jwt.decode(token) as any
-      if (!decodedWithoutVerify || !decodedWithoutVerify.publicKey) {
-        return NextResponse.json(
-          { error: 'JWT에 공개키가 포함되지 않았습니다.' },
-          { status: 400 }
-        )
-      }
+      // 환경변수의 API Key로 JWT 검증
+      const apiKey = process.env.PRIVACY_SYSTEM_API_KEY || 'morebooks-d084074eab9cf4f23b1453a2518c8e8d'
+      console.log('환경변수 API Key 사용:', apiKey ? '존재함' : '없음')
       
-      // 공개키 정리 (이스케이프된 개행 문자를 실제 개행 문자로 변환)
-      const cleanPublicKey = decodedWithoutVerify.publicKey.replace(/\\n/g, '\n')
-      
-      // 공개키로 JWT 검증
-      const decoded = jwt.verify(token, cleanPublicKey) as any
+      // API Key로 JWT 검증
+      const decoded = jwt.verify(token, apiKey, { algorithms: ['HS256'] }) as any
+      console.log('JWT 검증 성공:', decoded)
       
       // JWT에서 정보 추출
-      const { shopId, mallId, apiKey } = decoded
+      const { shopId, mallId } = decoded
 
       return NextResponse.json({
         valid: true,
         payload: {
           shopId: shopId,
-          mallId: mallId,
-          apiKey: apiKey
+          mallId: mallId
         },
         message: 'JWT 검증이 완료되었습니다.'
       })
