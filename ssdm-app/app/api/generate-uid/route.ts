@@ -11,7 +11,19 @@ interface GenerateUidRequest {
  */
 async function validateApiKey(apiKey: string): Promise<string | null> {
   try {
-    // API Key 인덱스에서 확인
+    // 환경변수 API Key와 직접 비교
+    const envApiKey = process.env.PRIVACY_SYSTEM_API_KEY;
+    if (!envApiKey) {
+      console.error('PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.');
+      return null;
+    }
+    
+    if (apiKey === envApiKey) {
+      // API Key가 일치하면 mallId 반환 (임시로 'morebooks' 반환)
+      return 'morebooks';
+    }
+    
+    // 기존 로직: API Key 인덱스에서 확인
     const apiKeyRef = ref(realtimeDb, `apiKeys/${apiKey}`);
     const snapshot = await get(apiKeyRef);
     

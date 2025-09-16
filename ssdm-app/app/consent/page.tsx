@@ -75,31 +75,58 @@ function ConsentPageContent() {
     try {
       console.log('사용자 매핑 정보 확인 시작:', { shopId, mallId })
       
-      // API Key는 환경변수에서 가져오거나 기본값 사용
-      const apiKey = 'morebooks-d084074eab9cf4f23b1453a2518c8e8d' // 임시로 하드코딩
+      // Firebase에서 기존 매핑 정보 확인
+      const { realtimeDb } = await import('@/lib/firebase')
+      const { ref, get, set } = await import('firebase/database')
       
-      const response = await fetch('/api/generate-uid', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({ userId: shopId })
+      const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
+      const mappingSnapshot = await get(mappingRef)
+      
+      if (mappingSnapshot.exists()) {
+        const existingUid = mappingSnapshot.val().uid
+        console.log('기존 UID 발견:', existingUid)
+        return existingUid
+      }
+      
+      // 새 UID 생성
+      const uid = await generateUid(mallId)
+      console.log('새 UID 생성:', uid)
+      
+      // 매핑 정보 저장
+      await set(mappingRef, {
+        uid: uid,
+        createdAt: new Date().toISOString(),
+        isActive: true
       })
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('사용자 매핑 정보 확인/생성 완료:', data)
-        return data.uid
-      } else {
-        const errorData = await response.json()
-        console.error('사용자 매핑 정보 생성 실패:', errorData)
-        throw new Error(`매핑 정보 생성 실패: ${errorData.error}`)
-      }
+      console.log('사용자 매핑 정보 저장 완료:', { shopId, mallId, uid })
+      return uid
     } catch (error) {
       console.error('사용자 매핑 정보 확인/생성 오류:', error)
       throw error
     }
+  }
+
+  // UID 생성 함수
+  const generateUid = async (mallId: string): Promise<string> => {
+    // UUID v4 생성 (Web Crypto API 사용)
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    
+    // UUID v4 형식으로 변환
+    array[6] = (array[6] & 0x0f) | 0x40; // version 4
+    array[8] = (array[8] & 0x3f) | 0x80; // variant bits
+    
+    const hex = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    const uuid = [
+      hex.slice(0, 8),
+      hex.slice(8, 12),
+      hex.slice(12, 16),
+      hex.slice(16, 20),
+      hex.slice(20, 32)
+    ].join('-');
+    
+    return `${mallId}-${uuid}`;
   }
 
   // JWT 토큰 검증 함수
