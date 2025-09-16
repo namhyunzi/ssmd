@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,7 @@ interface PreviewData {
   timestamp: string
 }
 
-export default function InfoPreviewPage() {
+function InfoPreviewContent() {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
@@ -321,5 +321,22 @@ export default function InfoPreviewPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function InfoPreviewPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-lg">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">로딩 중...</p>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <InfoPreviewContent />
+    </Suspense>
   )
 }
