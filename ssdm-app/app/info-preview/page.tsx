@@ -68,8 +68,8 @@ function InfoPreviewPageContent() {
       const { loadProfileFromLocal } = require('@/lib/data-storage')
       const userProfile = loadProfileFromLocal()
       
-      // 사용자가 실제로 가지고 있는 필드들만 표시
-      const availableFields = ['name', 'phone', 'address', 'email', 'zipCode', 'detailAddress']
+      // 사용자가 실제로 가지고 있는 필드들만 표시 (상세주소는 주소와 함께 표시)
+      const availableFields = ['name', 'phone', 'address', 'email', 'zipCode']
       const providedFields = availableFields.filter(field => {
         const value = getFieldValue(field)
         return value && value.trim() !== '' && value !== '정보 확인 중...'
@@ -146,8 +146,10 @@ function InfoPreviewPageContent() {
       switch (field) {
         case 'name': return decryptedProfile?.name || ''
         case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
-        case 'address': return decryptedProfile?.address || ''
-        case 'detailAddress': return decryptedProfile?.detailAddress || ''
+        case 'address': 
+          const address = decryptedProfile?.address || ''
+          const detailAddress = decryptedProfile?.detailAddress || ''
+          return detailAddress ? `${address} ${detailAddress}` : address
         case 'zipCode': return decryptedProfile?.zipCode || ''
         case 'email': return decryptedProfile?.email || ''
         default: return ''
@@ -174,15 +176,9 @@ function InfoPreviewPageContent() {
     }
   }
 
-  const handleContinue = () => {
-    // 쇼핑몰로 리다이렉트하거나 팝업 닫기
-    if (window.opener) {
-      // 팝업으로 열린 경우
-      window.close()
-    } else {
-      // 새 탭으로 열린 경우
-      window.history.back()
-    }
+  const handleConfirm = () => {
+    // 확인 버튼 클릭 시 팝업 닫기
+    window.close()
   }
 
   const handleBack = () => {
@@ -259,30 +255,6 @@ function InfoPreviewPageContent() {
             </div>
           </div>
 
-          {/* 동의 정보 */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-900">동의 정보</h3>
-            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">동의 방식</span>
-                <div className="flex items-center space-x-2">
-                  {getConsentTypeBadge(previewData.consentType)}
-                  <span className="text-sm font-medium">
-                    {getConsentTypeLabel(previewData.consentType)}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">제공 시간</span>
-                <div className="flex items-center space-x-1">
-                  <Clock className="h-3 w-3 text-gray-400" />
-                  <span className="text-sm">
-                    {new Date(previewData.timestamp).toLocaleString('ko-KR')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* 안내 메시지 */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -301,23 +273,12 @@ function InfoPreviewPageContent() {
           </div>
 
           {/* 버튼 */}
-          <div className="flex space-x-3">
-            <Button 
-              variant="outline" 
-              onClick={handleBack}
-              className="flex-1"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              돌아가기
-            </Button>
-            <Button 
-              onClick={handleContinue}
-              className="flex-1"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              주문 계속하기
-            </Button>
-          </div>
+          <Button 
+            onClick={handleConfirm}
+            className="w-full"
+          >
+            확인
+          </Button>
         </CardContent>
       </Card>
     </div>
