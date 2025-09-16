@@ -66,8 +66,8 @@ function InfoPreviewContent() {
       const { loadProfileFromLocal } = require('@/lib/data-storage')
       const userProfile = loadProfileFromLocal()
       
-      // 사용자가 실제로 가지고 있는 필드들만 표시
-      const availableFields = ['name', 'phone', 'address', 'email', 'zipCode', 'detailAddress']
+      // 사용자가 실제로 가지고 있는 필드들만 표시 (상세주소는 주소에 포함되므로 제외)
+      const availableFields = ['name', 'phone', 'address', 'email', 'zipCode']
       const providedFields = availableFields.filter(field => {
         const value = getFieldValue(field)
         return value && value.trim() !== '' && value !== '정보 확인 중...'
@@ -279,15 +279,13 @@ function InfoPreviewContent() {
           </div>
 
           {/* 버튼 */}
-          <div className="flex justify-center">
-            <Button 
-              onClick={() => window.close()}
-              className="w-full max-w-xs"
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              확인
-            </Button>
-          </div>
+          <Button 
+            onClick={() => window.close()}
+            className="w-full"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            확인
+          </Button>
         </CardContent>
       </Card>
     </div>
