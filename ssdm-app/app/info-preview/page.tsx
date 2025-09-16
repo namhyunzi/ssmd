@@ -12,9 +12,7 @@ import {
   Mail, 
   CheckCircle, 
   Shield, 
-  Clock,
-  ExternalLink,
-  ArrowLeft
+  Clock
 } from "lucide-react"
 
 interface MallInfo {
@@ -146,7 +144,10 @@ function InfoPreviewContent() {
       switch (field) {
         case 'name': return decryptedProfile?.name || ''
         case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
-        case 'address': return decryptedProfile?.address || ''
+        case 'address': 
+          const address = decryptedProfile?.address || ''
+          const detailAddress = decryptedProfile?.detailAddress || ''
+          return detailAddress ? `${address} ${detailAddress}`.trim() : address
         case 'detailAddress': return decryptedProfile?.detailAddress || ''
         case 'zipCode': return decryptedProfile?.zipCode || ''
         case 'email': return decryptedProfile?.email || ''
@@ -174,20 +175,6 @@ function InfoPreviewContent() {
     }
   }
 
-  const handleContinue = () => {
-    // 쇼핑몰로 리다이렉트하거나 팝업 닫기
-    if (window.opener) {
-      // 팝업으로 열린 경우
-      window.close()
-    } else {
-      // 새 탭으로 열린 경우
-      window.history.back()
-    }
-  }
-
-  const handleBack = () => {
-    window.history.back()
-  }
 
   if (loading) {
     return (
@@ -212,9 +199,9 @@ function InfoPreviewContent() {
             </div>
             <h2 className="text-lg font-semibold mb-2">오류가 발생했습니다</h2>
             <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={handleBack} variant="outline">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              돌아가기
+            <Button onClick={() => window.close()} variant="outline">
+              <CheckCircle className="h-4 w-4 mr-2" />
+              닫기
             </Button>
           </CardContent>
         </Card>
@@ -264,15 +251,6 @@ function InfoPreviewContent() {
             <h3 className="text-sm font-medium text-gray-900">동의 정보</h3>
             <div className="bg-blue-50 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">동의 방식</span>
-                <div className="flex items-center space-x-2">
-                  {getConsentTypeBadge(previewData.consentType)}
-                  <span className="text-sm font-medium">
-                    {getConsentTypeLabel(previewData.consentType)}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">제공 시간</span>
                 <div className="flex items-center space-x-1">
                   <Clock className="h-3 w-3 text-gray-400" />
@@ -292,8 +270,8 @@ function InfoPreviewContent() {
                 <p className="font-medium mb-1">개인정보 제공 안내</p>
                 <p>
                   {previewData.consentType === 'always' 
-                    ? '6개월 동안 자동으로 위 정보가 제공됩니다. 언제든지 동의를 해제할 수 있습니다.'
-                    : '이번 주문에만 위 정보가 제공됩니다.'
+                    ? '6개월 동안 자동으로 정보가 제공됩니다. 언제든지 동의를 해제할 수 있습니다.'
+                    : '이번 주문에만 정보가 제공됩니다.'
                   }
                 </p>
               </div>
@@ -301,21 +279,13 @@ function InfoPreviewContent() {
           </div>
 
           {/* 버튼 */}
-          <div className="flex space-x-3">
+          <div className="flex justify-center">
             <Button 
-              variant="outline" 
-              onClick={handleBack}
-              className="flex-1"
+              onClick={() => window.close()}
+              className="w-full max-w-xs"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              돌아가기
-            </Button>
-            <Button 
-              onClick={handleContinue}
-              className="flex-1"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              주문 계속하기
+              <CheckCircle className="h-4 w-4 mr-2" />
+              확인
             </Button>
           </div>
         </CardContent>
