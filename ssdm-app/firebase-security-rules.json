@@ -40,6 +40,24 @@
       ".write": true
     },
     
+    // 사용자 매핑 (개발 환경: 모든 접근 허용)
+    "userMappings": {
+      ".read": true,
+      ".write": true
+    },
+    
+    // 사용자 동의 내역 (개발 환경: 모든 접근 허용)
+    "userConsents": {
+      ".read": true,
+      ".write": true
+    },
+    
+    // JWT 발급 기록 (개발 환경: 모든 접근 허용)
+    "jwtRecords": {
+      ".read": true,
+      ".write": true
+    },
+    
     // 기본 규칙
     ".read": "auth != null",
     ".write": "auth != null"
