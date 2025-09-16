@@ -535,53 +535,60 @@ function ConsentPageContent() {
         console.log("window.opener 확인",window.opener);
         console.log("window 확인",window);
         // 팝업으로 열린 경우 - opener를 통해 부모 창에 메시지 전달
-        const ALLOWED_ORIGINS = [
-          'https://morebooks.vercel.app',
-        ]
-        
-        // window.opener의 origin을 직접 확인
-        let targetOrigin = null
+        // Firebase에서 mallId의 허용 도메인 조회
         try {
-          if (window.opener && window.opener.location) {
-            targetOrigin = window.opener.location.origin
-            console.log('window.opener.location.origin:', targetOrigin)
+          const { realtimeDb } = await import('@/lib/firebase')
+          const { ref, get } = await import('firebase/database')
+          const mallRef = ref(realtimeDb, `malls/${mallId}`)
+          const mallSnapshot = await get(mallRef)
+          
+          if (mallSnapshot.exists()) {
+            const mallData = mallSnapshot.val()
+            const allowedOrigins = mallData.allowedDomains
+            console.log('Firebase에서 조회한 허용 도메인:', allowedOrigins)
+            
+            // 허용된 도메인 중 첫 번째를 targetOrigin으로 사용
+            const targetOrigin = allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins[0] : null
+            
+            if (!targetOrigin) {
+              console.error('허용된 도메인이 설정되지 않았습니다.')
+              setError('허용된 도메인이 설정되지 않았습니다.')
+              return
+            }
+            
+            console.log("사용할 targetOrigin:", targetOrigin);
+            
+            console.log('postMessage로 동의 결과 전달 (팝업):', {
+              type: 'consent_result',
+              agreed: true,
+              consentType,
+              shopId,
+              mallId,
+              jwt: token,
+              timestamp: new Date().toISOString()
+            })
+            
+            // 1. 결과 전달
+            window.opener.postMessage({
+              type: 'consent_result',
+              agreed: true,
+              consentType,
+              shopId,
+              mallId,
+              jwt: token,
+              timestamp: new Date().toISOString()
+            }, targetOrigin)
+            
+          } else {
+            console.error('쇼핑몰 정보를 찾을 수 없습니다:', mallId)
+            setError('쇼핑몰 정보를 찾을 수 없습니다.')
+            return
           }
-        } catch (e) {
-          console.log('window.opener.location 접근 불가 (CORS):', e)
-          // CORS로 인해 접근할 수 없는 경우, referrer 사용
-          const referrerOrigin = document.referrer ? new URL(document.referrer).origin : null
-          targetOrigin = referrerOrigin
-          console.log('document.referrer 사용:', referrerOrigin)
-        }
-        
-        // 허용된 도메인인지 확인
-        if (!targetOrigin || !ALLOWED_ORIGINS.includes(targetOrigin)) {
-          console.error('허용되지 않은 도메인:', targetOrigin, '허용된 도메인:', ALLOWED_ORIGINS)
-          setError(`허용되지 않은 도메인입니다: ${targetOrigin}`)
+        } catch (error) {
+          console.error('허용 도메인 조회 실패:', error)
+          setError('허용 도메인 조회 중 오류가 발생했습니다.')
           return
         }
-
-        console.log("최종 targetOrigin:", targetOrigin);
-        console.log('postMessage로 동의 결과 전달 (팝업):', {
-          type: 'consent_result',
-          agreed: true,
-          consentType,
-          shopId,
-          mallId,
-          jwt: token,
-          timestamp: new Date().toISOString()
-        })
-        
-        // 1. 결과 전달
-        window.opener.postMessage({
-          type: 'consent_result',
-          agreed: true,
-          consentType,
-          shopId,
-          mallId,
-          jwt: token,
-          timestamp: new Date().toISOString()
-        }, targetOrigin)
         
         // 2. 팝업 닫기
         setTimeout(() => {
