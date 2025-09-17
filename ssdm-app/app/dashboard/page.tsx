@@ -10,7 +10,7 @@ import { auth } from "@/lib/firebase"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import { getUserProfile, createDefaultProfile, Users } from "@/lib/user-profile"
-import { getUserServiceConsents, calculateConsentStats, UserConsents, createTestServiceConsents, createTestProvisionLogs } from "@/lib/service-consent"
+import { getUserServiceConsents, calculateConsentStats, UserConsents } from "@/lib/service-consent"
 
 export default function DashboardPage() {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false)
@@ -19,9 +19,9 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<Users | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
+  const [isSocialLogin, setIsSocialLogin] = useState(false)
   const [serviceConsents, setServiceConsents] = useState<UserConsents[]>([])
   const [consentStats, setConsentStats] = useState({ total: 0, active: 0, expiring: 0, expired: 0 })
-  const [isSocialLogin, setIsSocialLogin] = useState(false)
   const router = useRouter()
   
   // 커스텀 토스트 상태
@@ -29,41 +29,6 @@ export default function DashboardPage() {
   const [toastMessage, setToastMessage] = useState("")
   const [toastSubMessage, setToastSubMessage] = useState("")
   
-  // 테스트 데이터 생성 함수
-  const handleCreateTestData = async () => {
-    if (!currentUser) return;
-    
-    try {
-      // 서비스 동의 데이터와 개인정보 제공내역 데이터를 모두 생성
-      const [consentsSuccess, logsSuccess] = await Promise.all([
-        createTestServiceConsents(currentUser),
-        createTestProvisionLogs(currentUser)
-      ]);
-      
-      if (consentsSuccess && logsSuccess) {
-        // 서비스 동의 데이터 다시 로드
-        const consents = await getUserServiceConsents(currentUser);
-        setServiceConsents(consents);
-        setConsentStats(calculateConsentStats(consents));
-        
-        setToastMessage("테스트 데이터 생성 완료")
-        setToastSubMessage("8개 서비스 동의 + 10개 개인정보 제공내역이 생성되었습니다.")
-        setShowToast(true)
-        setTimeout(() => setShowToast(false), 3000)
-      } else {
-        setToastMessage("테스트 데이터 생성 실패")
-        setToastSubMessage("데이터 생성 중 오류가 발생했습니다.")
-        setShowToast(true)
-        setTimeout(() => setShowToast(false), 3000)
-      }
-    } catch (error) {
-      console.error('테스트 데이터 생성 오류:', error);
-      setToastMessage("테스트 데이터 생성 실패")
-      setToastSubMessage("데이터 생성 중 오류가 발생했습니다.")
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
-    }
-  }
   
   // Firebase Auth 상태 확인 및 사용자 정보 가져오기
   useEffect(() => {
@@ -99,16 +64,12 @@ export default function DashboardPage() {
         
         if (profile) {
           setUserProfile(profile)
-          setHasCompletedProfile(profile.profileCompleted || 
-            !!(profile.name || profile.phone || profile.address || profile.detailAddress))
+          setHasCompletedProfile(profile.profileCompleted)
         }
         
         // 서비스 동의 데이터 로드
         try {
           const consents = await getUserServiceConsents(user)
-          console.log('=== 대시보드 - 서비스 동의 데이터 ===')
-          console.log('로드된 동의 데이터 개수:', consents.length)
-          console.log('동의 데이터:', consents)
           setServiceConsents(consents)
           const stats = calculateConsentStats(consents)
           setConsentStats(stats)
@@ -356,19 +317,6 @@ export default function DashboardPage() {
                 </Link>
               </div>
               
-              {/* 테스트 데이터 생성 버튼 */}
-              <div className="pt-2">
-                <Button 
-                  variant="outline" 
-                  className="w-full bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
-                  onClick={handleCreateTestData}
-                >
-                  🧪 테스트 데이터 생성 (8개 서비스 + 10개 제공내역)
-                </Button>
-                <p className="text-xs text-gray-500 mt-1 text-center">
-                  현재 서비스 동의: {serviceConsents.length}개
-                </p>
-              </div>
             </CardContent>
           </Card>
         </div>
