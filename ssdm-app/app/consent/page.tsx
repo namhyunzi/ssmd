@@ -362,7 +362,16 @@ function ConsentPageContent() {
       // Firebase에서 개인정보 직접 조회
       const { getUserProfile } = await import('@/lib/data-storage')
       const { auth } = await import('@/lib/firebase')
-      const userProfile = await getUserProfile(auth.currentUser!)
+      
+      let userProfile = null
+      try {
+        userProfile = await getUserProfile(auth.currentUser!)
+        console.log('개인정보 조회 성공:', userProfile)
+      } catch (error) {
+        console.error('개인정보 조회 실패:', error)
+        setError('개인정보를 불러오는 중 오류가 발생했습니다.')
+        return
+      }
       
       let personalDataObj = {}
       if (userProfile) {
@@ -517,17 +526,16 @@ function ConsentPageContent() {
   }
 
   const getFieldValue = (field: string) => {
-    // 실시간으로 복호화해서 반환
-    const { loadProfileFromLocal } = require('@/lib/data-storage')
-    const decryptedProfile = loadProfileFromLocal()
+    // Firebase에서 가져온 userProfile 사용
+    if (!userProfile) return ''
     
     switch (field) {
-      case 'name': return decryptedProfile?.name || ''
-      case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
-      case 'address': return decryptedProfile?.address || ''
-      case 'detailAddress': return decryptedProfile?.detailAddress || ''
-      case 'zipCode': return decryptedProfile?.zipCode || ''
-      case 'email': return decryptedProfile?.email || ''
+      case 'name': return userProfile.name || ''
+      case 'phone': return formatPhoneNumber(userProfile.phone || '')
+      case 'address': return userProfile.address || ''
+      case 'detailAddress': return userProfile.detailAddress || ''
+      case 'zipCode': return userProfile.zipCode || ''
+      case 'email': return userProfile.email || ''
       default: return ''
     }
   }

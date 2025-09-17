@@ -11,7 +11,7 @@ export interface UserProfile {
   email: string;
   profileCompleted: boolean;
   profileCompletedAt: string;
-  updatedAt: string;
+  updatedAt?: string; // 기존 데이터 호환성을 위해 optional로 변경
 }
 
 export interface Users {
