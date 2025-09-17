@@ -167,12 +167,18 @@ export default function StorageSetupPage() {
         // 토스트 표시 후 1초 뒤 대시보드로 이동
         setTimeout(() => {
           // 로그인 후 돌아갈 URL이 있는지 확인
-          const redirectUrl = localStorage.getItem('redirect_after_login') || localStorage.getItem('redirect_after_profile')
+          const redirectUrl = sessionStorage.getItem('popup_redirect')
           if (redirectUrl) {
             console.log('원래 페이지로 이동:', redirectUrl)
-            localStorage.removeItem('redirect_after_login')
-            localStorage.removeItem('redirect_after_profile')
-            router.push(redirectUrl)
+            sessionStorage.removeItem('popup_redirect')
+            
+            // consent 페이지로 돌아가는 경우 - JWT는 계속 sessionStorage에 보관
+            if (redirectUrl === '/consent') {
+              // JWT는 sessionStorage에 계속 보관하고 consent 페이지로 이동
+              router.push('/consent')
+            } else {
+              router.push(redirectUrl)
+            }
           } else {
             console.log('대시보드로 이동')
             router.push('/dashboard')

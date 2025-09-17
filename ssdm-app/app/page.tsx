@@ -60,16 +60,15 @@ export default function LoginPage() {
         
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
-          const redirectUrl = sessionStorage.getItem('redirect_after_login')
+          const redirectUrl = sessionStorage.getItem('popup_redirect')
           if (redirectUrl) {
-            sessionStorage.removeItem('redirect_after_login')
+            sessionStorage.removeItem('popup_redirect')
             sessionStorage.removeItem('from_external_popup')
             
             // 동의 페이지로 리다이렉트하는 경우 JWT 토큰 처리
             if (redirectUrl === '/consent') {
-              const jwtToken = sessionStorage.getItem('consent_jwt_token')
+              const jwtToken = sessionStorage.getItem('openPopup')
               if (jwtToken) {
-                sessionStorage.removeItem('consent_jwt_token')
                 // JWT 토큰과 함께 동의 페이지로 이동
                 router.push('/consent')
                 // 페이지 로드 후 postMessage로 JWT 전달

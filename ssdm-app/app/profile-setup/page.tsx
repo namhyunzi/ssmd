@@ -475,8 +475,8 @@ export default function ProfileSetupPage() {
           <button 
             onClick={() => {
  // 임시 세션 삭제
-              const isLoggedIn = localStorage.getItem('isLoggedIn')
-              router.push(isLoggedIn ? '/dashboard' : '/')
+              // 로그인 상태는 Firebase Auth로 확인하므로 localStorage 불필요
+              router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >

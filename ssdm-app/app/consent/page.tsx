@@ -26,10 +26,33 @@ function ConsentPageContent() {
   const [personalData, setPersonalData] = useState<any>({})
   const [userProfile, setUserProfile] = useState<any>(null)
   
+  // 팝업 sessionStorage 정리 함수
+  const clearPopupSession = () => {
+    sessionStorage.removeItem('openPopup')
+    sessionStorage.removeItem('popup_redirect')
+    sessionStorage.removeItem('from_external_popup')
+    console.log('Popup sessionStorage 정리 완료')
+  }
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
+    
+    // sessionStorage에서 JWT 복원 (profile-setup, storage-setup에서 돌아온 경우)
+    const savedJwt = sessionStorage.getItem('openPopup')
+    if (savedJwt) {
+      console.log('sessionStorage에서 JWT 복원됨')
+      // JWT에서 파라미터 추출
+      try {
+        const payload = JSON.parse(atob(savedJwt.split('.')[1]))
+        const { shopId: savedShopId, mallId: savedMallId } = payload
+        setShopId(savedShopId)
+        setMallId(savedMallId)
+        console.log('JWT에서 파라미터 추출:', { savedShopId, savedMallId })
+      } catch (error) {
+        console.error('JWT 파라미터 추출 실패:', error)
+      }
+    }
     
     // postMessage 리스너 추가
     const handleMessage = async (event: MessageEvent) => {
@@ -48,12 +71,13 @@ function ConsentPageContent() {
             console.log('JWT 토큰 처리 시작')
             setToken(jwtToken)
             
+            // JWT를 sessionStorage에 저장
+            sessionStorage.setItem('openPopup', jwtToken)
+            
             // JWT 토큰 검증 및 파라미터 추출
             verifyToken(jwtToken)
             
-            // JWT 사용 후 즉시 제거
-            sessionStorage.removeItem('consent_jwt_token')
-            console.log('JWT 사용 후 sessionStorage에서 제거 완료')
+            console.log('JWT 토큰 저장 및 검증 완료 - 팝업 닫힐 때 정리 예정')
             
           } catch (error) {
             console.error('JWT 처리 실패:', error)
@@ -264,9 +288,9 @@ function ConsentPageContent() {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
           // JWT 토큰을 sessionStorage에 임시 저장
           if (token) {
-            sessionStorage.setItem('consent_jwt_token', token)
+            sessionStorage.setItem('openPopup', token)
           }
-          sessionStorage.setItem('redirect_after_login', '/consent')
+          sessionStorage.setItem('popup_redirect', '/consent')
           // 외부 팝업에서 온 경우를 표시
           sessionStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
@@ -359,8 +383,10 @@ function ConsentPageContent() {
         
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
         const currentMallId = mallIdParam || mallId
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        localStorage.setItem('redirect_after_login', currentUrl)
+        
+        // sessionStorage에 리디렉션 정보 저장
+        sessionStorage.setItem('popup_redirect', '/consent')
+        
         window.location.href = '/'
         return
       }
@@ -410,13 +436,31 @@ function ConsentPageContent() {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
         const currentMallId = mallIdParam || mallId
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        localStorage.setItem('redirect_after_profile', currentUrl)
+        
+        // sessionStorage에 리디렉션 정보 저장
+        sessionStorage.setItem('popup_redirect', '/consent')
+        
         window.location.href = '/profile-setup'
         return
       }
       
-      // 2. 누락된 필드 확인
+      // 2. 분산저장소 설정 확인
+      const storageConfigRef = ref(realtimeDb, `users/${userId}/storageConfig`)
+      const storageConfigSnapshot = await get(storageConfigRef)
+      
+      if (!storageConfigSnapshot.exists() || !storageConfigSnapshot.val()?.isConfigured) {
+        // 분산저장소 설정 안한 사람 → 분산저장소 설정페이지로 리디렉션
+        console.log('분산저장소 미설정 - 분산저장소 설정페이지로 리디렉션')
+        const currentMallId = mallIdParam || mallId
+        
+        // sessionStorage에 리디렉션 정보 저장
+        sessionStorage.setItem('popup_redirect', '/consent')
+        
+        window.location.href = '/storage-setup'
+        return
+      }
+      
+      // 3. 누락된 필드 확인
       const missingFields = requiredFields.filter(field => {
         const value = mergedUserData[field as keyof typeof mergedUserData]
         return !value || value.trim() === ""
@@ -709,7 +753,10 @@ function ConsentPageContent() {
           return
         }
         
-        // 4. 팝업 닫기
+        // 4. 팝업 sessionStorage 정리
+        clearPopupSession()
+        
+        // 5. 팝업 닫기
         setTimeout(() => {
           window.close()
         }, 100)
@@ -735,6 +782,9 @@ function ConsentPageContent() {
     console.log('shopId:', shopId)
     console.log('mallId:', mallId)
     console.log('개인정보: 실시간 복호화 방식 사용')
+    
+    // 팝업 sessionStorage 정리
+    clearPopupSession()
     
     // 팝업으로 열린 경우 창 닫기
     if (window.opener && window.opener !== window) {
