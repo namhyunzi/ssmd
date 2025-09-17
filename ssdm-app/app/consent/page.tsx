@@ -51,6 +51,10 @@ function ConsentPageContent() {
             // JWT 토큰 검증 및 파라미터 추출
             verifyToken(jwtToken)
             
+            // JWT 사용 후 즉시 제거
+            sessionStorage.removeItem('consent_jwt_token')
+            console.log('JWT 사용 후 sessionStorage에서 제거 완료')
+            
           } catch (error) {
             console.error('JWT 처리 실패:', error)
             setError("JWT 토큰 처리 중 오류가 발생했습니다.")
@@ -251,17 +255,20 @@ function ConsentPageContent() {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
-            returnUrl: `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
+            jwt: token // JWT 토큰 전달
           }, '*')
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-          localStorage.setItem('redirect_after_login', currentUrl)
+          // JWT 토큰을 sessionStorage에 임시 저장
+          if (token) {
+            sessionStorage.setItem('consent_jwt_token', token)
+          }
+          sessionStorage.setItem('redirect_after_login', '/consent')
           // 외부 팝업에서 온 경우를 표시
-          localStorage.setItem('from_external_popup', 'true')
+          sessionStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
         }
         return

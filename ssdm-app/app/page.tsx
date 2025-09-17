@@ -31,8 +31,8 @@ export default function LoginPage() {
       if (user && !showTermsPopup && !pendingGoogleUser) {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
-        const fromExternalPopup = localStorage.getItem('from_external_popup')
-        const isNewUserProcessing = localStorage.getItem('is_new_user_processing')
+        const fromExternalPopup = sessionStorage.getItem('from_external_popup')
+        const isNewUserProcessing = sessionStorage.getItem('is_new_user_processing')
         
         console.log('useEffect에서 사용자 감지:', {
           uid: user.uid,
@@ -52,7 +52,7 @@ export default function LoginPage() {
         // 외부 팝업에서 온 경우 약관동의 팝업 강제 표시
         if (fromExternalPopup === 'true' && isNewUser) {
           console.log('외부 팝업에서 온 신규 사용자 - 약관동의 팝업 강제 표시')
-          localStorage.removeItem('from_external_popup')
+          sessionStorage.removeItem('from_external_popup')
           setPendingGoogleUser(user)
           setShowTermsPopup(true)
           return
@@ -60,11 +60,31 @@ export default function LoginPage() {
         
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
-          const redirectUrl = localStorage.getItem('redirect_after_login')
+          const redirectUrl = sessionStorage.getItem('redirect_after_login')
           if (redirectUrl) {
-            localStorage.removeItem('redirect_after_login')
-            localStorage.removeItem('from_external_popup')
-            router.push(redirectUrl)
+            sessionStorage.removeItem('redirect_after_login')
+            sessionStorage.removeItem('from_external_popup')
+            
+            // 동의 페이지로 리다이렉트하는 경우 JWT 토큰 처리
+            if (redirectUrl === '/consent') {
+              const jwtToken = sessionStorage.getItem('consent_jwt_token')
+              if (jwtToken) {
+                sessionStorage.removeItem('consent_jwt_token')
+                // JWT 토큰과 함께 동의 페이지로 이동
+                router.push('/consent')
+                // 페이지 로드 후 postMessage로 JWT 전달
+                setTimeout(() => {
+                  window.postMessage({
+                    type: 'init_consent',
+                    jwt: jwtToken
+                  }, '*')
+                }, 100)
+              } else {
+                router.push('/dashboard')
+              }
+            } else {
+              router.push(redirectUrl)
+            }
           } else {
             router.push('/dashboard')
           }
