@@ -24,7 +24,7 @@ export default function TermsConsentPopup({
 }: TermsConsentPopupProps) {
   const [termsAgreed, setTermsAgreed] = useState(true)  // 서비스 이용약관 기본 동의
   const [privacyAgreed, setPrivacyAgreed] = useState(true)  // 개인정보 처리방침 기본 동의
-  const [marketingAgreed, setMarketingAgreed] = useState(false)  // 마케팅 정보 수신 기본 비동의
+  const [marketingAgreed, setMarketingAgreed] = useState(true)  // 마케팅 정보 수신 기본 동의
 
   const handleConsent = () => {
     if (termsAgreed && privacyAgreed) {

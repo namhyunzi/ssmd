@@ -29,10 +29,10 @@ export default function SignupPage() {
   const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
   
   // 약관 동의 체크박스 상태
-  const [allAgreed, setAllAgreed] = useState(false)
+  const [allAgreed, setAllAgreed] = useState(true)
   const [termsAgreed, setTermsAgreed] = useState(true)
   const [privacyAgreed, setPrivacyAgreed] = useState(true)
-  const [marketingAgreed, setMarketingAgreed] = useState(false)
+  const [marketingAgreed, setMarketingAgreed] = useState(true)
   
   // 커스텀 토스트 상태
   const [showToast, setShowToast] = useState(false)
