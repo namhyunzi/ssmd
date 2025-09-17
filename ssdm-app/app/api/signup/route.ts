@@ -9,9 +9,9 @@ export async function POST(request: NextRequest) {
     const { email, password, username } = await request.json();
 
     // 입력값 검증
-    if (!email || !password || !username) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: '모든 필드를 입력해주세요.' },
+        { error: '이메일과 비밀번호를 입력해주세요.' },
         { status: 400 }
       );
     }
@@ -48,8 +48,10 @@ export async function POST(request: NextRequest) {
       const user = userCredential.user;
 
       // 사용자 프로필 업데이트 (사용자명 설정)
+      // username이 없으면 이메일의 @ 앞부분을 사용
+      const displayName = username || email.split('@')[0];
       await updateProfile(user, {
-        displayName: username
+        displayName: displayName
       });
 
       // 비밀번호 해시화 (추가 보안을 위해)

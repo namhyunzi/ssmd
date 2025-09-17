@@ -10,9 +10,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { getUserProfile, Users } from '@/lib/user-profile'
+import { Users } from '@/lib/user-profile'
 import { getUserServiceConsents, calculateConsentStatus, deleteServiceConsent, UserConsents } from '@/lib/service-consent'
-import { loadProfileFromLocal } from '@/lib/data-storage'
+import { getUserProfile } from '@/lib/data-storage'
 
 // ServiceConsent 타입을 lib에서 import하므로 중복 제거
 
@@ -41,10 +41,9 @@ function ServiceConsentContent() {
           setUserProfile(profile)
           
           // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
-          // 로컬 저장소에 개인정보가 있는지만 확인
-          const { loadFromLocalStorage } = await import('@/lib/data-storage')
-          const localData = loadFromLocalStorage()
-          setLocalProfile(localData && localData.encrypted ? { hasData: true } : { hasData: false })
+          // Firebase에 개인정보가 있는지만 확인
+          const userProfileData = await getUserProfile(user)
+          setLocalProfile(userProfileData ? { hasData: true } : { hasData: false })
           
           // 서비스 동의 데이터 로드
           const userConsents = await getUserServiceConsents(user)

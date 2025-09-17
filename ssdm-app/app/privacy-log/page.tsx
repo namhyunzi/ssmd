@@ -8,21 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { ref, get } from "firebase/database"
-import { realtimeDb } from "@/lib/firebase"
+import { getUserProvisionLogs, getMallName } from "@/lib/data-storage"
 
-interface UserLogs {
-  id: string
-  serviceName: string
-  provisionDateTime: string
-  providedInfo: string[]
+interface ProvisionLog {
+  logId: string
+  mallId: string
+  providedFields: string[]
+  consentType: string
+  timestamp: string
 }
 
 function PrivacyLogContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [activeFilter, setActiveFilter] = useState<string>("1month")
-  const [logs, setLogs] = useState<UserLogs[]>([])
+  const [logs, setLogs] = useState<ProvisionLog[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   
@@ -48,31 +48,18 @@ function PrivacyLogContent() {
   const loadProvisionLogs = async (userId: string) => {
     try {
       setIsLoading(true)
-      const logsRef = ref(realtimeDb, `userLogs/${userId}`)
-      const snapshot = await get(logsRef)
-      
       console.log('=== 개인정보 제공내역 로드 ===')
       console.log('사용자 ID:', userId)
-      console.log('스냅샷 존재:', snapshot.exists())
       
-      if (snapshot.exists()) {
-        const data = snapshot.val()
-        console.log('로드된 데이터:', data)
-        
-        const logsList: UserLogs[] = []
-        Object.keys(data).forEach((key) => {
-          logsList.push({
-            id: key,
-            ...data[key]
-          } as UserLogs)
-        })
-        
-        console.log('변환된 로그 목록:', logsList)
-        setLogs(logsList)
-      } else {
-        console.log('개인정보 제공내역 데이터가 없습니다.')
-        setLogs([])
-      }
+      const logsList = await getUserProvisionLogs(userId)
+      console.log('로드된 로그 목록:', logsList)
+      setLogs(logsList)
+      
+      // 쇼핑몰 이름들 조회
+      const uniqueMallIds = [...new Set(logsList.map(log => log.mallId))]
+      const mallNamePromises = uniqueMallIds.map(mallId => fetchMallName(mallId))
+      await Promise.all(mallNamePromises)
+      
     } catch (error) {
       console.error('개인정보 제공내역 로드 오류:', error)
       setLogs([])
@@ -91,8 +78,8 @@ function PrivacyLogContent() {
 
   // 필터링된 로그
   const getFilteredLogs = () => {
-    // 간단하게 모든 로그를 최신순으로 정렬해서 반환
-    return logs.sort((a, b) => new Date(b.provisionDateTime).getTime() - new Date(a.provisionDateTime).getTime())
+    // 이미 최신순으로 정렬되어 있으므로 그대로 반환
+    return logs
   }
 
   const filteredLogs = getFilteredLogs()
@@ -135,6 +122,32 @@ function PrivacyLogContent() {
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
     
     return `${year}년 ${month}월 ${day}일 (${weekday}) ${ampm} ${displayHour}:${minute}`
+  }
+
+  const [mallNames, setMallNames] = useState<{ [key: string]: string }>({})
+
+  // 쇼핑몰 이름 조회 함수
+  const fetchMallName = async (mallId: string) => {
+    if (mallNames[mallId]) return mallNames[mallId]
+    
+    try {
+      const name = await getMallName(mallId)
+      setMallNames(prev => ({ ...prev, [mallId]: name }))
+      return name
+    } catch (error) {
+      console.error('쇼핑몰 이름 조회 실패:', error)
+      return mallId
+    }
+  }
+
+  const getFieldName = (field: string) => {
+    const fieldNames: { [key: string]: string } = {
+      'name': '이름',
+      'phone': '휴대폰번호',
+      'address': '주소',
+      'email': '이메일'
+    }
+    return fieldNames[field] || field
   }
 
   return (
@@ -203,26 +216,32 @@ function PrivacyLogContent() {
               ) : filteredLogs.length > 0 ? (
                 paginatedLogs.map((log) => (
                 <div
-                  key={log.id}
+                  key={log.logId}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30"
                 >
                   <div className="flex items-center space-x-3">
                     <Store className="h-6 w-6 text-primary" />
                     <div>
-                      <p className="font-medium">{log.serviceName}</p>
+                      <p className="font-medium">{mallNames[log.mallId] || log.mallId}</p>
                       <div className="flex items-center space-x-2 mt-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          {formatDateTime(log.provisionDateTime)}
+                          {formatDateTime(log.timestamp)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-1 mt-1">
                         <span className="text-xs text-muted-foreground">제공정보:</span>
-                        {log.providedInfo.map((info, index) => (
+                        {log.providedFields.map((field, index) => (
                           <Badge key={index} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
-                            {info}
+                            {getFieldName(field)}
                           </Badge>
                         ))}
+                      </div>
+                      <div className="flex items-center space-x-1 mt-1">
+                        <span className="text-xs text-muted-foreground">동의방식:</span>
+                        <Badge className={log.consentType === 'always' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
+                          {log.consentType === 'always' ? '항상 허용' : '한 번만'}
+                        </Badge>
                       </div>
                     </div>
                   </div>

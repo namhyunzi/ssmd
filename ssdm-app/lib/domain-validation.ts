@@ -4,7 +4,7 @@ import { ref, get } from 'firebase/database';
 /**
  * 쇼핑몰의 허용 도메인 조회
  */
-export async function getMallAllowedDomains(mallId: string): Promise<string[] | null> {
+export async function getMallAllowedDomain(mallId: string): Promise<string | null> {
   try {
     const mallRef = ref(realtimeDb, `malls/${mallId}`);
     const snapshot = await get(mallRef);
@@ -14,7 +14,7 @@ export async function getMallAllowedDomains(mallId: string): Promise<string[] | 
     }
     
     const mallData = snapshot.val();
-    return mallData.allowedDomains || [];
+    return mallData.allowedDomain || null;
   } catch (error) {
     console.error('쇼핑몰 허용 도메인 조회 오류:', error);
     return null;
@@ -31,17 +31,21 @@ export async function validateReturnUrl(returnUrl: string, mallId: string): Prom
     const domain = url.hostname;
     
     // 허용 도메인 조회
-    const allowedDomains = await getMallAllowedDomains(mallId);
-    if (!allowedDomains) {
+    const allowedDomain = await getMallAllowedDomain(mallId);
+    if (!allowedDomain) {
       console.error(`쇼핑몰 ${mallId}을 찾을 수 없습니다.`);
       return false;
     }
     
+    // 허용 도메인에서 호스트명 추출
+    const allowedUrl = new URL(allowedDomain);
+    const allowedHostname = allowedUrl.hostname;
+    
     // 도메인 일치 확인
-    const isAllowed = allowedDomains.includes(domain);
+    const isAllowed = domain === allowedHostname;
     
     if (!isAllowed) {
-      console.warn(`허용되지 않은 도메인: ${domain}, 허용 도메인: ${allowedDomains.join(', ')}`);
+      console.warn(`허용되지 않은 도메인: ${domain}, 허용 도메인: ${allowedHostname}`);
     }
     
     return isAllowed;

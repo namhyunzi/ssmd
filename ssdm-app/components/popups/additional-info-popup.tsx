@@ -39,31 +39,32 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     return phone
   }
 
-  // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시 (상태에 저장하지 않음)
-  const getExistingFieldValue = (field: string) => {
+  // Firebase에서 개인정보 조회하여 표시
+  const getExistingFieldValue = async (field: string) => {
     try {
-      const { loadFromLocalStorage } = require('@/lib/data-storage')
-      const { decryptData } = require('@/lib/encryption')
-      const localData = loadFromLocalStorage()
+      const { getUserProfile } = require('@/lib/data-storage')
+      const { auth } = require('@/lib/firebase')
       
-      if (!localData || !localData.encrypted) {
+      if (!auth.currentUser) {
         return ''
       }
       
-      // 실시간 복호화
-      const decryptedDataString = decryptData(localData.encryptedData, localData.key)
-      const profileData = JSON.parse(decryptedDataString)
+      const userProfile = await getUserProfile(auth.currentUser)
+      
+      if (!userProfile) {
+        return ''
+      }
       
       switch (field) {
-        case 'name': return profileData.name || ''
-        case 'phone': return formatPhoneNumber(profileData.phone || '')
-        case 'address': return profileData.address || ''
-        case 'zipCode': return profileData.zipCode || ''
-        case 'detailAddress': return profileData.detailAddress || ''
+        case 'name': return userProfile.name || ''
+        case 'phone': return formatPhoneNumber(userProfile.phone || '')
+        case 'address': return userProfile.address || ''
+        case 'zipCode': return userProfile.zipCode || ''
+        case 'detailAddress': return userProfile.detailAddress || ''
         default: return ''
       }
     } catch (error) {
-      console.error('개인정보 복호화 실패:', error)
+      console.error('개인정보 조회 실패:', error)
       return ''
     }
   }

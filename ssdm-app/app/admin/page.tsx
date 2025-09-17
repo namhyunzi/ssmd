@@ -30,7 +30,7 @@ interface Mall {
   mallId: string;           // 영문 식별자 (키로 사용)
   mallName: string;
   allowedFields: string[];
-  allowedDomains?: string[]; // 허용 도메인 목록
+  allowedDomain?: string; // 허용 도메인
   contactEmail?: string;
   description?: string;
   emailSent: boolean;
@@ -68,7 +68,7 @@ export default function AdminPage() {
     mallName: '',
     englishId: '',
     allowedFields: [] as string[],
-    allowedDomains: [] as string[],
+    allowedDomain: '',
     contactEmail: '',
     description: '',
     sendEmailImmediately: true
@@ -187,7 +187,7 @@ export default function AdminPage() {
         mallName: newMall.mallName,
         englishId: newMall.englishId,
         requiredFields: newMall.allowedFields,
-        allowedDomains: newMall.allowedDomains.filter(domain => domain.trim() !== ''),
+        allowedDomain: newMall.allowedDomain,
         contactEmail: newMall.contactEmail,
         description: newMall.description
       })
@@ -384,7 +384,7 @@ export default function AdminPage() {
     setIsDialogOpen(false)
     setDialogMode('create')
     setEditingMall(null)
-    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomain: '', contactEmail: '', description: '', sendEmailImmediately: true })
     setEmailError("")
   }
 
@@ -398,7 +398,7 @@ export default function AdminPage() {
     alert('API Key가 환경변수로만 관리되므로 수동 이메일 발송이 불가능합니다.\n등록/재발급 시에만 이메일 발송이 가능합니다.')
     setIsDialogOpen(false)
     setEditingMall(null)
-    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomain: '', contactEmail: '', description: '', sendEmailImmediately: true })
     setEmailError("")
   }
 
@@ -409,7 +409,7 @@ export default function AdminPage() {
       mallName: mall.mallName,
       englishId: mall.mallId,  // mallId가 englishId와 동일
       allowedFields: mall.allowedFields,
-      allowedDomains: mall.allowedDomains || [],
+      allowedDomain: mall.allowedDomain || '',
       contactEmail: mall.contactEmail || '',
       description: mall.description || '',
       sendEmailImmediately: true
@@ -520,7 +520,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setDialogMode('create')
                   setEditingMall(null)
-                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomain: '', contactEmail: '', description: '', sendEmailImmediately: true })
                   setEmailError("")
                 }}
               >
@@ -677,50 +677,17 @@ export default function AdminPage() {
 
                 {dialogMode !== 'email-send' && (
                   <div>
-                    <Label>허용 도메인 목록</Label>
-                    <p className="text-xs text-gray-500 mb-2">사용자 리디렉션에 허용할 도메인을 추가하세요</p>
-                    <div className="space-y-2">
-                      {newMall.allowedDomains.map((domain, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <Input
-                            value={domain}
-                            onChange={(e) => {
-                              const newDomains = [...newMall.allowedDomains]
-                              newDomains[index] = e.target.value
-                              setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                            }}
-                            placeholder="예: example.com"
-                            className="flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newDomains = newMall.allowedDomains.filter((_, i) => i !== index)
-                              setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setNewMall(prev => ({ 
-                            ...prev, 
-                            allowedDomains: [...prev.allowedDomains, ''] 
-                          }))
-                        }}
-                        className="w-full"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        도메인 추가
-                      </Button>
-                    </div>
+                    <Label htmlFor="allowedDomain">허용 도메인</Label>
+                    <p className="text-xs text-gray-500 mb-2">개인정보 제공 후 사용자가 돌아갈 쇼핑몰 주소를 입력하세요</p>
+                    <Input
+                      id="allowedDomain"
+                      value={newMall.allowedDomain}
+                      onChange={(e) => {
+                        setNewMall(prev => ({ ...prev, allowedDomain: e.target.value }))
+                      }}
+                      placeholder="예: https://example.com"
+                      className="w-full"
+                    />
                   </div>
                 )}
 
@@ -731,7 +698,7 @@ export default function AdminPage() {
                     dialogMode === 'email-send' 
                       ? !newMall.contactEmail || !!emailError
                       : !newMall.mallName || !newMall.englishId || newMall.allowedFields.length === 0 || 
-                        newMall.allowedDomains.filter(domain => domain.trim() !== '').length === 0 || 
+                        !newMall.allowedDomain.trim() || 
                         !newMall.contactEmail || !!emailError
                   }
                   className="w-full"
@@ -951,15 +918,13 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {mall.allowedDomains && mall.allowedDomains.length > 0 && (
+                {mall.allowedDomain && (
                   <div>
                     <Label className="text-xs text-gray-500">허용 도메인</Label>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {mall.allowedDomains.map((domain, index) => (
-                        <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          {domain}
-                        </span>
-                      ))}
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                        {mall.allowedDomain}
+                      </span>
                     </div>
                   </div>
                 )}

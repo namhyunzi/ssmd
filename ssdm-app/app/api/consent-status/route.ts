@@ -23,50 +23,66 @@ interface ConsentStatusResponse {
  */
 async function checkConsentStatus(shopId: string, mallId: string): Promise<ConsentStatusResponse> {
   try {
-    // userConsents 데이터 가져오기
-    const userConsents = await getUserConsents();
+    // 1. userMappings에서 shopId로 uid 찾기
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    const mappingSnapshot = await get(mappingRef);
     
-    // 모든 사용자에서 해당 mallId_shopId 조합 찾기
-    let foundConsent = null;
-    let userId = null;
+    if (!mappingSnapshot.exists()) {
+      return {
+        isConnected: false,
+        autoConsent: false,
+        expiresAt: null
+      };
+    }
     
-    for (const [uid, consents] of Object.entries(userConsents)) {
-      const consentKey = `${mallId}_${shopId}`;
-      if (consents && consents[consentKey]) {
-        foundConsent = consents[consentKey];
-        userId = uid;
-        break;
+    const uid = mappingSnapshot.val().uid;
+    
+    // 2. mallServiceConsents에서 해당 사용자의 쇼핑몰 동의 상태 확인 (올바른 구조: uid/mallId/shopId)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`);
+    const consentSnapshot = await get(consentRef);
+    
+    if (!consentSnapshot.exists()) {
+      return {
+        isConnected: false,
+        autoConsent: false,
+        expiresAt: null
+      };
+    }
+    
+    const consentData = consentSnapshot.val();
+    
+    // 3. 동의가 활성화되어 있는지 확인
+    if (!consentData.isActive) {
+      return {
+        isConnected: false,
+        autoConsent: false,
+        expiresAt: null
+      };
+    }
+    
+    // 4. "항상 허용"인 경우 6개월 만료 확인
+    if (consentData.consentType === 'always') {
+      const consentDate = new Date(consentData.timestamp);
+      const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000);
+      
+      if (consentDate < sixMonthsAgo) {
+        return {
+          isConnected: false,
+          autoConsent: false,
+          expiresAt: null
+        };
       }
     }
     
-    // 동의 기록이 없으면
-    if (!foundConsent) {
-      return {
-        isConnected: false,
-        autoConsent: false,
-        expiresAt: null
-      };
-    }
-    
-    // 만료 확인
-    const now = new Date();
-    const expiryDate = new Date(foundConsent.expiryDate);
-    
-    if (now > expiryDate) {
-      return {
-        isConnected: false,
-        autoConsent: false,
-        expiresAt: null
-      };
-    }
-    
-    // 유효한 동의가 있으면
+    // 5. 유효한 동의가 있으면
     return {
       isConnected: true,
-      autoConsent: foundConsent.consentType === 'always',
-      expiresAt: foundConsent.expiryDate,
-      consentType: foundConsent.consentType,
-      userId: userId
+      autoConsent: consentData.consentType === 'always',
+      expiresAt: consentData.consentType === 'always' 
+        ? new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString()
+        : null,
+      consentType: consentData.consentType,
+      userId: uid
     };
     
   } catch (error) {
@@ -79,27 +95,6 @@ async function checkConsentStatus(shopId: string, mallId: string): Promise<Conse
   }
 }
 
-/**
- * 사용자 동의 데이터 조회 함수
- * @returns 사용자 동의 데이터
- */
-async function getUserConsents(): Promise<Record<string, any>> {
-  try {
-    // Firebase Realtime Database에서 userConsents 데이터 가져오기
-    const userConsentsRef = ref(realtimeDb, 'system/userConsents');
-    const snapshot = await get(userConsentsRef);
-    
-    if (snapshot.exists()) {
-      return snapshot.val();
-    } else {
-      return {};
-    }
-    
-  } catch (error) {
-    console.error('userConsents 데이터 조회 실패:', error);
-    return {};
-  }
-}
 
 /**
  * 동의 상태 확인 API
@@ -115,7 +110,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    // userConsents 데이터에서 해당 동의 상태 조회
+    // mallServiceConsents에서 해당 동의 상태 조회
     const consentStatus = await checkConsentStatus(shopId, mallId);
     
     return NextResponse.json(consentStatus);

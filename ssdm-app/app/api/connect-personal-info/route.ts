@@ -17,8 +17,21 @@ export async function GET(request: NextRequest) {
     const { getDatabase, ref, get } = await import('firebase/database')
     const db = getDatabase()
     
-    // 사용자 동의 상태 확인
-    const consentRef = ref(db, `userConsents/${shopId}/${mallId}`)
+    // 사용자 매핑 정보 확인
+    const mappingRef = ref(db, `userMappings/${mallId}/${shopId}`)
+    const mappingSnapshot = await get(mappingRef)
+    
+    if (!mappingSnapshot.exists()) {
+      return NextResponse.json(
+        { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+    
+    const uid = mappingSnapshot.val().uid
+    
+    // 쇼핑몰 서비스 동의 상태 확인 (올바른 구조: uid/mallId/shopId)
+    const consentRef = ref(db, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
     const consentSnapshot = await get(consentRef)
     
     let isAlwaysAllow = false

@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
         `users/${uid}`,
         `userProfileMetadata/${uid}`,
         `userLogs/${uid}`,
-        `userConsents/${uid}`,
         `verifications/${email.replace(/[.#$[\]]/g, '_')}`
       ];
 

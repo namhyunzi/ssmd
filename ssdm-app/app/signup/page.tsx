@@ -449,7 +449,6 @@ export default function SignupPage() {
       if (pendingGoogleUser) {
         // 1. 사용자 기본 정보 저장
         const userData = {
-          uid: pendingGoogleUser.uid,
           email: pendingGoogleUser.email,
           displayName: pendingGoogleUser.displayName,
           createdAt: new Date().toISOString(),
@@ -461,21 +460,19 @@ export default function SignupPage() {
           termsAgreed: true,
           privacyAgreed: true,
           marketingAgreed: false, // 기본값
-          agreedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString()
+          agreedAt: new Date().toISOString()
         }
         
         // Firebase Realtime Database에 저장
         const { ref, set } = await import('firebase/database')
         const { realtimeDb } = await import('@/lib/firebase')
         
-        // 사용자 정보 저장
+        // 사용자 정보와 동의 정보를 함께 저장
         const userRef = ref(realtimeDb, `users/${pendingGoogleUser.uid}`)
-        await set(userRef, userData)
-        
-        // 동의 정보 저장
-        const consentRef = ref(realtimeDb, `userConsents/${pendingGoogleUser.uid}`)
-        await set(consentRef, consentData)
+        await set(userRef, {
+          ...userData,
+          consent: consentData
+        })
         
         console.log('약관 동의 정보 저장 완료:', pendingGoogleUser.email)
       }
@@ -950,10 +947,16 @@ export default function SignupPage() {
                   const userCredential = await createUserWithEmailAndPassword(auth, fullEmail, password)
                   const user = userCredential.user
                   
+                  // displayName 설정 (이메일의 @ 앞부분 사용)
+                  const displayName = fullEmail.split('@')[0]
+                  await updateProfile(user, {
+                    displayName: displayName
+                  })
+                  
                   // 사용자 정보를 우리 데이터베이스에 저장
                   const userData = {
-                    uid: user.uid,
                     email: user.email,
+                    displayName: displayName,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                   }
@@ -963,21 +966,19 @@ export default function SignupPage() {
                     termsAgreed: termsAgreed,
                     privacyAgreed: privacyAgreed,
                     marketingAgreed: marketingAgreed,
-                    agreedAt: new Date().toISOString(),
-                    createdAt: new Date().toISOString()
+                    agreedAt: new Date().toISOString()
                   }
                   
                   // Firebase Realtime Database에 저장
                   const { ref, set } = await import('firebase/database')
                   const { realtimeDb } = await import('@/lib/firebase')
                   
-                  // 사용자 정보 저장
+                  // 사용자 정보와 동의 정보를 함께 저장
                   const userRef = ref(realtimeDb, `users/${user.uid}`)
-                  await set(userRef, userData)
-                  
-                  // 동의 정보 저장
-                  const consentRef = ref(realtimeDb, `userConsents/${user.uid}`)
-                  await set(consentRef, consentData)
+                  await set(userRef, {
+                    ...userData,
+                    consent: consentData
+                  })
                   
                   console.log('회원가입 성공:', {
                     uid: user.uid,

@@ -8,7 +8,7 @@ interface RegisterMallRequest {
   requiredFields: string[]
   contactEmail?: string
   description?: string
-  allowedDomains: string[]
+  allowedDomain: string
 }
 
 interface MallData {
@@ -16,20 +16,22 @@ interface MallData {
   allowedFields: string[]
   contactEmail: string
   description: string
-  allowedDomains: string[]
+  allowedDomain: string
   emailSent: boolean
   createdAt: string
   expiresAt: string       // API Key 만료일 (1년)
   isActive: boolean
 }
 
-
 // API Key 생성 함수 (영문 식별자 사용)
 function generateApiKey(englishId: string): string {
   // Web Crypto API를 사용 (128bit = 16bytes)
   const array = new Uint8Array(16);
   crypto.getRandomValues(array);
+  
+  // 16진수 문자열로 변환
   const randomString = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  
   return `${englishId}-${randomString}`;
 }
 
@@ -39,88 +41,64 @@ function generateApiKey(englishId: string): string {
  */
 export async function POST(request: NextRequest) {
   try {
-    // 관리자 권한 확인 (실제 운영에서는 JWT 토큰 검증 등)
+    // 관리자 권한 확인
     const adminKey = request.headers.get('X-Admin-Key');
     const expectedAdminKey = process.env.ADMIN_SECRET_KEY || 'admin_secret_key_12345';
     
     if (adminKey !== expectedAdminKey) {
-      console.log('관리자 키 불일치:', { received: adminKey, expected: expectedAdminKey });
       return NextResponse.json(
         { error: '관리자 권한이 필요합니다.' },
         { status: 403 }
       );
     }
 
-    const { mallName, englishId, requiredFields, contactEmail, description, allowedDomains }: RegisterMallRequest = await request.json();
+    const { mallName, englishId, requiredFields, contactEmail, description, allowedDomain }: RegisterMallRequest = await request.json();
 
     // 입력값 검증
-    if (!mallName || !englishId || !requiredFields || !Array.isArray(requiredFields) || !allowedDomains || !Array.isArray(allowedDomains)) {
+    if (!mallName || !englishId || !requiredFields || !Array.isArray(requiredFields) || !allowedDomain) {
       return NextResponse.json(
-        { error: 'mallName, englishId, requiredFields(배열), allowedDomains(배열)은 필수입니다.' },
+        { error: 'mallName, englishId, requiredFields(배열), allowedDomain은 필수입니다.' },
         { status: 400 }
       );
     }
 
     // 허용 도메인 검증
-    if (allowedDomains.length === 0) {
+    if (!allowedDomain.trim()) {
       return NextResponse.json(
-        { error: '최소 하나 이상의 허용 도메인을 입력해주세요.' },
+        { error: '허용 도메인을 입력해주세요.' },
         { status: 400 }
       );
     }
 
     // 도메인 형식 검증 및 정규화
-    const normalizedDomains: string[] = [];
-    for (const domain of allowedDomains) {
-      if (!domain || typeof domain !== 'string' || domain.trim().length === 0) {
-        return NextResponse.json(
-          { error: '유효하지 않은 도메인이 포함되어 있습니다.' },
-          { status: 400 }
-        );
-      }
-      
-      // URL에서 도메인 추출 함수
-      const extractDomain = (input: string): string => {
-        try {
-          const trimmed = input.trim();
-          
-          // URL 형태인지 확인하고 도메인 추출
-          if (trimmed.includes('://')) {
-            const url = new URL(trimmed);
-            return url.host;
-          }
-          
-          // 프로토콜 없이 시작하는 경우 정리
-          return trimmed.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
-        } catch {
-          // URL 파싱 실패시 기본 정리만 수행
-          return input.trim().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+    const extractDomain = (input: string): string => {
+      try {
+        const trimmed = input.trim();
+        
+        // URL 형태인지 확인하고 도메인 추출
+        if (trimmed.includes('://')) {
+          const url = new URL(trimmed);
+          return `${url.protocol}//${url.host}`;
+        } else {
+          // 도메인만 입력된 경우 https:// 추가
+          return `https://${trimmed}`;
         }
-      };
-
-      const normalizedDomain = extractDomain(domain);
-      
-      // 정규화된 도메인 검증 (포트 번호 포함 허용)
-      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[\d]{1,5})?$/;
-      if (!domainRegex.test(normalizedDomain)) {
-        return NextResponse.json(
-          { error: `잘못된 도메인 형식입니다: ${normalizedDomain}` },
-          { status: 400 }
-        );
+      } catch (error) {
+        throw new Error(`유효하지 않은 도메인 형식: ${input}`);
       }
-      
-      normalizedDomains.push(normalizedDomain);
-    }
+    };
 
-    // 쇼핑몰 이름 길이 검사
-    if (mallName.trim().length < 2) {
+    let normalizedDomain: string;
+    try {
+      normalizedDomain = extractDomain(allowedDomain);
+    } catch (error: any) {
       return NextResponse.json(
-        { error: '쇼핑몰 이름은 최소 2자 이상이어야 합니다.' },
+        { error: error.message },
         { status: 400 }
       );
     }
 
-    // 영문 식별자 유효성 검사 (영문, 숫자, 하이픈만 허용, 3-20자)
+    // 영문 식별자 형식 검증
     const englishIdRegex = /^[a-z0-9-]{3,20}$/;
     if (!englishIdRegex.test(englishId)) {
       return NextResponse.json(
@@ -161,7 +139,7 @@ export async function POST(request: NextRequest) {
       allowedFields: requiredFields,
       contactEmail: contactEmail || '',
       description: description || '',
-      allowedDomains: normalizedDomains, // 정규화된 도메인 사용
+      allowedDomain: normalizedDomain,
       emailSent: false, // 기본값: 미발송
       createdAt: new Date().toISOString(),
       expiresAt: expiresAtISO,
@@ -183,13 +161,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('쇼핑몰 등록 API 오류:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    
     return NextResponse.json(
       { 
         error: '쇼핑몰 등록 중 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류',
-        stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : null) : undefined
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
       },
       { status: 500 }
     );
@@ -263,15 +238,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('쇼핑몰 목록 조회 오류:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    
     return NextResponse.json(
-      { 
-        success: false,
-        error: '쇼핑몰 목록 조회 중 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류',
-        stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : null) : undefined
-      },
+      { error: '쇼핑몰 목록 조회 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }

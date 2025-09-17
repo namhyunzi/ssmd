@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { updateStorageMetadata, saveProfileWithMetadata, testEncryptionDecryption } from "@/lib/data-storage"
-import { updateUserProfile } from "@/lib/user-profile"
+import { saveStorageConfig } from "@/lib/data-storage"
 import Link from "next/link"
 
 export default function StorageSetupPage() {
@@ -39,16 +38,6 @@ export default function StorageSetupPage() {
     setTimeout(() => setShowToast(false), 3000) // 3초 후 자동 숨김
   }
 
-  // 임시 sessionStorage 정리 함수
-  const clearTempData = () => {
-    sessionStorage.removeItem('temp_profile_name')
-    sessionStorage.removeItem('temp_profile_phone')
-    sessionStorage.removeItem('temp_profile_address')
-    sessionStorage.removeItem('temp_profile_detailAddress')
-    sessionStorage.removeItem('temp_profile_zipCode')
-    sessionStorage.removeItem('temp_profile_email')
-    console.log('임시 세션 데이터 삭제 완료')
-  }
 
   // Firebase Auth 상태 확인
   useEffect(() => {
@@ -68,7 +57,6 @@ export default function StorageSetupPage() {
     const handleBeforeUnload = () => {
       // 브라우저 탭을 닫거나 새로고침할 때
       // 임시 데이터가 있다면 정리
-      clearTempData()
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -160,77 +148,38 @@ export default function StorageSetupPage() {
     console.log('저장 시작...')
     
     try {
-      // 현재는 "이 컴퓨터" 저장만 구현
-      if (selectedStorage === "local") {
-        // 1. 세션에서 임시 프로필 데이터 가져오기
-        const profileData = {
-          name: sessionStorage.getItem('temp_profile_name') || '',
-          phone: sessionStorage.getItem('temp_profile_phone') || '',
-          address: sessionStorage.getItem('temp_profile_address') || '',
-          detailAddress: sessionStorage.getItem('temp_profile_detailAddress') || '',
-          zipCode: sessionStorage.getItem('temp_profile_zipCode') || '',
-          email: sessionStorage.getItem('temp_profile_email') || undefined
-        }
+      // 분산저장소 설정을 Firebase에 저장
+      const storageData = {
+        storageLocations: [selectedStorage]
+      }
+      
+      console.log('저장할 분산저장소 설정:', storageData)
+      
+      const saved = await saveStorageConfig(currentUser, storageData)
+      console.log('분산저장소 설정 저장 결과:', saved)
+      
+      if (saved) {
+        console.log('분산저장소 설정 저장 성공')
         
-        console.log('저장할 프로필 데이터:', profileData)
-        console.log('임시 데이터 확인:')
-        console.log('- name:', sessionStorage.getItem('temp_profile_name'))
-        console.log('- phone:', sessionStorage.getItem('temp_profile_phone'))
-        console.log('- address:', sessionStorage.getItem('temp_profile_address'))
-        console.log('- detailAddress:', sessionStorage.getItem('temp_profile_detailAddress'))
-        console.log('- zipCode:', sessionStorage.getItem('temp_profile_zipCode'))
-        console.log('- email:', sessionStorage.getItem('temp_profile_email'))
+        // 성공 토스트 표시 후 대시보드로 이동
+        showToastMessage("분산저장소 설정이 완료되었습니다.", "success")
         
-        // 2. 로컬 DB에 대칭키로 암호화하여 저장하고 Firebase에 메타데이터 저장
-        console.log('saveProfileWithMetadata 호출 시작...')
-        const saved = await saveProfileWithMetadata(currentUser, profileData)
-        console.log('saveProfileWithMetadata 결과:', saved)
-        
-        if (saved) {
-          console.log('프로필 저장 성공, Firebase 메타데이터 업데이트 시작...')
-          
-          // 3. Firebase에 프로필 완료 상태 저장 (기본 사용자 정보만)
-          const profileStatus = {
-            profileCompleted: true
+        // 토스트 표시 후 1초 뒤 대시보드로 이동
+        setTimeout(() => {
+          // 로그인 후 돌아갈 URL이 있는지 확인
+          const redirectUrl = localStorage.getItem('redirect_after_login') || localStorage.getItem('redirect_after_profile')
+          if (redirectUrl) {
+            console.log('원래 페이지로 이동:', redirectUrl)
+            localStorage.removeItem('redirect_after_login')
+            localStorage.removeItem('redirect_after_profile')
+            router.push(redirectUrl)
+          } else {
+            console.log('대시보드로 이동')
+            router.push('/dashboard')
           }
-          
-          const profileUpdated = await updateUserProfile(currentUser, profileStatus)
-          
-          // 4. 임시 데이터 정리
-          sessionStorage.removeItem('temp_profile_name')
-          sessionStorage.removeItem('temp_profile_phone')
-          sessionStorage.removeItem('temp_profile_address')
-          sessionStorage.removeItem('temp_profile_detailAddress')
-          sessionStorage.removeItem('temp_profile_zipCode')
-          sessionStorage.removeItem('temp_profile_email')
-          
-          // 성공 토스트 표시 후 즉시 대시보드로 이동
-          showToastMessage("개인정보가 안전하게 저장되었습니다.", "success")
-          
-          // 토스트 표시 후 1초 뒤 원래 페이지 또는 대시보드로 이동
-          setTimeout(() => {
-            clearTempData() // 임시 세션 삭제
-            
-            // 로그인 후 돌아갈 URL이 있는지 확인
-            const redirectUrl = localStorage.getItem('redirect_after_login') || localStorage.getItem('redirect_after_profile')
-            if (redirectUrl) {
-              console.log('원래 페이지로 이동:', redirectUrl)
-              localStorage.removeItem('redirect_after_login')
-              localStorage.removeItem('redirect_after_profile')
-              router.push(redirectUrl)
-            } else {
-              console.log('대시보드로 이동...')
-              router.push('/dashboard')
-            }
-          }, 1000)
-        } else {
-          console.log('프로필 저장 실패')
-          throw new Error('프로필 저장 실패')
-        }
+        }, 1000)
       } else {
-        // 다른 저장소는 아직 구현되지 않음
-        console.log('지원되지 않는 저장소 타입:', selectedStorage)
-        showToastMessage("현재는 '이 컴퓨터' 저장만 지원됩니다.", "info")
+        showToastMessage("분산저장소 설정 저장에 실패했습니다.", "error")
       }
     } catch (error) {
       console.error('설정 오류:', error)
@@ -254,7 +203,7 @@ export default function StorageSetupPage() {
           </Button>
           <button 
             onClick={() => {
-              clearTempData() // 임시 세션 삭제
+ // 임시 세션 삭제
               router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"

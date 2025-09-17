@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter, useSearchParams } from "next/navigation"
 import ProgressSteps from "@/components/ui/progress-steps"
-import { generateEncryptionKey, encryptData, decryptData } from "@/lib/encryption"
 
 function AdditionalInfoContent() {
   const router = useRouter()
@@ -43,31 +42,32 @@ function AdditionalInfoContent() {
     return phone
   }
 
-  // SSDM 중개 원칙: 실시간 복호화로 개인정보 표시 (상태에 저장하지 않음)
-  const getExistingFieldValue = (field: string) => {
+  // Firebase에서 개인정보 조회하여 표시
+  const getExistingFieldValue = async (field: string) => {
     try {
-      const { loadFromLocalStorage } = require('@/lib/data-storage')
-      const { decryptData } = require('@/lib/encryption')
-      const localData = loadFromLocalStorage()
+      const { getUserProfile } = require('@/lib/data-storage')
+      const { auth } = require('@/lib/firebase')
       
-      if (!localData || !localData.encrypted) {
+      if (!auth.currentUser) {
         return ''
       }
       
-      // 실시간 복호화
-      const decryptedDataString = decryptData(localData.encryptedData, localData.key)
-      const profileData = JSON.parse(decryptedDataString)
+      const userProfile = await getUserProfile(auth.currentUser)
+      
+      if (!userProfile) {
+        return ''
+      }
       
       switch (field) {
-        case 'name': return profileData.name || ''
-        case 'phone': return formatPhoneNumber(profileData.phone || '')
-        case 'address': return profileData.address || ''
-        case 'zipCode': return profileData.zipCode || ''
-        case 'detailAddress': return profileData.detailAddress || ''
+        case 'name': return userProfile.name || ''
+        case 'phone': return formatPhoneNumber(userProfile.phone || '')
+        case 'address': return userProfile.address || ''
+        case 'zipCode': return userProfile.zipCode || ''
+        case 'detailAddress': return userProfile.detailAddress || ''
         default: return ''
       }
     } catch (error) {
-      console.error('개인정보 복호화 실패:', error)
+      console.error('개인정보 조회 실패:', error)
       return ''
     }
   }
@@ -131,7 +131,7 @@ function AdditionalInfoContent() {
 
   const loadExistingData = async () => {
     try {
-      // Firebase에서 사용자 기존 데이터 로드 및 복호화
+      // Firebase에서 사용자 기존 데이터 로드
       const { getAuth } = await import('firebase/auth')
       const auth = getAuth()
       const currentUser = auth.currentUser
@@ -141,33 +141,13 @@ function AdditionalInfoContent() {
         return
       }
       
-      const { getDatabase, ref, get } = await import('firebase/database')
-      const db = getDatabase()
+      // Firebase에서 개인정보 조회
+      const { getUserProfile } = await import('@/lib/data-storage')
+      const userProfile = await getUserProfile(currentUser)
       
-      // 사용자 메타데이터 조회
-      const metadataRef = ref(db, `users/${currentUser.uid}/metadata`)
-      const metadataSnapshot = await get(metadataRef)
-      
-      if (metadataSnapshot.exists()) {
-        const metadata = metadataSnapshot.val()
+      if (userProfile) {
         setHasExistingData(true)
-      }
-      
-      // 암호화된 개인정보 데이터 조회
-      const encryptedDataRef = ref(db, `users/${currentUser.uid}/encryptedData`)
-      const encryptedSnapshot = await get(encryptedDataRef)
-      
-      if (encryptedSnapshot.exists()) {
-        const encryptedData = encryptedSnapshot.val()
-        const encryptionKey = generateEncryptionKey(currentUser.uid)
-        
-        try {
-          // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
-          // 복호화는 성공했지만 상태에 저장하지 않음
-          console.log('암호화된 개인정보 복호화 성공')
-        } catch (error) {
-          console.error('암호화된 데이터 복호화 실패:', error)
-        }
+        console.log('Firebase에서 개인정보 조회 성공')
       }
       
     } catch (error) {
@@ -194,7 +174,7 @@ function AdditionalInfoContent() {
       }
       
       // 1. SSDM 로컬 암호화 데이터 업데이트 (기존 데이터 + 추가 데이터)
-      await updateLocalEncryptedData(additionalData)
+      await updateFirebaseProfile(additionalData)
       
       // 2. SSDM 사용자 메타데이터 업데이트 (어떤 필드가 있는지)
       await updateUserMetadata()
@@ -250,7 +230,7 @@ function AdditionalInfoContent() {
     }
   }
 
-  const updateLocalEncryptedData = async (additionalData: { [key: string]: string }) => {
+  const updateFirebaseProfile = async (additionalData: { [key: string]: string }) => {
     try {
       const { getAuth } = await import('firebase/auth')
       const auth = getAuth()
@@ -261,37 +241,27 @@ function AdditionalInfoContent() {
         return
       }
       
-      // SSDM 중개 원칙: 로컬 저장소에서 암호화 데이터 업데이트
-      const { loadFromLocalStorage, saveProfileWithMetadata } = require('@/lib/data-storage')
-      const { decryptData } = require('@/lib/encryption')
-      
-      // 기존 암호화된 데이터 로드
-      const localData = loadFromLocalStorage()
-      let existingProfileData = {}
-      
-      if (localData && localData.encrypted) {
-        try {
-          // 기존 데이터 복호화
-          const decryptedDataString = decryptData(localData.encryptedData, localData.key)
-          existingProfileData = JSON.parse(decryptedDataString)
-        } catch (error) {
-          console.error('기존 데이터 복호화 실패:', error)
-          existingProfileData = {}
-        }
-      }
+      // Firebase에서 기존 개인정보 조회
+      const { getUserProfile, saveUserProfile } = await import('@/lib/data-storage')
+      const existingProfile = await getUserProfile(currentUser)
       
       // 기존 데이터와 추가 데이터 병합
       const updatedProfileData = {
-        ...existingProfileData,
+        name: existingProfile?.name || '',
+        phone: existingProfile?.phone || '',
+        address: existingProfile?.address || '',
+        detailAddress: existingProfile?.detailAddress || '',
+        zipCode: existingProfile?.zipCode || '',
+        email: existingProfile?.email || '',
         ...additionalData
       }
       
-      // 업데이트된 데이터를 다시 암호화하여 로컬 저장소에 저장
-      await saveProfileWithMetadata(updatedProfileData, currentUser)
+      // Firebase에 업데이트된 데이터 저장
+      await saveUserProfile(currentUser, updatedProfileData)
       
-      console.log('로컬 암호화 데이터 업데이트 완료')
+      console.log('Firebase 개인정보 업데이트 완료')
     } catch (error) {
-      console.error('로컬 암호화 데이터 업데이트 실패:', error)
+      console.error('Firebase 개인정보 업데이트 실패:', error)
       throw error
     }
   }

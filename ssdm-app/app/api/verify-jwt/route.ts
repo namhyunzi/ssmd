@@ -28,22 +28,20 @@ export async function POST(request: NextRequest) {
       // JWT에서 사용자 정보 추출
       const { userId, mallId, apiKey, consentType } = decoded
       
-      // 개인정보 조회 (실시간 복호화)
-      const { loadFromLocalStorage } = require('@/lib/data-storage')
-      const { decryptData } = require('@/lib/encryption')
+      // Firebase에서 개인정보 조회
+      const { getUserProfile } = require('@/lib/data-storage')
+      const { auth } = require('@/lib/firebase')
       
-      const localData = loadFromLocalStorage()
+      // userId로 사용자 찾기 (Firebase Auth UID 사용)
+      const user = { uid: userId } // JWT에서 받은 userId를 사용
+      const profileData = await getUserProfile(user)
       
-      if (!localData || !localData.encrypted) {
+      if (!profileData) {
         return NextResponse.json(
           { error: '개인정보를 찾을 수 없습니다.' },
           { status: 404 }
         )
       }
-      
-      // 실시간 복호화
-      const decryptedDataString = decryptData(localData.encryptedData, localData.key)
-      const profileData = JSON.parse(decryptedDataString)
       
       // 필요한 개인정보만 반환
       const personalInfo = {

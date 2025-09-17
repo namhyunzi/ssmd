@@ -253,7 +253,6 @@ export default function LoginPage() {
       if (pendingGoogleUser) {
         // 1. 사용자 기본 정보 저장
         const userData = {
-          uid: pendingGoogleUser.uid,
           email: pendingGoogleUser.email,
           displayName: pendingGoogleUser.displayName,
           createdAt: new Date().toISOString(),
@@ -273,13 +272,12 @@ export default function LoginPage() {
         const { ref, set } = await import('firebase/database')
         const { realtimeDb } = await import('@/lib/firebase')
         
-        // 사용자 정보 저장
+        // 사용자 정보와 동의 정보를 함께 저장
         const userRef = ref(realtimeDb, `users/${pendingGoogleUser.uid}`)
-        await set(userRef, userData)
-        
-        // 동의 정보 저장
-        const consentRef = ref(realtimeDb, `userConsents/${pendingGoogleUser.uid}`)
-        await set(consentRef, consentData)
+        await set(userRef, {
+          ...userData,
+          consent: consentData
+        })
         
         console.log('약관 동의 정보 저장 완료:', pendingGoogleUser.email)
       }

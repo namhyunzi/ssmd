@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { realtimeDb } from '@/lib/firebase';
 import { ref, set } from 'firebase/database';
-import { generateEncryptionKey, encryptData, generateHash } from '@/lib/encryption';
 
 interface SetupTestDataRequest {
   userId: string;
@@ -14,7 +13,7 @@ interface SetupTestDataRequest {
 }
 
 /**
- * 테스트용 암호화된 사용자 데이터 설정 API
+ * 테스트용 사용자 데이터 설정 API
  * POST /api/setup-test-data
  */
 export async function POST(request: NextRequest) {
@@ -29,40 +28,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. 암호화 키 생성
-    const encryptionKey = generateEncryptionKey(userId, Date.now());
-    
-    // 2. 데이터 암호화
-    const dataString = JSON.stringify(userData);
-    const encryptedData = encryptData(dataString, encryptionKey);
-    const checksum = generateHash(dataString);
-
-    // 3. 사용자 ID로 암호화 키 암호화
-    const encryptedKey = encryptData(encryptionKey, userId);
-
-    // 4. Firebase에 암호화된 데이터 저장
-    const encryptedDataRef = ref(realtimeDb, `encryptedUserData/${userId}`);
-    await set(encryptedDataRef, {
-      encryptedData,
-      encryptedKey,
-      checksum,
-      createdAt: new Date().toISOString()
-    });
-
-    // 5. 메타데이터 저장
-    const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`);
-    await set(metadataRef, {
-      userId,
-      storageLocations: ['firebase'],
-      fragments: [{
-        totalFragments: 1,
-        fragmentOrder: 1,
-        storageDevice: 'firebase',
-        encryptedKey: encryptedKey,
-        checksum: checksum
-      }],
+    // Firebase에 개인정보를 평문으로 저장
+    const userRef = ref(realtimeDb, `users/${userId}`);
+    await set(userRef, {
+      email: userData.email || 'test@example.com',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      profile: {
+        name: userData.name,
+        phone: userData.phone,
+        address: userData.address,
+        detailAddress: userData.detailAddress,
+        zipCode: userData.zipCode,
+        email: userData.email || 'test@example.com',
+        profileCompleted: true,
+        profileCompletedAt: new Date().toISOString()
+      }
     });
 
     console.log(`테스트 데이터 설정 완료: ${userId}`);

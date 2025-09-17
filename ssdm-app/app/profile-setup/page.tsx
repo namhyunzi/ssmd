@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { updateUserProfile } from "@/lib/user-profile"
+import { saveUserProfile } from "@/lib/data-storage"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
@@ -170,7 +170,6 @@ export default function ProfileSetupPage() {
     const handleBeforeUnload = () => {
       // 브라우저 탭을 닫거나 새로고침할 때
       // 임시 데이터가 있다면 정리
-      clearTempData()
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -407,15 +406,6 @@ export default function ProfileSetupPage() {
     setPhone(formatted);
   };
 
-  // 임시 sessionStorage 정리 함수 (필요시에만 사용)
-  const clearTempData = () => {
-    sessionStorage.removeItem('temp_profile_name')
-    sessionStorage.removeItem('temp_profile_phone')
-    sessionStorage.removeItem('temp_profile_address')
-    sessionStorage.removeItem('temp_profile_detailAddress')
-    sessionStorage.removeItem('temp_profile_zipCode')
-    sessionStorage.removeItem('temp_profile_email')
-  };
 
   // Daum 우편번호 API 주소 찾기 함수
   const handleAddressSearch = () => {
@@ -477,14 +467,14 @@ export default function ProfileSetupPage() {
       <header className="bg-card border-b border-border p-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => {
-            clearTempData() // 임시 세션 삭제
+ // 임시 세션 삭제
             router.push('/dashboard')
           }}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button 
             onClick={() => {
-              clearTempData() // 임시 세션 삭제
+ // 임시 세션 삭제
               const isLoggedIn = localStorage.getItem('isLoggedIn')
               router.push(isLoggedIn ? '/dashboard' : '/')
             }}
@@ -855,7 +845,7 @@ export default function ProfileSetupPage() {
                 variant="outline" 
                 className="flex-1 bg-transparent"
                 onClick={() => {
-                  clearTempData() // 임시 세션 삭제
+ // 임시 세션 삭제
                   router.push('/dashboard')
                 }}
               >
@@ -867,28 +857,34 @@ export default function ProfileSetupPage() {
                   if (!currentUser) return
                   
                   try {
-                    // 개인정보를 임시 세션에만 저장 (암호화 저장은 분산저장소 설정 후)
+                    // 개인정보를 Firebase에 직접 저장
                     const phoneSuffix = phone.replace(/\D/g, '')
                     const fullPhone = phoneSuffix ? phonePrefix + phoneSuffix : "" // 핸드폰 번호가 없으면 빈 문자열
                     const email = emailOption === "same" ? currentUser?.email : 
                                  (emailOption === "different" && emailVerificationStep === "verified") ? 
                                  `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}` : currentUser?.email
                     
-                    // 개인정보를 개별적으로 임시 세션에 저장
-                    sessionStorage.setItem('temp_profile_name', name)
-                    sessionStorage.setItem('temp_profile_phone', fullPhone)
-                    sessionStorage.setItem('temp_profile_address', address)
-                    sessionStorage.setItem('temp_profile_detailAddress', detailAddress)
-                    sessionStorage.setItem('temp_profile_zipCode', zipCode)
-                    sessionStorage.setItem('temp_profile_email', email)
+                    const profileData = {
+                      name: name,
+                      phone: fullPhone,
+                      address: address,
+                      detailAddress: detailAddress,
+                      zipCode: zipCode,
+                      email: email
+                    }
                     
-                    console.log('임시 세션에 개인정보 저장 완료')
+                    const success = await saveUserProfile(currentUser, profileData)
                     
-                    // 분산저장소 설정 페이지로 이동
-                    router.push('/storage-setup')
+                    if (success) {
+                      console.log('Firebase에 개인정보 저장 완료')
+                      // 분산저장소 설정 페이지로 이동
+                      router.push('/storage-setup')
+                    } else {
+                      alert('개인정보 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
+                    }
                     
                   } catch (error) {
-                    console.error('임시 세션 저장 오류:', error)
+                    console.error('개인정보 저장 오류:', error)
                     alert('개인정보 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
                   }
                 }}

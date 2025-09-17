@@ -31,7 +31,7 @@ interface Mall {
   allowedFields: string[];
   contactEmail?: string;
   description?: string;
-  allowedDomains?: string[];
+  allowedDomain?: string;
   emailSent: boolean;
   emailSentAt?: string;
   createdAt: string;
@@ -65,7 +65,7 @@ export default function MallManagementPage() {
     allowedFields: [] as string[],
     contactEmail: '',
     description: '',
-    allowedDomains: [] as string[],
+    allowedDomain: '',
     sendEmailImmediately: true
   })
   const [emailError, setEmailError] = useState("")
@@ -159,15 +159,8 @@ export default function MallManagementPage() {
       }
 
       // 허용 도메인 검증
-      if (newMall.allowedDomains.length === 0) {
-        alert('최소 하나 이상의 허용 도메인을 입력해주세요.');
-        return;
-      }
-
-      // 빈 도메인 체크
-      const emptyDomains = newMall.allowedDomains.filter(domain => !domain.trim());
-      if (emptyDomains.length > 0) {
-        alert('빈 도메인이 있습니다. 모든 도메인을 입력해주세요.');
+      if (!newMall.allowedDomain.trim()) {
+        alert('허용 도메인을 입력해주세요.');
         return;
       }
 
@@ -182,7 +175,7 @@ export default function MallManagementPage() {
           requiredFields: newMall.allowedFields,
           contactEmail: newMall.contactEmail,
           description: newMall.description,
-          allowedDomains: newMall.allowedDomains
+          allowedDomain: newMall.allowedDomain
         })
       })
 
@@ -244,7 +237,7 @@ export default function MallManagementPage() {
         }
         
         setIsDialogOpen(false)
-        setNewMall({ mallName: '', allowedFields: [], contactEmail: '', description: '', allowedDomains: [], sendEmailImmediately: true })
+        setNewMall({ mallName: '', allowedFields: [], contactEmail: '', description: '', allowedDomain: '', sendEmailImmediately: true })
         loadMalls()
       } else {
         const error = await response.json()
@@ -411,76 +404,42 @@ export default function MallManagementPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="allowedDomains">허용 도메인 (필수)</Label>
-                  <div className="space-y-2">
-                    {newMall.allowedDomains.length === 0 && (
-                      <div className="text-sm text-gray-500">
-                        허용 도메인을 추가해주세요.
-                      </div>
-                    )}
-                    {newMall.allowedDomains.map((domain, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <Input
-                          value={domain}
-                          onChange={(e) => {
-                            const newDomains = [...newMall.allowedDomains]
-                            newDomains[index] = e.target.value
-                            setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                          }}
-                          onBlur={(e) => {
-                            // URL에서 도메인 자동 추출
-                            const extractDomain = (input: string) => {
-                              try {
-                                // URL 형태인지 확인하고 도메인 추출
-                                if (input.includes('://')) {
-                                  const url = new URL(input)
-                                  return url.host
-                                }
-                                // 프로토콜 없이 시작하는 경우 (www.example.com 등)
-                                if (input.startsWith('www.') || input.includes('.')) {
-                                  return input.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '')
-                                }
-                                return input
-                              } catch {
-                                // URL 파싱 실패시 원본 반환
-                                return input.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '')
-                              }
-                            }
+                  <Label htmlFor="allowedDomain">허용 도메인 (필수)</Label>
+                  <p className="text-xs text-gray-500 mb-2">개인정보 제공 후 사용자가 돌아갈 쇼핑몰 주소를 입력하세요</p>
+                  <Input
+                    id="allowedDomain"
+                    value={newMall.allowedDomain}
+                    onChange={(e) => {
+                      setNewMall(prev => ({ ...prev, allowedDomain: e.target.value }))
+                    }}
+                    onBlur={(e) => {
+                      // URL에서 도메인 자동 추출
+                      const extractDomain = (input: string): string => {
+                        try {
+                          const trimmed = input.trim();
+                          
+                          // URL 형태인지 확인하고 도메인 추출
+                          if (trimmed.includes('://')) {
+                            const url = new URL(trimmed);
+                            return `${url.protocol}//${url.host}`;
+                          } else {
+                            // 도메인만 입력된 경우 https:// 추가
+                            return `https://${trimmed}`;
+                          }
+                        } catch {
+                          // URL 파싱 실패시 기본 정리만 수행
+                          return input.trim();
+                        }
+                      };
 
-                            const extractedDomain = extractDomain(e.target.value.trim())
-                            if (extractedDomain !== e.target.value) {
-                              const newDomains = [...newMall.allowedDomains]
-                              newDomains[index] = extractedDomain
-                              setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                            }
-                          }}
-                          placeholder="bookstore.com 또는 https://bookstore.com"
-                          className="flex-1"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newDomains = newMall.allowedDomains.filter((_, i) => i !== index)
-                            setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                          }}
-                        >
-                          삭제
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setNewMall(prev => ({ ...prev, allowedDomains: [...prev.allowedDomains, ''] }))
-                      }}
-                    >
-                      + 도메인 추가
-                    </Button>
-                  </div>
+                      const extractedDomain = extractDomain(e.target.value);
+                      if (extractedDomain !== e.target.value) {
+                        setNewMall(prev => ({ ...prev, allowedDomain: extractedDomain }))
+                      }
+                    }}
+                    placeholder="예: https://example.com"
+                    className="w-full"
+                  />
                   <p className="text-xs text-gray-500 mt-1">
                     SSDM 연동 후 리다이렉트를 허용할 도메인들입니다. URL 전체를 복사해서 붙여넣어도 자동으로 도메인만 추출됩니다.<br/>
                     (예: bookstore.com, shop.bookstore.com, https://morebooks.vercel.app/)

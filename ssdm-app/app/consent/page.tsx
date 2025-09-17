@@ -12,6 +12,7 @@ import AdditionalInfoPopup from "@/components/popups/additional-info-popup"
 interface ConsentPageProps {}
 
 function ConsentPageContent() {
+  const searchParams = useSearchParams()
   const [consentType, setConsentType] = useState<string>("once")
   const [loading, setLoading] = useState(false)
   // userInfo 상태 제거 - 실시간 복호화로 변경
@@ -22,6 +23,7 @@ function ConsentPageContent() {
   const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
+  const [personalData, setPersonalData] = useState<any>({})
   
 
   useEffect(() => {
@@ -357,42 +359,25 @@ function ConsentPageContent() {
       
       const userData = userSnapshot.val()
       
-      // userProfileMetadata/{uid}에서 암호화된 개인정보 메타데이터 조회
-      const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`)
-      const metadataSnapshot = await get(metadataRef)
+      // Firebase에서 개인정보 직접 조회
+      const { getUserProfile } = await import('@/lib/data-storage')
+      const { auth } = await import('@/lib/firebase')
+      const userProfile = await getUserProfile(auth.currentUser!)
       
-      let personalData = {}
-      if (metadataSnapshot.exists()) {
-        const metadata = metadataSnapshot.val()
-        
-        // 로컬 저장소에서 암호화된 개인정보 복호화
-        const { loadProfileFromLocal } = await import('@/lib/data-storage')
-        const decryptedProfile = loadProfileFromLocal()
-        
-        if (decryptedProfile) {
-          // 복호화된 개인정보 사용
-          personalData = {
-            name: decryptedProfile.name || userData.displayName?.split('/')[0] || '',
-            phone: decryptedProfile.phone || '',
-            address: decryptedProfile.address || '',
-            detailAddress: decryptedProfile.detailAddress || '',
-            zipCode: decryptedProfile.zipCode || '',
-            email: decryptedProfile.email || userData.email || ''
-          }
-        } else {
-          // 복호화 실패 시 기본 정보만 사용
-          personalData = {
-            name: userData.displayName?.split('/')[0] || '',
-            phone: '',
-            address: '',
-            detailAddress: '',
-            zipCode: '',
-            email: userData.email || ''
-          }
+      let personalDataObj = {}
+      if (userProfile) {
+        // Firebase에서 조회한 개인정보 사용
+        personalDataObj = {
+          name: userProfile.name || userData.displayName?.split('/')[0] || '',
+          phone: userProfile.phone || '',
+          address: userProfile.address || '',
+          detailAddress: userProfile.detailAddress || '',
+          zipCode: userProfile.zipCode || '',
+          email: userProfile.email || userData.email || ''
         }
       } else {
-        // 메타데이터가 없으면 기본 정보만 사용
-        personalData = {
+        // 개인정보가 없으면 기본 정보만 사용
+        personalDataObj = {
           name: userData.displayName?.split('/')[0] || '',
           phone: '',
           address: '',
@@ -402,10 +387,13 @@ function ConsentPageContent() {
         }
       }
       
+      // 전역 상태에 저장
+      setPersonalData(personalDataObj)
+      
       // 기본 정보와 개인정보 병합
       const mergedUserData = {
         ...userData,
-        ...personalData
+        ...personalDataObj
       }
       
       // 1. 프로필 완료 여부 확인
@@ -589,16 +577,24 @@ function ConsentPageContent() {
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, set } = await import('firebase/database')
       
-      // mallServiceConsents 테이블에 저장
-      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}`)
+      // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/shopId)
+      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
       await set(consentRef, {
         consentType,
         timestamp: new Date().toISOString(),
-        isActive: true,
-        shopId: shopId
+        isActive: true
       })
       
-      console.log(`쇼핑몰 서비스 동의 저장 완료: ${uid}/${mallId}`)
+      // 개인정보 제공 로그 저장
+      const { saveProvisionLog } = await import('@/lib/data-storage')
+      const providedFields = Object.keys(personalData).filter(key => personalData[key])
+      await saveProvisionLog(uid, {
+        mallId,
+        providedFields,
+        consentType
+      })
+      
+      console.log(`쇼핑몰 서비스 동의 및 로그 저장 완료: ${uid}/${mallId}`)
     } catch (error) {
       console.error('동의 내역 저장 실패:', error)
     }
@@ -638,11 +634,11 @@ function ConsentPageContent() {
           
           if (mallSnapshot.exists()) {
             const mallData = mallSnapshot.val()
-            const allowedOrigins = mallData.allowedDomains
-            console.log('Firebase에서 조회한 허용 도메인:', allowedOrigins)
+            const allowedDomain = mallData.allowedDomain
+            console.log('Firebase에서 조회한 허용 도메인:', allowedDomain)
             
-            // 허용된 도메인 중 첫 번째를 targetOrigin으로 사용
-            const targetOrigin = allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins[0] : null
+            // 허용된 도메인을 targetOrigin으로 사용
+            const targetOrigin = allowedDomain || null
             
             if (!targetOrigin) {
               console.error('허용된 도메인이 설정되지 않았습니다.')
@@ -730,27 +726,26 @@ function ConsentPageContent() {
     try {
       setLoading(true)
       
-      // 1. 기존 암호화된 데이터 로드
-      const { loadProfileFromLocal, saveProfileWithMetadata } = await import('@/lib/data-storage')
-      const existingProfile = loadProfileFromLocal()
+      // 1. Firebase에서 기존 개인정보 조회
+      const { getUserProfile, saveUserProfile } = await import('@/lib/data-storage')
+      const { auth } = await import('@/lib/firebase')
+      const existingProfile = await getUserProfile(auth.currentUser!)
       
       // 2. 기존 데이터와 추가 데이터 병합
       const updatedProfile = {
-        name: '',
-        phone: '',
-        address: '',
-        detailAddress: '',
-        zipCode: '',
-        email: '',
-        ...existingProfile,
+        name: existingProfile?.name || '',
+        phone: existingProfile?.phone || '',
+        address: existingProfile?.address || '',
+        detailAddress: existingProfile?.detailAddress || '',
+        zipCode: existingProfile?.zipCode || '',
+        email: existingProfile?.email || '',
         ...additionalData
       }
       
-      // 3. 암호화하여 로컬 저장소에 저장 (기존 함수 사용)
-      const { auth } = await import('@/lib/firebase')
+      // 3. Firebase에 업데이트된 프로필 저장
       const currentUser = auth.currentUser
       if (currentUser) {
-        await saveProfileWithMetadata(currentUser, updatedProfile)
+        await saveUserProfile(currentUser, updatedProfile)
       }
       
       // 4. UI 상태 업데이트

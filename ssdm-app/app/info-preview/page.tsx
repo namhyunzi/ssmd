@@ -137,25 +137,35 @@ function InfoPreviewPageContent() {
     return phone
   }
 
-  const getFieldValue = (field: string) => {
-    // 실시간으로 복호화해서 반환
+  const getFieldValue = async (field: string) => {
+    // Firebase에서 개인정보 조회하여 반환
     try {
-      const { loadProfileFromLocal } = require('@/lib/data-storage')
-      const decryptedProfile = loadProfileFromLocal()
+      const { getUserProfile } = require('@/lib/data-storage')
+      const { auth } = require('@/lib/firebase')
+      
+      if (!auth.currentUser) {
+        return '로그인이 필요합니다.'
+      }
+      
+      const userProfile = await getUserProfile(auth.currentUser)
+      
+      if (!userProfile) {
+        return '개인정보가 없습니다.'
+      }
       
       switch (field) {
-        case 'name': return decryptedProfile?.name || ''
-        case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
+        case 'name': return userProfile.name || ''
+        case 'phone': return formatPhoneNumber(userProfile.phone || '')
         case 'address': 
-          const address = decryptedProfile?.address || ''
-          const detailAddress = decryptedProfile?.detailAddress || ''
+          const address = userProfile.address || ''
+          const detailAddress = userProfile.detailAddress || ''
           return detailAddress ? `${address} ${detailAddress}` : address
-        case 'zipCode': return decryptedProfile?.zipCode || ''
-        case 'email': return decryptedProfile?.email || ''
+        case 'zipCode': return userProfile.zipCode || ''
+        case 'email': return userProfile.email || ''
         default: return ''
       }
     } catch (error) {
-      console.error('개인정보 복호화 실패:', error)
+      console.error('개인정보 조회 실패:', error)
       return '정보 확인 중...'
     }
   }

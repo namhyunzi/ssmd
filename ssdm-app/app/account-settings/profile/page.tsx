@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged, updateProfile } from "firebase/auth"
-import { getUserProfile, Users } from "@/lib/user-profile"
-import { loadProfileFromLocal, saveProfileWithMetadata } from "@/lib/data-storage"
+import { Users } from "@/lib/user-profile"
+import { getUserProfile, saveUserProfile } from "@/lib/data-storage"
 import Link from "next/link"
 
 // Daum 우편번호 API 타입 정의
@@ -148,23 +148,20 @@ export default function ProfileEditPage() {
           const profileMetadata = await getUserProfile(user)
           console.log('프로필 메타데이터:', profileMetadata)
           
-          // 2. SSDM 중개 원칙: 개인정보를 상태에 저장하지 않고 실시간 복호화
-          const { loadFromLocalStorage, decryptData } = await import('@/lib/data-storage')
-          const { decryptData: decrypt } = await import('@/lib/encryption')
-          const localData = loadFromLocalStorage()
+          // 2. Firebase에서 개인정보 조회
+          const { getUserProfile } = await import('@/lib/data-storage')
+          const userProfile = await getUserProfile(user)
           
-          if (localData && localData.encrypted) {
+          if (userProfile) {
             try {
-              // 실시간 복호화
-              const decryptedDataString = decrypt(localData.encryptedData, localData.key)
-              const localProfileData = JSON.parse(decryptedDataString)
-              console.log('실시간 복호화된 프로필 데이터:', localProfileData)
+              // Firebase에서 조회한 개인정보 사용
+              console.log('Firebase에서 조회한 프로필 데이터:', userProfile)
               
-              // 복호화된 개인정보를 각 필드에 설정
-              setName(localProfileData.name || "")
+              // 개인정보를 각 필드에 설정
+              setName(userProfile.name || "")
               
               // 전화번호 포맷팅 (010-1234-5678 형태)
-              const phone = localProfileData.phone || ""
+              const phone = userProfile.phone || ""
               if (phone && phone.length >= 10) {
                 // 숫자만 추출
                 const numbers = phone.replace(/\D/g, '')
@@ -179,11 +176,11 @@ export default function ProfileEditPage() {
                 setPhone(phone)
               }
               
-              setAddress(localProfileData.address || "")
-              setDetailAddress(localProfileData.detailAddress || "")
-              setZipCode(localProfileData.zipCode || "")
+              setAddress(userProfile.address || "")
+              setDetailAddress(userProfile.detailAddress || "")
+              setZipCode(userProfile.zipCode || "")
             } catch (error) {
-              console.error('개인정보 복호화 실패:', error)
+              console.error('개인정보 조회 실패:', error)
             }
           }
           
@@ -693,8 +690,8 @@ export default function ProfileEditPage() {
                     console.log('새 이메일 여부:', newEmail ? '새 이메일로 변경됨' : '기존 이메일 유지')
                     console.log('========================')
                     
-                    // saveProfileWithMetadata 함수를 사용하여 로컬에 암호화하여 저장
-                    const saved = await saveProfileWithMetadata(currentUser, profileData)
+                    // Firebase에 개인정보 저장
+                    const saved = await saveUserProfile(currentUser, profileData)
                     
                     if (!saved) {
                       throw new Error('개인정보 저장 실패')
