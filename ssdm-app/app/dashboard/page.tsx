@@ -64,7 +64,7 @@ export default function DashboardPage() {
         
         if (profile) {
           setUserProfile(profile)
-          setHasCompletedProfile(profile.profileCompleted)
+          setHasCompletedProfile(profile.profile?.profileCompleted || false)
         }
         
         // 서비스 동의 데이터 로드

@@ -2,10 +2,22 @@ import { realtimeDb } from './firebase';
 import { ref, set, get, update } from 'firebase/database';
 import { User } from 'firebase/auth';
 
+export interface UserProfile {
+  name: string;
+  phone: string;
+  address: string;
+  detailAddress: string;
+  zipCode: string;
+  email: string;
+  profileCompleted: boolean;
+  profileCompletedAt: string;
+  updatedAt: string;
+}
+
 export interface Users {
   uid: string;
   email: string;
-  profileCompleted: boolean;
+  profile?: UserProfile;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,7 +38,6 @@ export async function saveUserProfile(
     const profile: Users = {
       uid: user.uid,
       email: user.email || '',
-      profileCompleted: profileData.profileCompleted || false,
       createdAt: profileData.createdAt || now,
       updatedAt: now,
       ...profileData
@@ -43,7 +54,7 @@ export async function saveUserProfile(
 
 /**
  * Firebase Realtime Database에서 사용자 기본 정보 가져오기
- * 개인정보는 별도로 users/{uid}/profile에서 조회해야 함
+ * profile 객체도 함께 반환
  */
 export async function getUserProfile(user: User): Promise<Users | null> {
   try {
@@ -88,10 +99,10 @@ export async function updateUserProfile(
 }
 
 /**
- * 프로필 완료 상태 확인
+ * 프로필 완료 상태 확인 (profile 객체에서 확인)
  */
-export function isProfileComplete(profile: Users): boolean {
-  return profile.profileCompleted;
+export function isProfileComplete(user: Users): boolean {
+  return user?.profile?.profileCompleted || false;
 }
 
 /**
@@ -103,7 +114,6 @@ export async function createDefaultProfile(user: User): Promise<boolean> {
     const profile: Users = {
       uid: user.uid,
       email: user.email || '',
-      profileCompleted: false,
       createdAt: now,
       updatedAt: now
     };

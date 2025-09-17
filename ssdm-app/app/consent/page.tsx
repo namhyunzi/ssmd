@@ -24,41 +24,11 @@ function ConsentPageContent() {
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
   const [personalData, setPersonalData] = useState<any>({})
-  const [userProfile, setUserProfile] = useState<any>(null)
   
-  // 팝업 sessionStorage 정리 함수
-  const clearPopupSession = () => {
-    sessionStorage.removeItem('openPopup')
-    sessionStorage.removeItem('popup_redirect')
-    sessionStorage.removeItem('from_external_popup')
-    console.log('Popup sessionStorage 정리 완료')
-  }
 
   useEffect(() => {
     console.log('=== useEffect 시작 ===')
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
-    
-    // sessionStorage에서 JWT 복원 (profile-setup, storage-setup에서 돌아온 경우)
-    const savedJwt = sessionStorage.getItem('openPopup')
-    if (savedJwt) {
-      console.log('sessionStorage에서 JWT 복원됨')
-      // JWT에서 파라미터 추출
-      try {
-        const payload = JSON.parse(atob(savedJwt.split('.')[1]))
-        const { shopId: savedShopId, mallId: savedMallId } = payload
-        setShopId(savedShopId)
-        setMallId(savedMallId)
-        setToken(savedJwt)
-        console.log('JWT에서 파라미터 추출:', { savedShopId, savedMallId })
-        
-        // JWT가 있으면 동의 프로세스 시작
-        setTimeout(() => {
-          initializeUserConnection()
-        }, 100)
-      } catch (error) {
-        console.error('JWT 파라미터 추출 실패:', error)
-      }
-    }
     
     // postMessage 리스너 추가
     const handleMessage = async (event: MessageEvent) => {
@@ -77,13 +47,8 @@ function ConsentPageContent() {
             console.log('JWT 토큰 처리 시작')
             setToken(jwtToken)
             
-            // JWT를 sessionStorage에 저장
-            sessionStorage.setItem('openPopup', jwtToken)
-            
             // JWT 토큰 검증 및 파라미터 추출
             verifyToken(jwtToken)
-            
-            console.log('JWT 토큰 저장 및 검증 완료 - 팝업 닫힐 때 정리 예정')
             
           } catch (error) {
             console.error('JWT 처리 실패:', error)
@@ -285,20 +250,17 @@ function ConsentPageContent() {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
-            jwt: token // JWT 토큰 전달
+            returnUrl: `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
           }, '*')
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          // JWT 토큰을 sessionStorage에 임시 저장
-          if (token) {
-            sessionStorage.setItem('openPopup', token)
-          }
-          sessionStorage.setItem('popup_redirect', '/consent')
+          const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
+          localStorage.setItem('redirect_after_login', currentUrl)
           // 외부 팝업에서 온 경우를 표시
-          sessionStorage.setItem('from_external_popup', 'true')
+          localStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
         }
         return
@@ -389,10 +351,8 @@ function ConsentPageContent() {
         
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
         const currentMallId = mallIdParam || mallId
-        
-        // sessionStorage에 리디렉션 정보 저장
-        sessionStorage.setItem('popup_redirect', '/consent')
-        
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
+        localStorage.setItem('redirect_after_login', currentUrl)
         window.location.href = '/'
         return
       }
@@ -402,19 +362,18 @@ function ConsentPageContent() {
       // Firebase에서 개인정보 직접 조회
       const { getUserProfile } = await import('@/lib/data-storage')
       const { auth } = await import('@/lib/firebase')
-      const profile = await getUserProfile(auth.currentUser!)
-      setUserProfile(profile)
+      const userProfile = await getUserProfile(auth.currentUser!)
       
       let personalDataObj = {}
-      if (profile) {
+      if (userProfile) {
         // Firebase에서 조회한 개인정보 사용
         personalDataObj = {
-          name: profile.name || userData.displayName?.split('/')[0] || '',
-          phone: profile.phone || '',
-          address: profile.address || '',
-          detailAddress: profile.detailAddress || '',
-          zipCode: profile.zipCode || '',
-          email: profile.email || userData.email || ''
+          name: userProfile.name || userData.displayName?.split('/')[0] || '',
+          phone: userProfile.phone || '',
+          address: userProfile.address || '',
+          detailAddress: userProfile.detailAddress || '',
+          zipCode: userProfile.zipCode || '',
+          email: userProfile.email || userData.email || ''
         }
       } else {
         // 개인정보가 없으면 기본 정보만 사용
@@ -437,36 +396,18 @@ function ConsentPageContent() {
         ...personalDataObj
       }
       
-      // 1. 프로필 완료 여부 확인
-      if (!userData.profileCompleted) {
+      // 1. 프로필 완료 여부 확인 (profile 객체에서 확인)
+      if (!userProfile || !userProfile.profileCompleted) {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
         const currentMallId = mallIdParam || mallId
-        
-        // sessionStorage에 리디렉션 정보 저장
-        sessionStorage.setItem('popup_redirect', '/consent')
-        
+        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
+        localStorage.setItem('redirect_after_profile', currentUrl)
         window.location.href = '/profile-setup'
         return
       }
       
-      // 2. 분산저장소 설정 확인
-      const storageConfigRef = ref(realtimeDb, `users/${userId}/storageConfig`)
-      const storageConfigSnapshot = await get(storageConfigRef)
-      
-      if (!storageConfigSnapshot.exists() || !storageConfigSnapshot.val()?.isConfigured) {
-        // 분산저장소 설정 안한 사람 → 분산저장소 설정페이지로 리디렉션
-        console.log('분산저장소 미설정 - 분산저장소 설정페이지로 리디렉션')
-        const currentMallId = mallIdParam || mallId
-        
-        // sessionStorage에 리디렉션 정보 저장
-        sessionStorage.setItem('popup_redirect', '/consent')
-        
-        window.location.href = '/storage-setup'
-        return
-      }
-      
-      // 3. 누락된 필드 확인
+      // 2. 누락된 필드 확인
       const missingFields = requiredFields.filter(field => {
         const value = mergedUserData[field as keyof typeof mergedUserData]
         return !value || value.trim() === ""
@@ -576,16 +517,17 @@ function ConsentPageContent() {
   }
 
   const getFieldValue = (field: string) => {
-    // Firebase에서 직접 데이터 반환
-    if (!userProfile) return ''
+    // 실시간으로 복호화해서 반환
+    const { loadProfileFromLocal } = require('@/lib/data-storage')
+    const decryptedProfile = loadProfileFromLocal()
     
     switch (field) {
-      case 'name': return userProfile.name || ''
-      case 'phone': return formatPhoneNumber(userProfile.phone || '')
-      case 'address': return userProfile.address || ''
-      case 'detailAddress': return userProfile.detailAddress || ''
-      case 'zipCode': return userProfile.zipCode || ''
-      case 'email': return userProfile.email || ''
+      case 'name': return decryptedProfile?.name || ''
+      case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
+      case 'address': return decryptedProfile?.address || ''
+      case 'detailAddress': return decryptedProfile?.detailAddress || ''
+      case 'zipCode': return decryptedProfile?.zipCode || ''
+      case 'email': return decryptedProfile?.email || ''
       default: return ''
     }
   }
@@ -625,24 +567,7 @@ function ConsentPageContent() {
     }
   }
 
-  // JWT 발급 성공 후 개인정보 제공 로그 저장
-  const saveProvisionLogAfterJWT = async (uid: string, mallId: string, consentType: string) => {
-    try {
-      const { saveProvisionLog } = await import('@/lib/data-storage')
-      const providedFields = Object.keys(personalData).filter(key => personalData[key])
-      await saveProvisionLog(uid, {
-        mallId,
-        providedFields,
-        consentType
-      })
-      console.log(`개인정보 제공 로그 저장 완료: ${uid}/${mallId}`)
-    } catch (error) {
-      console.error('개인정보 제공 로그 저장 실패:', error)
-      // 로그 저장 실패해도 JWT는 이미 발급되었으므로 에러를 던지지 않음
-    }
-  }
-
-  // 동의 내역 저장 함수 (로그 제외)
+  // 동의 내역 저장 함수 (새로운 테이블 구조)
   const saveConsentData = async (consentId: string, mallId: string, shopId: string, consentType: string) => {
     try {
       // generate-uid로 생성된 UID 가져오기
@@ -654,20 +579,22 @@ function ConsentPageContent() {
       
       // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/shopId)
       const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
-      // expiresAt 계산 (6개월 후)
-      const expiresAt = new Date()
-      expiresAt.setMonth(expiresAt.getMonth() + 6)
-      
       await set(consentRef, {
         consentType,
-        createdAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString(),
+        timestamp: new Date().toISOString(),
         isActive: true
       })
       
-      // 개인정보 제공 로그는 JWT 발급 성공 후에 저장
+      // 개인정보 제공 로그 저장
+      const { saveProvisionLog } = await import('@/lib/data-storage')
+      const providedFields = Object.keys(personalData).filter(key => personalData[key])
+      await saveProvisionLog(uid, {
+        mallId,
+        providedFields,
+        consentType
+      })
       
-      console.log(`쇼핑몰 서비스 동의 저장 완료: ${uid}/${mallId}`)
+      console.log(`쇼핑몰 서비스 동의 및 로그 저장 완료: ${uid}/${mallId}`)
     } catch (error) {
       console.error('동의 내역 저장 실패:', error)
     }
@@ -721,29 +648,29 @@ function ConsentPageContent() {
             
             console.log("사용할 targetOrigin:", targetOrigin);
             
-            // 1. 동의 정보 저장 (로그 제외)
+            // 1. 동의 정보 저장
             await saveConsentData(consentId, mallId, shopId, consentType)
             
             // 2. 택배사용 JWT 생성
             const deliveryJWT = await generateDeliveryJWT(shopId, mallId)
             
-            // 3. JWT 발급 성공 후 개인정보 제공 로그 저장
-            if (deliveryJWT) {
-              const uid = await ensureUserMapping(shopId, mallId)
-              await saveProvisionLogAfterJWT(uid, mallId, consentType)
-            }
-            
             console.log('postMessage로 동의 결과 전달 (팝업):', {
-              isActive: true,
+              type: 'consent_result',
+              agreed: true,
               consentType,
+              shopId,
+              mallId,
               jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             })
             
             // 3. 동의 결과 + JWT 전달
             window.opener.postMessage({
-              isActive: true,
+              type: 'consent_result',
+              agreed: true,
               consentType,
+              shopId,
+              mallId,
               jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             }, targetOrigin)
@@ -759,15 +686,12 @@ function ConsentPageContent() {
           return
         }
         
-        // 4. 팝업 sessionStorage 정리
-        clearPopupSession()
-        
-        // 5. 팝업 닫기
+        // 4. 팝업 닫기
         setTimeout(() => {
           window.close()
         }, 100)
       } else {
-        // 일반 페이지인 경우 동의 내역 저장 (로그 제외)
+        // 일반 페이지인 경우 동의 내역 저장
         await saveConsentData(consentId, mallId, shopId, consentType)
       }
 
@@ -788,9 +712,6 @@ function ConsentPageContent() {
     console.log('shopId:', shopId)
     console.log('mallId:', mallId)
     console.log('개인정보: 실시간 복호화 방식 사용')
-    
-    // 팝업 sessionStorage 정리
-    clearPopupSession()
     
     // 팝업으로 열린 경우 창 닫기
     if (window.opener && window.opener !== window) {

@@ -12,6 +12,7 @@ export interface UserProfile {
   email: string;
   profileCompleted: boolean;
   profileCompletedAt: string;
+  updatedAt: string;
 }
 
 export interface StorageConfig {
@@ -56,12 +57,12 @@ export async function saveUserProfile(
     const profile: UserProfile = {
       ...profileData,
       profileCompleted: true,
-      profileCompletedAt: new Date().toISOString()
+      profileCompletedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     await update(userRef, {
-      profile: profile,
-      updatedAt: new Date().toISOString()
+      profile: profile
     });
 
     console.log('개인정보 Firebase 저장 완료');
