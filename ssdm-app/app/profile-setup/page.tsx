@@ -877,8 +877,31 @@ export default function ProfileSetupPage() {
                     
                     if (success) {
                       console.log('Firebase에 개인정보 저장 완료')
-                      // 분산저장소 설정 페이지로 이동
-                      router.push('/storage-setup')
+                      
+                      // 외부 팝업에서 온 경우 consent 페이지로 돌아가기
+                      const redirectUrl = sessionStorage.getItem('redirect_after_profile')
+                      if (redirectUrl) {
+                        sessionStorage.removeItem('redirect_after_profile')
+                        sessionStorage.removeItem('from_external_popup')
+                        // JWT 토큰을 sessionStorage에서 가져와서 consent 페이지로 이동
+                        const jwtToken = sessionStorage.getItem('openPopup')
+                        if (jwtToken) {
+                          // JWT 토큰과 함께 동의 페이지로 이동
+                          router.push('/consent')
+                          // 페이지 로드 후 postMessage로 JWT 전달
+                          setTimeout(() => {
+                            window.postMessage({
+                              type: 'init_consent',
+                              jwt: jwtToken
+                            }, '*')
+                          }, 100)
+                        } else {
+                          router.push('/consent')
+                        }
+                      } else {
+                        // 일반 사용자는 분산저장소 설정 페이지로 이동
+                        router.push('/storage-setup')
+                      }
                     } else {
                       alert('개인정보 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
                     }

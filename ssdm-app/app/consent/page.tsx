@@ -258,9 +258,9 @@ function ConsentPageContent() {
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
           const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-          localStorage.setItem('redirect_after_login', currentUrl)
+          sessionStorage.setItem('redirect_after_login', currentUrl)
           // 외부 팝업에서 온 경우를 표시
-          localStorage.setItem('from_external_popup', 'true')
+          sessionStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
         }
         return
@@ -352,7 +352,9 @@ function ConsentPageContent() {
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
         const currentMallId = mallIdParam || mallId
         const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        localStorage.setItem('redirect_after_login', currentUrl)
+        sessionStorage.setItem('redirect_after_login', currentUrl)
+        // 외부 팝업에서 온 경우를 표시
+        sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/'
         return
       }
@@ -411,7 +413,9 @@ function ConsentPageContent() {
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
         const currentMallId = mallIdParam || mallId
         const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        localStorage.setItem('redirect_after_profile', currentUrl)
+        sessionStorage.setItem('redirect_after_profile', currentUrl)
+        // 외부 팝업에서 온 경우를 표시
+        sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/profile-setup'
         return
       }
@@ -526,16 +530,16 @@ function ConsentPageContent() {
   }
 
   const getFieldValue = (field: string) => {
-    // Firebase에서 가져온 userProfile 사용
-    if (!userProfile) return ''
+    // personalData 상태에서 값 가져오기
+    if (!personalData) return ''
     
     switch (field) {
-      case 'name': return userProfile.name || ''
-      case 'phone': return formatPhoneNumber(userProfile.phone || '')
-      case 'address': return userProfile.address || ''
-      case 'detailAddress': return userProfile.detailAddress || ''
-      case 'zipCode': return userProfile.zipCode || ''
-      case 'email': return userProfile.email || ''
+      case 'name': return personalData.name || ''
+      case 'phone': return formatPhoneNumber(personalData.phone || '')
+      case 'address': return personalData.address || ''
+      case 'detailAddress': return personalData.detailAddress || ''
+      case 'zipCode': return personalData.zipCode || ''
+      case 'email': return personalData.email || ''
       default: return ''
     }
   }
@@ -696,6 +700,11 @@ function ConsentPageContent() {
         
         // 4. 팝업 닫기
         setTimeout(() => {
+          // JWT 세션 및 리다이렉트 세션 정리
+          sessionStorage.removeItem('openPopup')
+          sessionStorage.removeItem('redirect_after_login')
+          sessionStorage.removeItem('redirect_after_profile')
+          sessionStorage.removeItem('from_external_popup')
           window.close()
         }, 100)
       } else {
@@ -726,6 +735,11 @@ function ConsentPageContent() {
       console.log("window.opener", window.opener);
       console.log("window", window);
       console.log('팝업 창 닫기')
+      // JWT 세션 및 리다이렉트 세션 정리
+      sessionStorage.removeItem('openPopup')
+      sessionStorage.removeItem('redirect_after_login')
+      sessionStorage.removeItem('redirect_after_profile')
+      sessionStorage.removeItem('from_external_popup')
       window.close()
     }
   }

@@ -200,6 +200,9 @@ export const PrivacyHelpers = {
     duration: 'once' | 'always'
   ): Promise<boolean> {
     try {
+      // JWT 토큰을 sessionStorage에 저장
+      sessionStorage.setItem('openPopup', jwt);
+      
       // 팝업으로 동의 페이지 열기 (JWT 없이)
       const consentUrl = `${PRIVACY_CONFIG.baseUrl}/consent`;
       const popup = window.open(consentUrl, 'consent', 'width=600,height=800');

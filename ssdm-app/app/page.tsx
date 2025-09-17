@@ -60,13 +60,16 @@ export default function LoginPage() {
         
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
-          const redirectUrl = sessionStorage.getItem('popup_redirect')
+          const redirectUrl = sessionStorage.getItem('redirect_after_login')
+          const fromExternalPopup = localStorage.getItem('from_external_popup')
+          
           if (redirectUrl) {
-            sessionStorage.removeItem('popup_redirect')
+            sessionStorage.removeItem('redirect_after_login')
             sessionStorage.removeItem('from_external_popup')
             
-            // 동의 페이지로 리다이렉트하는 경우 JWT 토큰 처리
-            if (redirectUrl === '/consent') {
+            // 외부 팝업에서 온 경우 JWT 토큰 처리
+            if (fromExternalPopup === 'true' && redirectUrl === '/consent') {
+              // JWT 토큰을 sessionStorage에서 가져와서 consent 페이지로 이동
               const jwtToken = sessionStorage.getItem('openPopup')
               if (jwtToken) {
                 // JWT 토큰과 함께 동의 페이지로 이동
@@ -79,7 +82,7 @@ export default function LoginPage() {
                   }, '*')
                 }, 100)
               } else {
-                router.push('/dashboard')
+                router.push('/consent')
               }
             } else {
               router.push(redirectUrl)
@@ -152,9 +155,9 @@ export default function LoginPage() {
       setBlockUntil(null)
       
       // 로그인 후 돌아갈 URL이 있는지 확인
-      const redirectUrl = localStorage.getItem('redirect_after_login')
+      const redirectUrl = sessionStorage.getItem('redirect_after_login')
       if (redirectUrl) {
-        localStorage.removeItem('redirect_after_login')
+        sessionStorage.removeItem('redirect_after_login')
         router.push(redirectUrl)
       } else {
         router.push("/dashboard")
@@ -228,13 +231,13 @@ export default function LoginPage() {
         setShowTermsPopup(true)
         console.log('is_new_user_processing 플래그 설정')
         // 신규 사용자는 useEffect에서 리다이렉션하지 않도록 플래그 설정
-        localStorage.setItem('is_new_user_processing', 'true')
+        sessionStorage.setItem('is_new_user_processing', 'true')
         console.log('신규 사용자 처리 완료')
       } else {
         // 기존 사용자의 경우 리디렉션 URL 확인 후 이동
-        const redirectUrl = localStorage.getItem('redirect_after_login')
+        const redirectUrl = sessionStorage.getItem('redirect_after_login')
         if (redirectUrl) {
-          localStorage.removeItem('redirect_after_login')
+          sessionStorage.removeItem('redirect_after_login')
           router.push(redirectUrl)
         } else {
           router.push("/dashboard")
@@ -302,7 +305,7 @@ export default function LoginPage() {
       }
       
       // 신규 사용자 처리 플래그 정리
-      localStorage.removeItem('is_new_user_processing')
+      sessionStorage.removeItem('is_new_user_processing')
       
       // 회원가입 완료 토스트 표시
       setToastMessage("회원가입이 완료되었습니다.")
@@ -331,7 +334,7 @@ export default function LoginPage() {
     setShowTermsPopup(false)
     
     // 신규 사용자 처리 플래그 정리
-    localStorage.removeItem('is_new_user_processing')
+    sessionStorage.removeItem('is_new_user_processing')
     
     // 약관 거부 시 계정 삭제
     if (pendingGoogleUser) {

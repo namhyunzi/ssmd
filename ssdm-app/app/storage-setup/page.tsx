@@ -166,18 +166,24 @@ export default function StorageSetupPage() {
         
         // 토스트 표시 후 1초 뒤 대시보드로 이동
         setTimeout(() => {
-          // 로그인 후 돌아갈 URL이 있는지 확인
-          const redirectUrl = sessionStorage.getItem('popup_redirect')
-          if (redirectUrl) {
-            console.log('원래 페이지로 이동:', redirectUrl)
-            sessionStorage.removeItem('popup_redirect')
-            
-            // consent 페이지로 돌아가는 경우 - JWT는 계속 sessionStorage에 보관
-            if (redirectUrl === '/consent') {
-              // JWT는 sessionStorage에 계속 보관하고 consent 페이지로 이동 (새로고침)
-              window.location.href = '/consent'
+          // 외부 팝업에서 온 경우 consent 페이지로 돌아가기
+          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
+          if (fromExternalPopup === 'true') {
+            sessionStorage.removeItem('from_external_popup')
+            // JWT 토큰을 sessionStorage에서 가져와서 consent 페이지로 이동
+            const jwtToken = sessionStorage.getItem('openPopup')
+            if (jwtToken) {
+              // JWT 토큰과 함께 동의 페이지로 이동
+              router.push('/consent')
+              // 페이지 로드 후 postMessage로 JWT 전달
+              setTimeout(() => {
+                window.postMessage({
+                  type: 'init_consent',
+                  jwt: jwtToken
+                }, '*')
+              }, 100)
             } else {
-              router.push(redirectUrl)
+              router.push('/consent')
             }
           } else {
             console.log('대시보드로 이동')
