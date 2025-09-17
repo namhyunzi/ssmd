@@ -48,7 +48,13 @@ function ConsentPageContent() {
         const { shopId: savedShopId, mallId: savedMallId } = payload
         setShopId(savedShopId)
         setMallId(savedMallId)
+        setToken(savedJwt)
         console.log('JWT에서 파라미터 추출:', { savedShopId, savedMallId })
+        
+        // JWT가 있으면 동의 프로세스 시작
+        setTimeout(() => {
+          initializeUserConnection()
+        }, 100)
       } catch (error) {
         console.error('JWT 파라미터 추출 실패:', error)
       }
@@ -86,6 +92,27 @@ function ConsentPageContent() {
         } else {
           console.log('JWT 토큰 누락')
           setError("JWT 토큰이 누락되었습니다.")
+        }
+      } else if (event.data.type === 'reprocess_jwt') {
+        console.log('reprocess_jwt 메시지 수신됨!')
+        // JWT 재처리
+        const savedJwt = sessionStorage.getItem('openPopup')
+        if (savedJwt) {
+          try {
+            const payload = JSON.parse(atob(savedJwt.split('.')[1]))
+            const { shopId: savedShopId, mallId: savedMallId } = payload
+            setShopId(savedShopId)
+            setMallId(savedMallId)
+            setToken(savedJwt)
+            console.log('JWT 재처리 완료:', { savedShopId, savedMallId })
+            
+            // 동의 프로세스 재시작
+            setTimeout(() => {
+              initializeUserConnection()
+            }, 100)
+          } catch (error) {
+            console.error('JWT 재처리 실패:', error)
+          }
         }
       } else {
         console.log('다른 타입의 메시지:', event.data.type)

@@ -176,6 +176,12 @@ export default function StorageSetupPage() {
             if (redirectUrl === '/consent') {
               // JWT는 sessionStorage에 계속 보관하고 consent 페이지로 이동
               router.push('/consent')
+              // 페이지 로드 후 JWT 재처리를 위한 postMessage 전송
+              setTimeout(() => {
+                window.postMessage({
+                  type: 'reprocess_jwt'
+                }, '*')
+              }, 100)
             } else {
               router.push(redirectUrl)
             }
