@@ -24,6 +24,7 @@ function ConsentPageContent() {
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
   const [personalData, setPersonalData] = useState<any>({})
+  const [userProfile, setUserProfile] = useState<any>(null)
   
 
   useEffect(() => {
@@ -362,18 +363,19 @@ function ConsentPageContent() {
       // Firebase에서 개인정보 직접 조회
       const { getUserProfile } = await import('@/lib/data-storage')
       const { auth } = await import('@/lib/firebase')
-      const userProfile = await getUserProfile(auth.currentUser!)
+      const profile = await getUserProfile(auth.currentUser!)
+      setUserProfile(profile)
       
       let personalDataObj = {}
-      if (userProfile) {
+      if (profile) {
         // Firebase에서 조회한 개인정보 사용
         personalDataObj = {
-          name: userProfile.name || userData.displayName?.split('/')[0] || '',
-          phone: userProfile.phone || '',
-          address: userProfile.address || '',
-          detailAddress: userProfile.detailAddress || '',
-          zipCode: userProfile.zipCode || '',
-          email: userProfile.email || userData.email || ''
+          name: profile.name || userData.displayName?.split('/')[0] || '',
+          phone: profile.phone || '',
+          address: profile.address || '',
+          detailAddress: profile.detailAddress || '',
+          zipCode: profile.zipCode || '',
+          email: profile.email || userData.email || ''
         }
       } else {
         // 개인정보가 없으면 기본 정보만 사용
@@ -517,17 +519,16 @@ function ConsentPageContent() {
   }
 
   const getFieldValue = (field: string) => {
-    // 실시간으로 복호화해서 반환
-    const { loadProfileFromLocal } = require('@/lib/data-storage')
-    const decryptedProfile = loadProfileFromLocal()
+    // Firebase에서 직접 데이터 반환
+    if (!userProfile) return ''
     
     switch (field) {
-      case 'name': return decryptedProfile?.name || ''
-      case 'phone': return formatPhoneNumber(decryptedProfile?.phone || '')
-      case 'address': return decryptedProfile?.address || ''
-      case 'detailAddress': return decryptedProfile?.detailAddress || ''
-      case 'zipCode': return decryptedProfile?.zipCode || ''
-      case 'email': return decryptedProfile?.email || ''
+      case 'name': return userProfile.name || ''
+      case 'phone': return formatPhoneNumber(userProfile.phone || '')
+      case 'address': return userProfile.address || ''
+      case 'detailAddress': return userProfile.detailAddress || ''
+      case 'zipCode': return userProfile.zipCode || ''
+      case 'email': return userProfile.email || ''
       default: return ''
     }
   }
@@ -567,7 +568,24 @@ function ConsentPageContent() {
     }
   }
 
-  // 동의 내역 저장 함수 (새로운 테이블 구조)
+  // JWT 발급 성공 후 개인정보 제공 로그 저장
+  const saveProvisionLogAfterJWT = async (uid: string, mallId: string, consentType: string) => {
+    try {
+      const { saveProvisionLog } = await import('@/lib/data-storage')
+      const providedFields = Object.keys(personalData).filter(key => personalData[key])
+      await saveProvisionLog(uid, {
+        mallId,
+        providedFields,
+        consentType
+      })
+      console.log(`개인정보 제공 로그 저장 완료: ${uid}/${mallId}`)
+    } catch (error) {
+      console.error('개인정보 제공 로그 저장 실패:', error)
+      // 로그 저장 실패해도 JWT는 이미 발급되었으므로 에러를 던지지 않음
+    }
+  }
+
+  // 동의 내역 저장 함수 (로그 제외)
   const saveConsentData = async (consentId: string, mallId: string, shopId: string, consentType: string) => {
     try {
       // generate-uid로 생성된 UID 가져오기
@@ -579,22 +597,20 @@ function ConsentPageContent() {
       
       // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/shopId)
       const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
+      // expiresAt 계산 (6개월 후)
+      const expiresAt = new Date()
+      expiresAt.setMonth(expiresAt.getMonth() + 6)
+      
       await set(consentRef, {
         consentType,
-        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        expiresAt: expiresAt.toISOString(),
         isActive: true
       })
       
-      // 개인정보 제공 로그 저장
-      const { saveProvisionLog } = await import('@/lib/data-storage')
-      const providedFields = Object.keys(personalData).filter(key => personalData[key])
-      await saveProvisionLog(uid, {
-        mallId,
-        providedFields,
-        consentType
-      })
+      // 개인정보 제공 로그는 JWT 발급 성공 후에 저장
       
-      console.log(`쇼핑몰 서비스 동의 및 로그 저장 완료: ${uid}/${mallId}`)
+      console.log(`쇼핑몰 서비스 동의 저장 완료: ${uid}/${mallId}`)
     } catch (error) {
       console.error('동의 내역 저장 실패:', error)
     }
@@ -648,29 +664,29 @@ function ConsentPageContent() {
             
             console.log("사용할 targetOrigin:", targetOrigin);
             
-            // 1. 동의 정보 저장
+            // 1. 동의 정보 저장 (로그 제외)
             await saveConsentData(consentId, mallId, shopId, consentType)
             
             // 2. 택배사용 JWT 생성
             const deliveryJWT = await generateDeliveryJWT(shopId, mallId)
             
+            // 3. JWT 발급 성공 후 개인정보 제공 로그 저장
+            if (deliveryJWT) {
+              const uid = await ensureUserMapping(shopId, mallId)
+              await saveProvisionLogAfterJWT(uid, mallId, consentType)
+            }
+            
             console.log('postMessage로 동의 결과 전달 (팝업):', {
-              type: 'consent_result',
-              agreed: true,
+              isActive: true,
               consentType,
-              shopId,
-              mallId,
               jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             })
             
             // 3. 동의 결과 + JWT 전달
             window.opener.postMessage({
-              type: 'consent_result',
-              agreed: true,
+              isActive: true,
               consentType,
-              shopId,
-              mallId,
               jwt: deliveryJWT,
               timestamp: new Date().toISOString()
             }, targetOrigin)
@@ -691,7 +707,7 @@ function ConsentPageContent() {
           window.close()
         }, 100)
       } else {
-        // 일반 페이지인 경우 동의 내역 저장
+        // 일반 페이지인 경우 동의 내역 저장 (로그 제외)
         await saveConsentData(consentId, mallId, shopId, consentType)
       }
 

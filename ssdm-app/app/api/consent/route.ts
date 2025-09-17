@@ -7,7 +7,6 @@ interface ConsentData {
   mallId: string;
   userId: string;
   consentType: 'once' | 'always';
-  fields: string[];
   createdAt: string;
   expiresAt?: string; // 6개월 동의인 경우만
   isActive: boolean;
@@ -16,7 +15,7 @@ interface ConsentData {
 interface SaveConsentRequest {
   uid: string;
   consentType: 'once' | 'always';
-  fields: string[];
+  shopId?: string;
 }
 
 interface CheckConsentRequest {
@@ -51,12 +50,12 @@ function getExpirationDate(): string {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { uid, consentType, fields }: SaveConsentRequest = await request.json();
+    const { uid, consentType, shopId }: SaveConsentRequest = await request.json();
 
     // 입력값 검증
-    if (!uid || !consentType || !fields || !Array.isArray(fields)) {
+    if (!uid || !consentType) {
       return NextResponse.json(
-        { error: 'uid, consentType, fields는 필수입니다.' },
+        { error: 'uid, consentType은 필수입니다.' },
         { status: 400 }
       );
     }
@@ -98,14 +97,13 @@ export async function POST(request: NextRequest) {
       mallId,
       userId,
       consentType,
-      fields,
       createdAt: now,
       expiresAt,
       isActive: true
     };
 
-    // 동의 데이터 저장 (사용자별, 쇼핑몰별)
-    const consentRef = ref(realtimeDb, `consents/${userId}/${mallId}`);
+    // 동의 데이터 저장 (사용자별, 쇼핑몰별, shopId별)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId || 'default'}`);
     await set(consentRef, consentData);
 
     console.log(`6개월 동의 저장: ${uid}, 만료일: ${expiresAt}`);
@@ -137,6 +135,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const uid = searchParams.get('uid');
+    const shopId = searchParams.get('shopId');
 
     if (!uid) {
       return NextResponse.json(
@@ -157,7 +156,7 @@ export async function GET(request: NextRequest) {
     const { mallId, userId } = parsed;
 
     // 동의 데이터 조회
-    const consentRef = ref(realtimeDb, `consents/${userId}/${mallId}`);
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId || 'default'}`);
     const snapshot = await get(consentRef);
 
     if (!snapshot.exists()) {
@@ -198,7 +197,6 @@ export async function GET(request: NextRequest) {
       hasConsent: true,
       consentData: {
         consentType: consentData.consentType,
-        fields: consentData.fields,
         createdAt: consentData.createdAt,
         expiresAt: consentData.expiresAt
       }
@@ -222,7 +220,7 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const { uid } = await request.json();
+    const { uid, shopId } = await request.json();
 
     if (!uid) {
       return NextResponse.json(
@@ -243,7 +241,7 @@ export async function DELETE(request: NextRequest) {
     const { mallId, userId } = parsed;
 
     // 동의 해제 (삭제)
-    const consentRef = ref(realtimeDb, `consents/${userId}/${mallId}`);
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId || 'default'}`);
     await remove(consentRef);
 
     console.log(`동의 해제: ${uid}`);

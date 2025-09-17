@@ -70,19 +70,7 @@ async function insertTestData() {
     await set(ref(database, 'malls/expiring-mall'), expiringSoonMall);
     await set(ref(database, 'malls/expired-mall'), expiredMall);
 
-    // API Key 인덱스 삽입
-    await set(ref(database, 'apiKeys/testshop-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'), {
-      mallId: "testshop",
-      createdAt: new Date().toISOString()
-    });
-    await set(ref(database, 'apiKeys/expiring-mall-x7y8z9a1b2c3d4e5f6g7h8i9j0k1l2m3'), {
-      mallId: "expiring-mall",
-      createdAt: new Date().toISOString()
-    });
-    await set(ref(database, 'apiKeys/expired-mall-q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6'), {
-      mallId: "expired-mall",
-      createdAt: new Date().toISOString()
-    });
+    // API Key는 환경변수로 관리하므로 테이블 삽입 불필요
 
     console.log('✅ 테스트 데이터 삽입 완료!');
     console.log('📋 삽입된 데이터:');

@@ -53,74 +53,43 @@ export default function StorageManagementPage() {
     try {
       setIsLoading(true)
       
-      // userProfileMetadata에서 저장소 정보 가져오기
-      const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`)
-      const snapshot = await get(metadataRef)
+      // users/{uid}/storageConfig에서 저장소 정보 가져오기
+      const storageConfigRef = ref(realtimeDb, `users/${userId}/storageConfig`)
+      const snapshot = await get(storageConfigRef)
       
       if (snapshot.exists()) {
-        const metadata = snapshot.val()
-        console.log('=== 저장소 관리 - 메타데이터 ===')
+        const storageConfig = snapshot.val()
+        console.log('=== 저장소 관리 - 저장소 설정 ===')
         console.log('사용자 ID:', userId)
-        console.log('메타데이터:', metadata)
+        console.log('저장소 설정:', storageConfig)
         
         const storageList: StorageItem[] = []
         
-        if (metadata.storageLocation) {
+        if (storageConfig.storageLocations && Array.isArray(storageConfig.storageLocations)) {
           // 저장소 위치에 따른 저장소 정보 생성
-          const storageLocation = metadata.storageLocation
+          const storageLocations = storageConfig.storageLocations
           
-          // 단일 저장소인 경우 (현재 구현)
-          if (typeof storageLocation === 'string') {
-            if (storageLocation === 'local') {
-              storageList.push({
-                id: 'local-storage',
-                name: '이 컴퓨터',
-                type: 'local',
-                status: 'connected',
-                icon: HardDrive
-              })
-            } else if (storageLocation === 'cloud') {
-              storageList.push({
-                id: 'cloud-storage',
-                name: '구글 드라이브',
-                type: 'cloud',
-                status: 'connected',
-                icon: Cloud
-              })
-            } else if (storageLocation === 'usb') {
-              storageList.push({
-                id: 'usb-storage',
-                name: 'USB 저장소',
-                type: 'device',
-                status: 'connected',
-                icon: Monitor
-              })
-            }
-          } 
-          // 분산 저장소인 경우 (추후 구현)
-          else if (Array.isArray(storageLocation)) {
-            storageLocation.forEach((location, index) => {
-              const storageName = location === 'local' ? '이 컴퓨터' : 
-                                 location === 'cloud' ? '구글 드라이브' : 
-                                 location === 'usb' ? 'USB 저장소' : 
-                                 `저장소 ${index + 1}`
-              
-              storageList.push({
-                id: `storage-${index}`,
-                name: storageName,
-                type: location === 'local' ? 'local' : 
-                      location === 'cloud' ? 'cloud' : 'device',
-                status: 'connected',
-                icon: getStorageIcon(location)
-              })
+          storageLocations.forEach((location: string, index: number) => {
+            const storageName = location === 'local' ? '이 컴퓨터' : 
+                               location === 'cloud' ? '구글 드라이브' : 
+                               location === 'usb' ? 'USB 저장소' : 
+                               `저장소 ${index + 1}`
+            
+            storageList.push({
+              id: `storage-${index}`,
+              name: storageName,
+              type: location === 'local' ? 'local' : 
+                    location === 'cloud' ? 'cloud' : 'device',
+              status: 'connected',
+              icon: getStorageIcon(location)
             })
-          }
+          })
         }
         
         console.log('생성된 저장소 목록:', storageList)
         setStorages(storageList)
       } else {
-        console.log('메타데이터가 없습니다. 개인정보 설정이 필요합니다.')
+        console.log('저장소 설정이 없습니다. 개인정보 설정이 필요합니다.')
         setStorages([])
       }
     } catch (error) {

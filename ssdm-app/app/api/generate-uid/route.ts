@@ -23,20 +23,7 @@ async function validateApiKey(apiKey: string): Promise<string | null> {
       return 'morebooks';
     }
     
-    // 기존 로직: API Key 인덱스에서 확인
-    const apiKeyRef = ref(realtimeDb, `apiKeys/${apiKey}`);
-    const snapshot = await get(apiKeyRef);
-    
-    if (!snapshot.exists()) {
-      return null;
-    }
-    
-    const apiKeyData = snapshot.val();
-    if (!apiKeyData.isActive) {
-      return null;
-    }
-    
-    return apiKeyData.mallId; // mallId 반환
+    return null; // 환경변수와 일치하지 않으면 null 반환
   } catch (error) {
     console.error('API Key 검증 오류:', error);
     return null;
@@ -65,9 +52,9 @@ async function validateMall(mallId: string): Promise<boolean> {
 /**
  * 기존 UID 조회
  */
-async function getExistingUid(mallId: string, userId: string): Promise<string | null> {
+async function getExistingUid(mallId: string, shopId: string): Promise<string | null> {
   try {
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${userId}`);
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
     const snapshot = await get(mappingRef);
     
     if (!snapshot.exists()) {
@@ -89,16 +76,16 @@ async function getExistingUid(mallId: string, userId: string): Promise<string | 
 /**
  * userId와 UID 매핑 저장
  */
-async function saveMapping(mallId: string, userId: string, uid: string): Promise<void> {
+async function saveMapping(mallId: string, shopId: string, uid: string): Promise<void> {
   try {
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${userId}`);
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
     await set(mappingRef, {
       uid: uid,
       createdAt: new Date().toISOString(),
       isActive: true
     });
     
-    console.log(`사용자 매핑 저장 완료: ${userId} → ${uid}`);
+    console.log(`사용자 매핑 저장 완료: ${shopId} → ${uid}`);
   } catch (error) {
     console.error('사용자 매핑 저장 오류:', error);
     throw error;
@@ -176,7 +163,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 기존 UID 조회
+    // 기존 UID 조회 (userId를 shopId로 사용)
     let uid = await getExistingUid(mallId, userId);
     let isNew = false;
     
@@ -184,7 +171,7 @@ export async function POST(request: NextRequest) {
       // 새 UID 생성
       uid = await generateUid(mallId);
       
-      // userId와 UID 매핑 저장
+      // shopId와 UID 매핑 저장
       await saveMapping(mallId, userId, uid);
       isNew = true;
       

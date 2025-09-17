@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { realtimeDb } from '@/lib/firebase';
 import { ref, get } from 'firebase/database';
-import { decryptData, verifyIntegrity } from '@/lib/encryption';
 
 interface GetUserDataRequest {
   sessionId: string;
@@ -60,14 +59,19 @@ function extractUserIdFromUid(uid: string): string | null {
 }
 
 /**
- * 암호화된 개인정보 복호화
+ * 사용자 데이터 조회 (Firebase에서 직접)
  */
-function decryptUserData(encryptedData: string, encryptionKey: string): any {
+async function getUserDataFromFirebase(userId: string): Promise<any> {
   try {
-    const decryptedString = decryptData(encryptedData, encryptionKey);
-    return JSON.parse(decryptedString);
+    const userRef = ref(realtimeDb, `users/${userId}/profile`);
+    const snapshot = await get(userRef);
+    
+    if (snapshot.exists()) {
+      return snapshot.val();
+    }
+    return null;
   } catch (error) {
-    console.error('개인정보 복호화 실패:', error);
+    console.error('사용자 데이터 조회 실패:', error);
     return null;
   }
 }
@@ -106,59 +110,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 사용자 메타데이터 조회
-    const metadataRef = ref(realtimeDb, `userProfileMetadata/${userId}`);
-    const metadataSnapshot = await get(metadataRef);
-
-    if (!metadataSnapshot.exists()) {
+    // Firebase에서 사용자 데이터 직접 조회
+    const userData = await getUserDataFromFirebase(userId);
+    if (!userData) {
       return NextResponse.json(
         { error: '사용자 정보를 찾을 수 없습니다.' },
         { status: 404 }
       );
     }
 
-    const metadata = metadataSnapshot.val();
-
-    // 로컬 저장소에서 암호화된 데이터 조회 (실제로는 클라이언트에서 처리)
-    // 여기서는 테스트용으로 Firebase에 저장된 암호화된 데이터를 가정
-    const userDataRef = ref(realtimeDb, `encryptedUserData/${userId}`);
-    const userDataSnapshot = await get(userDataRef);
-
-    if (!userDataSnapshot.exists()) {
-      return NextResponse.json(
-        { error: '암호화된 사용자 데이터를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
-    }
-
-    const encryptedUserData = userDataSnapshot.val();
-
-    // 암호화 키 복호화 (사용자 ID로 암호화된 키)
-    const encryptionKey = decryptData(encryptedUserData.encryptedKey, userId);
-
-    // 개인정보 복호화
-    const decryptedData = decryptUserData(encryptedUserData.encryptedData, encryptionKey);
-    if (!decryptedData) {
-      return NextResponse.json(
-        { error: '개인정보 복호화에 실패했습니다.' },
-        { status: 500 }
-      );
-    }
-
-    // 무결성 검증
-    const isIntegrityValid = verifyIntegrity(JSON.stringify(decryptedData), encryptedUserData.checksum);
-    if (!isIntegrityValid) {
-      return NextResponse.json(
-        { error: '데이터 무결성 검증에 실패했습니다.' },
-        { status: 500 }
-      );
-    }
-
     // 허용된 필드만 필터링
     const allowedData: any = {};
     session.allowedFields.forEach(field => {
-      if (decryptedData[field] !== undefined) {
-        allowedData[field] = decryptedData[field];
+      if (userData[field] !== undefined) {
+        allowedData[field] = userData[field];
       }
     });
 

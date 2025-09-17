@@ -62,7 +62,7 @@ async function checkConsentStatus(shopId: string, mallId: string): Promise<Conse
     
     // 4. "항상 허용"인 경우 6개월 만료 확인
     if (consentData.consentType === 'always') {
-      const consentDate = new Date(consentData.timestamp);
+      const consentDate = new Date(consentData.createdAt);
       const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000);
       
       if (consentDate < sixMonthsAgo) {

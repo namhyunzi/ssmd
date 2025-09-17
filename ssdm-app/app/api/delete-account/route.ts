@@ -71,7 +71,6 @@ export async function POST(request: NextRequest) {
       // 1. 직접 경로로 삭제 가능한 데이터들
       const directDeletePaths = [
         `users/${uid}`,
-        `userProfileMetadata/${uid}`,
         `userLogs/${uid}`,
         `verifications/${email.replace(/[.#$[\]]/g, '_')}`
       ];

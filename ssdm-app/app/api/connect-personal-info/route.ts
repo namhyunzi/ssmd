@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       
       if (isAlwaysAllow) {
         // 6개월 경과 여부 확인
-        const consentDate = new Date(consentData.timestamp)
+        const consentDate = new Date(consentData.createdAt)
         const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
         isExpired = consentDate < sixMonthsAgo
       }

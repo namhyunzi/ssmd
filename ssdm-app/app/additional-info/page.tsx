@@ -176,8 +176,8 @@ function AdditionalInfoContent() {
       // 1. SSDM 로컬 암호화 데이터 업데이트 (기존 데이터 + 추가 데이터)
       await updateFirebaseProfile(additionalData)
       
-      // 2. SSDM 사용자 메타데이터 업데이트 (어떤 필드가 있는지)
-      await updateUserMetadata()
+      // 2. SSDM 사용자 프로필 업데이트 (어떤 필드가 있는지)
+      await updateUserProfile()
       
       // 3. 완료 후 정보 제공 동의 페이지로 이동 (원래 파라미터 유지 + 새로고침 플래그)
       const consentUrl = `/consent?uid=${encodeURIComponent(uid)}&fields=${encodeURIComponent(fields)}&fromAdditionalInfo=true&step=2`
@@ -191,7 +191,7 @@ function AdditionalInfoContent() {
     }
   }
 
-  const updateUserMetadata = async () => {
+  const updateUserProfile = async () => {
     try {
       const { getAuth } = await import('firebase/auth')
       const auth = getAuth()
@@ -205,27 +205,27 @@ function AdditionalInfoContent() {
       const { getDatabase, ref, set, get } = await import('firebase/database')
       const db = getDatabase()
       
-      // 기존 메타데이터 조회
-      const metadataRef = ref(db, `userProfileMetadata/${currentUser.uid}`)
-      const metadataSnapshot = await get(metadataRef)
+      // 기존 프로필 조회
+      const profileRef = ref(db, `users/${currentUser.uid}/profile`)
+      const profileSnapshot = await get(profileRef)
       
-      let existingMetadata = {}
-      if (metadataSnapshot.exists()) {
-        existingMetadata = metadataSnapshot.val()
+      let existingProfile = {}
+      if (profileSnapshot.exists()) {
+        existingProfile = profileSnapshot.val()
       }
       
-      // 메타데이터 업데이트 (마지막 업데이트 시간 갱신)
-      const updatedMetadata = {
-        ...existingMetadata,
+      // 프로필 업데이트 (마지막 업데이트 시간 갱신)
+      const updatedProfile = {
+        ...existingProfile,
         lastUpdated: new Date().toISOString(),
         hasAdditionalInfo: true
       }
       
-      await set(metadataRef, updatedMetadata)
+      await set(profileRef, updatedProfile)
       
-      console.log('사용자 메타데이터 업데이트 완료')
+      console.log('사용자 프로필 업데이트 완료')
     } catch (error) {
-      console.error('메타데이터 업데이트 실패:', error)
+      console.error('프로필 업데이트 실패:', error)
       throw error
     }
   }

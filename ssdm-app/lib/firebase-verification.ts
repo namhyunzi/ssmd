@@ -3,7 +3,6 @@ import { ref, set, get, remove } from 'firebase/database';
 
 interface Verifications {
   code: string;
-  email: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -30,7 +29,6 @@ export async function saveVerificationCode(
     
     const verificationData: Verifications = {
       code,
-      email,
       createdAt: now,
       expiresAt
     };

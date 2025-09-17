@@ -7,7 +7,7 @@ export interface UserConsents {
   userId: string;
   mallId: string;
   shopId: string;
-  consentType: "always" | "session" | "once";
+  consentType: "always" | "once";
   timestamp: string;
   isActive: boolean;
 }
@@ -40,7 +40,7 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
             mallId,
             shopId,
             consentType: consentData.consentType,
-            timestamp: consentData.timestamp,
+            timestamp: consentData.createdAt,
             isActive: consentData.isActive
           });
         });
@@ -56,7 +56,7 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
 
 /**
  * 서비스 동의 상태 계산 (mallServiceConsents 구조에 맞게 수정)
- * @param consentType 동의 타입 ("once" | "session" | "always")
+ * @param consentType 동의 타입 ("once" | "always")
  * @param timestamp 동의 시간
  * @param isActive 활성 상태
  * @returns "active" | "expiring" | "expired"
@@ -70,21 +70,6 @@ export function calculateConsentStatus(consentType: string, timestamp: string, i
     return "active";
   }
   
-  if (consentType === "session") {
-    // 세션은 24시간 후 만료
-    const consentTime = new Date(timestamp);
-    const now = new Date();
-    const diffTime = now.getTime() - consentTime.getTime();
-    const diffHours = diffTime / (1000 * 60 * 60);
-    
-    if (diffHours >= 24) {
-      return "expired";
-    } else if (diffHours >= 20) { // 20시간 후부터 만료 예정
-      return "expiring";
-    } else {
-      return "active";
-    }
-  }
   
   if (consentType === "once") {
     // 일회성은 7일 후 만료

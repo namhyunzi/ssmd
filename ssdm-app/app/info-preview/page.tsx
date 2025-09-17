@@ -65,8 +65,7 @@ function InfoPreviewPageContent() {
       }
 
       // 3. 실제 사용자 데이터에서 요청된 필드들 확인
-      const { loadProfileFromLocal } = require('@/lib/data-storage')
-      const userProfile = loadProfileFromLocal()
+      // userProfile은 이미 Firebase에서 로드됨
       
       // 사용자가 실제로 가지고 있는 필드들만 표시 (상세주소는 주소와 함께 표시)
       const availableFields = ['name', 'phone', 'address', 'email', 'zipCode']
