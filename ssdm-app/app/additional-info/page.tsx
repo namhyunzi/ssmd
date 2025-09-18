@@ -186,7 +186,7 @@ function AdditionalInfoContent() {
       // 3. 완료 후 개인저장소 설정 페이지로 이동 (개인저장소 → 분산저장소 순서)
       sessionStorage.setItem('redirect_after_additional_info', '/storage-setup')
       // JWT와 파라미터는 sessionStorage에 이미 저장되어 있음
-      router.push('/storage-setup')
+      window.location.href = '/storage-setup'
       
     } catch (error) {
       console.error('데이터 업데이트 실패:', error)
