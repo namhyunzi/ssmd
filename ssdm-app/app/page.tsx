@@ -28,7 +28,13 @@ export default function LoginPage() {
   // 이미 로그인된 사용자는 대시보드로 리다이렉트 (신규 사용자가 아닐 때만)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && !showTermsPopup && !pendingGoogleUser) {
+      console.log('=== onAuthStateChanged 실행 ===')
+      console.log('user:', user)
+      console.log('user.emailVerified:', user?.emailVerified)
+      console.log('showTermsPopup:', showTermsPopup)
+      console.log('pendingGoogleUser:', pendingGoogleUser)
+      
+      if (user && user.emailVerified && !showTermsPopup && !pendingGoogleUser) {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
         const fromExternalPopup = sessionStorage.getItem('from_external_popup')
