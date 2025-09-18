@@ -30,7 +30,15 @@ function ConsentPageContent() {
     console.log('=== useEffect 시작 ===')
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
     
-    // postMessage 리스너 추가
+    // 1. sessionStorage에 있는 JWT 확인
+    const jwtToken = sessionStorage.getItem('openPopup')
+    if (jwtToken) {
+      console.log('sessionStorage에서 JWT 발견 - checkLoginStatus 실행')
+      setToken(jwtToken)
+      verifyToken(jwtToken)
+    }
+    
+    // 2. postMessage 리스너 추가
     const handleMessage = async (event: MessageEvent) => {
       console.log('=== postMessage 수신 ===')
       console.log('event.origin:', event.origin)
