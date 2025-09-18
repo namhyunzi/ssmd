@@ -183,10 +183,10 @@ function AdditionalInfoContent() {
       // 2. SSDM 사용자 프로필 업데이트 (어떤 필드가 있는지)
       await updateUserProfile()
       
-      // 3. 완료 후 정보 제공 동의 페이지로 이동 (JWT 세션 방식)
-      sessionStorage.setItem('redirect_after_additional_info', '/consent')
+      // 3. 완료 후 개인저장소 설정 페이지로 이동 (개인저장소 → 분산저장소 순서)
+      sessionStorage.setItem('redirect_after_additional_info', '/storage-setup')
       // JWT와 파라미터는 sessionStorage에 이미 저장되어 있음
-      router.push('/consent')
+      router.push('/storage-setup')
       
     } catch (error) {
       console.error('데이터 업데이트 실패:', error)
