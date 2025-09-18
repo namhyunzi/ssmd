@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
     const uid = mappingSnapshot.val().uid
     console.log('찾은 UID:', uid)
     
-    // 사용자 동의 상태 확인 (올바른 구조: uid/mallId/shopId)
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
+    // 사용자 동의 상태 확인 (올바른 구조: uid/mallId/uid)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${uid}`)
     console.log('동의 참조 경로:', `mallServiceConsents/${uid}/${mallId}/${shopId}`)
     console.log('Firebase 연결 상태 확인 중...')
     
