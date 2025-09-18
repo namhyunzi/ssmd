@@ -34,59 +34,85 @@ function InfoPreviewPageContent() {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
+  const [personalData, setPersonalData] = useState<any>(null)
   
   const searchParams = useSearchParams()
-  const mallId = searchParams.get('mallId')
-  const shopId = searchParams.get('shopId')
 
   useEffect(() => {
-    if (!mallId || !shopId) {
-      setError("필수 파라미터가 누락되었습니다.")
-      setLoading(false)
-      return
+    // JWT postMessage로 받기
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'init_preview') {
+        const { jwt } = event.data
+        if (jwt) {
+          loadPreviewData(jwt)
+        }
+      }
     }
 
-    loadPreviewData()
-  }, [mallId, shopId])
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
 
-  const loadPreviewData = async () => {
+  const loadPreviewData = async (jwtToken: string) => {
     try {
-      // 쇼핑몰 정보 조회 (실제로는 Firebase에서 가져옴)
+      // JWT 검증 및 shopId, mallId 추출
+      const response = await fetch('/api/popup/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jwt: jwtToken })
+      })
+      
+      if (!response.ok) {
+        throw new Error('JWT 검증 실패')
+      }
+      
+      const { payload } = await response.json()
+      const { shopId: jwtShopId, mallId: jwtMallId } = payload
+      
+      // 쇼핑몰 정보 조회
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, get } = await import('firebase/database')
       
-      const mallRef = ref(realtimeDb, `malls/${mallId}`)
+      const mallRef = ref(realtimeDb, `malls/${jwtMallId}`)
       const mallSnapshot = await get(mallRef)
       
-      let mallName = mallId!
+      let mallName = jwtMallId
       if (mallSnapshot.exists()) {
         const mallData = mallSnapshot.val()
-        mallName = mallData.mallName || mallId!
+        mallName = mallData.mallName || jwtMallId
       }
 
-      // 3. 실제 사용자 데이터에서 요청된 필드들 확인
-      // userProfile은 이미 Firebase에서 로드됨
+      // 사용자 개인정보 로드
+      const { auth } = await import('@/lib/firebase')
+      if (!auth.currentUser) {
+        throw new Error('로그인이 필요합니다')
+      }
       
-      // 사용자가 실제로 가지고 있는 필드들만 표시 (상세주소는 주소와 함께 표시)
+      const { getUserProfile } = await import('@/lib/data-storage')
+      const userProfile = await getUserProfile(auth.currentUser)
+      
+      if (!userProfile) {
+        throw new Error('개인정보가 없습니다')
+      }
+      
+      setPersonalData(userProfile)
+      
+      // 제공될 필드들 확인
       const availableFields = ['name', 'phone', 'address', 'email', 'zipCode']
       const providedFields = availableFields.filter(field => {
-        const value = getFieldValue(field)
+        const value = getFieldValue(field, userProfile)
         return value && value.trim() !== '' && value !== '정보 확인 중...'
       })
 
       const mallInfo: MallInfo = {
-        mallId: mallId!,
+        mallId: jwtMallId,
         mallName,
         requiredFields: providedFields
       }
 
-      // 동의 타입은 URL 파라미터나 기본값으로 설정
-      // 실제로는 쇼핑몰에서 이미 동의 상태를 확인했으므로 여기서는 미리보기만
-      const consentType = "always" // 기본값, 실제로는 쇼핑몰에서 전달받을 수 있음
-
       const previewData: PreviewData = {
         mallInfo,
-        consentType,
+        consentType: "always", // 기본값
         providedFields,
         timestamp: new Date().toISOString()
       }
@@ -136,36 +162,19 @@ function InfoPreviewPageContent() {
     return phone
   }
 
-  const getFieldValue = async (field: string) => {
-    // Firebase에서 개인정보 조회하여 반환
-    try {
-      const { getUserProfile } = require('@/lib/data-storage')
-      const { auth } = require('@/lib/firebase')
-      
-      if (!auth.currentUser) {
-        return '로그인이 필요합니다.'
-      }
-      
-      const userProfile = await getUserProfile(auth.currentUser)
-      
-      if (!userProfile) {
-        return '개인정보가 없습니다.'
-      }
-      
-      switch (field) {
-        case 'name': return userProfile.name || ''
-        case 'phone': return formatPhoneNumber(userProfile.phone || '')
-        case 'address': 
-          const address = userProfile.address || ''
-          const detailAddress = userProfile.detailAddress || ''
-          return detailAddress ? `${address} ${detailAddress}` : address
-        case 'zipCode': return userProfile.zipCode || ''
-        case 'email': return userProfile.email || ''
-        default: return ''
-      }
-    } catch (error) {
-      console.error('개인정보 조회 실패:', error)
-      return '정보 확인 중...'
+  const getFieldValue = (field: string, userProfile: any) => {
+    if (!userProfile) return '정보 확인 중...'
+    
+    switch (field) {
+      case 'name': return userProfile.name || ''
+      case 'phone': return formatPhoneNumber(userProfile.phone || '')
+      case 'address': 
+        const address = userProfile.address || ''
+        const detailAddress = userProfile.detailAddress || ''
+        return detailAddress ? `${address} ${detailAddress}` : address
+      case 'zipCode': return userProfile.zipCode || ''
+      case 'email': return userProfile.email || ''
+      default: return ''
     }
   }
 
@@ -256,7 +265,7 @@ function InfoPreviewPageContent() {
                       {getFieldLabel(field)}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {getFieldValue(field)}
+                      {getFieldValue(field, personalData)}
                     </div>
                   </div>
                 </div>

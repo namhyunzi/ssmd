@@ -186,10 +186,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 비활성화된 동의 확인
-    if (!consentData.isActive) {
+    const expiresAt = new Date(consentData.expiresAt)
+    const now = new Date()
+    if ((consentData.isActive === false) || (now > expiresAt)) {
       return NextResponse.json({
         hasConsent: false,
-        message: '동의가 해제되었습니다.'
+        message: '동의가 해제되었거나 만료되었습니다.'
       });
     }
 

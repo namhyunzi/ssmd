@@ -52,7 +52,9 @@ async function checkConsentStatus(shopId: string, mallId: string): Promise<Conse
     const consentData = consentSnapshot.val();
     
     // 3. 동의가 활성화되어 있는지 확인
-    if (!consentData.isActive) {
+    const expiresAt = new Date(consentData.expiresAt)
+    const now = new Date()
+    if ((consentData.isActive === false) || (now > expiresAt)) {
       return {
         isConnected: false,
         autoConsent: false,

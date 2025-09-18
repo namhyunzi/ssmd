@@ -900,7 +900,14 @@ export default function ProfileSetupPage() {
                         }
                       } else {
                         // 일반 사용자는 분산저장소 설정 페이지로 이동
-                        router.push('/storage-setup')
+                        // 외부 팝업에서 온 경우 플래그 유지
+                        const fromExternalPopup = sessionStorage.getItem('from_external_popup')
+                        if (fromExternalPopup === 'true') {
+                          // 외부 팝업에서 온 경우 플래그 유지하고 분산저장소 설정으로 이동
+                          router.push('/storage-setup')
+                        } else {
+                          router.push('/storage-setup')
+                        }
                       }
                     } else {
                       alert('개인정보 저장 중 오류가 발생했습니다. 다시 시도해주세요.')

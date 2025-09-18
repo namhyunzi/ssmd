@@ -61,7 +61,7 @@ export default function LoginPage() {
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
           const redirectUrl = sessionStorage.getItem('redirect_after_login')
-          const fromExternalPopup = localStorage.getItem('from_external_popup')
+          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
           
           if (redirectUrl) {
             sessionStorage.removeItem('redirect_after_login')

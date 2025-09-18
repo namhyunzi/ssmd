@@ -250,15 +250,15 @@ function ConsentPageContent() {
           window.parent.postMessage({
             type: 'login_required',
             message: '로그인이 필요합니다.',
-            returnUrl: `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
+            returnUrl: '/consent'
           }, '*')
           
           // 팝업 환경에서는 에러 메시지 표시
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          const currentUrl = `/consent?shopId=${encodeURIComponent(currentShopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-          sessionStorage.setItem('redirect_after_login', currentUrl)
+          // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
+          sessionStorage.setItem('redirect_after_login', '/consent')
           // 외부 팝업에서 온 경우를 표시
           sessionStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
@@ -350,9 +350,8 @@ function ConsentPageContent() {
         console.log('사용자 데이터가 없으므로 로그인 페이지로 리디렉션')
         
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
-        const currentMallId = mallIdParam || mallId
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        sessionStorage.setItem('redirect_after_login', currentUrl)
+        // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
+        sessionStorage.setItem('redirect_after_login', '/consent')
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/'
@@ -411,9 +410,8 @@ function ConsentPageContent() {
       if (!userProfile || !userProfile.profileCompleted) {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
-        const currentMallId = mallIdParam || mallId
-        const currentUrl = `/consent?shopId=${encodeURIComponent(shopId || '')}&mallId=${encodeURIComponent(currentMallId || '')}`
-        sessionStorage.setItem('redirect_after_profile', currentUrl)
+        // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
+        sessionStorage.setItem('redirect_after_profile', '/consent')
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/profile-setup'
@@ -593,8 +591,11 @@ function ConsentPageContent() {
       const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
       await set(consentRef, {
         consentType,
-        timestamp: new Date().toISOString(),
-        isActive: true
+        createdAt: new Date().toISOString(),
+        expiresAt: consentType === 'once' 
+          ? new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15분 후
+          : new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString(), // 6개월 후
+        ...(consentType === 'always' && { isActive: true })
       })
       
       // 개인정보 제공 로그 저장
@@ -735,6 +736,14 @@ function ConsentPageContent() {
       console.log("window.opener", window.opener);
       console.log("window", window);
       console.log('팝업 창 닫기')
+      
+      // 거부 결과 전달
+      const targetOrigin = window.location.origin
+      window.opener.postMessage({
+        type: 'consent_rejected',
+        timestamp: new Date().toISOString()
+      }, targetOrigin)
+      
       // JWT 세션 및 리다이렉트 세션 정리
       sessionStorage.removeItem('openPopup')
       sessionStorage.removeItem('redirect_after_login')

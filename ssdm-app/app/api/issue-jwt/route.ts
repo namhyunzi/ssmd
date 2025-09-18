@@ -75,19 +75,21 @@ export async function POST(request: NextRequest) {
     console.log('동의 데이터:', consentData)
     
     // isActive가 true인지 확인
-    if (!consentData.isActive) {
-      console.log('동의가 비활성화됨')
-      return NextResponse.json(
-        { error: '개인정보 제공 동의가 비활성화되었습니다.' },
-        { status: 403 }
-      )
-    }
+        const expiresAt = new Date(consentData.expiresAt)
+        const now = new Date()
+        if ((consentData.isActive === false) || (now > expiresAt)) {
+          console.log('동의가 비활성화되거나 만료됨')
+          return NextResponse.json(
+            { error: '개인정보 제공 동의가 비활성화되었거나 만료되었습니다.' },
+            { status: 403 }
+          )
+        }
     
     const isAlwaysAllow = consentData.consentType === 'always'
     
     if (isAlwaysAllow) {
       // 6개월 경과 여부 확인
-      const consentDate = new Date(consentData.createdAt)
+      const consentDate = new Date(consentData.timestamp)
       const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000)
       const isExpired = consentDate < sixMonthsAgo
       
@@ -118,7 +120,6 @@ export async function POST(request: NextRequest) {
       mallId: mallId,
       consentType: consentData.consentType,
       purpose: "delivery", // 택배사용 JWT
-      allowedDomains: ["delivery1.company.com", "delivery2.company.com", "delivery3.company.com"], // 허용된 택배사 도메인
       timestamp: new Date().toISOString(),
       exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15분 후 만료
     }
@@ -143,25 +144,6 @@ export async function POST(request: NextRequest) {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       consentType: consentData.consentType
     })
-
-    // JWT 발급 성공 후 개인정보 제공 로그 저장
-    try {
-      const { saveProvisionLog } = await import('@/lib/data-storage')
-      // 쇼핑몰의 허용 필드들을 제공된 필드로 간주
-      const mallRef = ref(realtimeDb, `malls/${mallId}`)
-      const mallSnapshot = await get(mallRef)
-      const providedFields = mallSnapshot.exists() ? mallSnapshot.val().allowedFields : []
-      
-      await saveProvisionLog(uid, {
-        mallId,
-        providedFields,
-        consentType: consentData.consentType
-      })
-      console.log(`개인정보 제공 로그 저장 완료: ${uid}/${mallId}`)
-    } catch (logError) {
-      console.error('개인정보 제공 로그 저장 실패:', logError)
-      // 로그 저장 실패해도 JWT는 이미 발급되었으므로 에러를 던지지 않음
-    }
 
     return NextResponse.json({
       jwt: token,
