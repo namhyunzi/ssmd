@@ -740,17 +740,41 @@ function ConsentPageContent() {
       console.log("window", window);
       console.log('팝업 창 닫기')
       
-      // 거부 결과 전달 (동의 시와 같은 targetOrigin 사용)
-      const targetOrigin = allowedDomain || null
-      console.log('거부 결과 전달:', {
-        type: 'consent_rejected',
-        timestamp: new Date().toISOString(),
-        targetOrigin
-      })
-      window.opener.postMessage({
-        type: 'consent_rejected',
-        timestamp: new Date().toISOString()
-      }, targetOrigin)
+      try {
+        // Firebase에서 허용 도메인 조회 (동의 시와 동일)
+        const { realtimeDb } = await import('@/lib/firebase')
+        const { ref, get } = await import('firebase/database')
+        
+        const mallRef = ref(realtimeDb, `malls/${mallId}`)
+        const mallSnapshot = await get(mallRef)
+        
+        let allowedDomain = null
+        if (mallSnapshot.exists()) {
+          const mallData = mallSnapshot.val()
+          allowedDomain = mallData.allowedDomain
+          console.log('Firebase에서 조회한 허용 도메인:', allowedDomain)
+        }
+        
+        // 거부 결과 전달 (동의 시와 동일한 방식)
+        const targetOrigin = allowedDomain || null
+        console.log('거부 결과 전달:', {
+          type: 'consent_rejected',
+          timestamp: new Date().toISOString(),
+          targetOrigin
+        })
+        window.opener.postMessage({
+          type: 'consent_rejected',
+          timestamp: new Date().toISOString()
+        }, targetOrigin)
+        
+      } catch (error) {
+        console.error('허용 도메인 조회 실패:', error)
+        // 에러 시에도 메시지 전달
+        window.opener.postMessage({
+          type: 'consent_rejected',
+          timestamp: new Date().toISOString()
+        }, window.location.origin)
+      }
       
       // JWT 세션 및 리다이렉트 세션 정리
       sessionStorage.removeItem('openPopup')
