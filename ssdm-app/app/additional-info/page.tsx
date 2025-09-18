@@ -96,8 +96,10 @@ function AdditionalInfoContent() {
       if (!currentUser) {
         // 로그인되지 않은 경우 → 로그인 페이지로 리디렉션
         console.log('로그인되지 않음 - 로그인 페이지로 리디렉션')
-        const currentUrl = window.location.href
-        localStorage.setItem('redirect_after_login', currentUrl)
+        // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
+        sessionStorage.setItem('redirect_after_login', '/additional-info')
+        // 외부 팝업에서 온 경우를 표시
+        sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/'
         return
       }
@@ -113,19 +115,21 @@ function AdditionalInfoContent() {
   }
 
   const loadUrlParams = () => {
-    // URL 파라미터에서 누락된 필드 정보 가져오기
-    const missingParam = searchParams.get('missing')
-    const uidParam = searchParams.get('uid')
-    const fieldsParam = searchParams.get('fields')
-    
-    if (missingParam) {
-      setMissingFields(missingParam.split(','))
-    }
-    if (uidParam) {
-      setUid(uidParam)
-    }
-    if (fieldsParam) {
-      setFields(fieldsParam)
+    // JWT에서 데이터 추출 (쿼리스트링 대신)
+    const jwtToken = sessionStorage.getItem('openPopup')
+    if (jwtToken) {
+      try {
+        // JWT에서 shopId, mallId 추출
+        const decoded = JSON.parse(atob(jwtToken.split('.')[1]))
+        const { shopId, mallId } = decoded
+        
+        // 필요한 데이터를 JWT에서 가져와서 설정
+        setUid(shopId) // shopId를 uid로 사용
+        
+        // missingFields는 mallInfo에서 가져오기 (loadExistingData에서 처리)
+      } catch (error) {
+        console.error('JWT 파싱 오류:', error)
+      }
     }
   }
 

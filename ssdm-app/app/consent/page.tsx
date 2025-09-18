@@ -862,9 +862,9 @@ function ConsentPageContent() {
                   setError("")
                   setLoading(false)
                   // JWT 토큰이 있으면 다시 검증 시도
-                  const jwtFromUrl = searchParams.get('jwt')
-                  if (jwtFromUrl) {
-                    verifyToken(jwtFromUrl)
+                  const jwtToken = sessionStorage.getItem('openPopup')
+                  if (jwtToken) {
+                    verifyToken(jwtToken)
                   } else {
                     checkLoginStatus()
                   }
