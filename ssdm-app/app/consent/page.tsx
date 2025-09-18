@@ -590,8 +590,8 @@ function ConsentPageContent() {
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, set } = await import('firebase/database')
       
-      // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/shopId)
-      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
+      // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/uid)
+      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${uid}`)
       await set(consentRef, {
         consentType,
         createdAt: new Date().toISOString(),
@@ -1013,8 +1013,6 @@ function ConsentPageContent() {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                alert('동의하기 버튼 클릭됨!');
-                console.log('동의하기 버튼 클릭 이벤트 발생!');
                 handleConsent();
               }}
               disabled={loading}

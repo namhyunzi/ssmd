@@ -73,6 +73,7 @@ export default function DashboardPage() {
           setServiceConsents(consents)
           const stats = calculateConsentStats(consents)
           setConsentStats(stats)
+          console.log('동의 현황 업데이트:', { consents, stats })
         } catch (error) {
           console.error('Error loading service consents:', error)
         }
