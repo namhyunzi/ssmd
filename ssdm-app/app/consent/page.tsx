@@ -534,7 +534,10 @@ function ConsentPageContent() {
     switch (field) {
       case 'name': return personalData.name || ''
       case 'phone': return formatPhoneNumber(personalData.phone || '')
-      case 'address': return personalData.address || ''
+      case 'address': 
+        const address = personalData.address || ''
+        const detailAddress = personalData.detailAddress || ''
+        return detailAddress ? `${address} ${detailAddress}` : address
       case 'detailAddress': return personalData.detailAddress || ''
       case 'zipCode': return personalData.zipCode || ''
       case 'email': return personalData.email || ''
