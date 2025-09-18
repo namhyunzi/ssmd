@@ -71,11 +71,14 @@ export default function LoginPage() {
         }
         // 신규 사용자는 handleGoogleLogin에서 처리 (useEffect에서 건드리지 않음)
       } else if (!user) {
-        // 로그인되지 않은 경우 sessionStorage 정리
-        console.log('로그인되지 않음 - sessionStorage 정리')
-        sessionStorage.removeItem('redirect_after_login')
-        sessionStorage.removeItem('from_external_popup')
-        sessionStorage.removeItem('openPopup')
+        // 팝업에서 온 경우가 아니면 sessionStorage 정리
+        const fromExternalPopup = sessionStorage.getItem('from_external_popup')
+        if (!fromExternalPopup) {
+          console.log('로그인되지 않음 - sessionStorage 정리')
+          sessionStorage.removeItem('redirect_after_login')
+          sessionStorage.removeItem('from_external_popup')
+          sessionStorage.removeItem('openPopup')
+        }
       }
     })
 
@@ -113,11 +116,14 @@ export default function LoginPage() {
       try {
         const currentUser = auth.currentUser
         if (!currentUser) {
-          // 로그인되지 않은 경우 sessionStorage 정리
-          console.log('초기 로드 시 로그인되지 않음 - sessionStorage 정리')
-          sessionStorage.removeItem('redirect_after_login')
-          sessionStorage.removeItem('from_external_popup')
-          sessionStorage.removeItem('openPopup')
+          // 팝업에서 온 경우가 아니면 sessionStorage 정리
+          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
+          if (!fromExternalPopup) {
+            console.log('초기 로드 시 로그인되지 않음 - sessionStorage 정리')
+            sessionStorage.removeItem('redirect_after_login')
+            sessionStorage.removeItem('from_external_popup')
+            sessionStorage.removeItem('openPopup')
+          }
         }
       } catch (error) {
         console.error('초기 인증 상태 확인 오류:', error)
