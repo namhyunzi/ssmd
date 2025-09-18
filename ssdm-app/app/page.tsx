@@ -31,8 +31,8 @@ export default function LoginPage() {
       if (user && !showTermsPopup && !pendingGoogleUser) {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
-        const fromExternalPopup = sessionStorage.getItem('from_external_popup')
-        const isNewUserProcessing = sessionStorage.getItem('is_new_user_processing')
+        const fromExternalPopup = localStorage.getItem('from_external_popup')
+        const isNewUserProcessing = localStorage.getItem('is_new_user_processing')
         
         console.log('useEffect에서 사용자 감지:', {
           uid: user.uid,
@@ -52,7 +52,7 @@ export default function LoginPage() {
         // 외부 팝업에서 온 경우 약관동의 팝업 강제 표시
         if (fromExternalPopup === 'true' && isNewUser) {
           console.log('외부 팝업에서 온 신규 사용자 - 약관동의 팝업 강제 표시')
-          sessionStorage.removeItem('from_external_popup')
+          localStorage.removeItem('from_external_popup')
           setPendingGoogleUser(user)
           setShowTermsPopup(true)
           return
@@ -60,34 +60,18 @@ export default function LoginPage() {
         
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
-          const redirectUrl = sessionStorage.getItem('redirect_after_login')
-          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
-          
-          console.log('=== 로그인 완료 후 리다이렉트 확인 ===')
-          console.log('redirectUrl:', redirectUrl)
-          console.log('fromExternalPopup:', fromExternalPopup)
-          
+          const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
+                   sessionStorage.getItem('redirect_after_profile') || 
+                   sessionStorage.getItem('redirect_after_login')
           if (redirectUrl) {
-            // redirect_after_login은 제거하지 말고 보존
-            sessionStorage.removeItem('from_external_popup')
-            console.log('리다이렉트 실행:', redirectUrl)
+            localStorage.removeItem('redirect_after_login')
+            localStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
-            console.log('리다이렉트 URL 없음 - 대시보드로 이동')
             router.push('/dashboard')
           }
         }
         // 신규 사용자는 handleGoogleLogin에서 처리 (useEffect에서 건드리지 않음)
-      } else if (!user) {
-        // 팝업에서 온 경우가 아니면 sessionStorage 정리
-        const fromExternalPopup = sessionStorage.getItem('from_external_popup')
-        if (!fromExternalPopup) {
-          console.log('로그인되지 않음 - sessionStorage 정리')
-          // redirect_after_login과 openPopup은 제거하지 않음
-          sessionStorage.removeItem('from_external_popup')
-        } else {
-          console.log('팝업에서 온 경우 - sessionStorage 보존')
-        }
       }
     })
 
@@ -117,28 +101,6 @@ export default function LoginPage() {
         setBlockUntil(null)
       }
     }
-  }, [])
-
-  // 페이지 로드 시 로그인 상태 확인 및 sessionStorage 정리
-  useEffect(() => {
-    const checkInitialAuthState = async () => {
-      try {
-        const currentUser = auth.currentUser
-        if (!currentUser) {
-          // 팝업에서 온 경우가 아니면 sessionStorage 정리
-          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
-          if (!fromExternalPopup) {
-            console.log('초기 로드 시 로그인되지 않음 - sessionStorage 정리')
-            // redirect_after_login과 openPopup은 제거하지 않음
-            sessionStorage.removeItem('from_external_popup')
-          }
-        }
-      } catch (error) {
-        console.error('초기 인증 상태 확인 오류:', error)
-      }
-    }
-    
-    checkInitialAuthState()
   }, [])
 
   const handleLogin = async () => {

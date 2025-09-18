@@ -183,9 +183,10 @@ function AdditionalInfoContent() {
       // 2. SSDM 사용자 프로필 업데이트 (어떤 필드가 있는지)
       await updateUserProfile()
       
-      // 3. 완료 후 정보 제공 동의 페이지로 이동 (원래 파라미터 유지 + 새로고침 플래그)
-      const consentUrl = `/consent?uid=${encodeURIComponent(uid)}&fields=${encodeURIComponent(fields)}&fromAdditionalInfo=true&step=2`
-      router.push(consentUrl)
+      // 3. 완료 후 정보 제공 동의 페이지로 이동 (JWT 세션 방식)
+      sessionStorage.setItem('redirect_after_additional_info', '/consent')
+      // JWT와 파라미터는 sessionStorage에 이미 저장되어 있음
+      router.push('/consent')
       
     } catch (error) {
       console.error('데이터 업데이트 실패:', error)

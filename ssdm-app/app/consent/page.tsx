@@ -36,6 +36,11 @@ function ConsentPageContent() {
       console.log('sessionStorage에서 JWT 발견 - checkLoginStatus 실행')
       setToken(jwtToken)
       verifyToken(jwtToken)
+    } else {
+      // JWT가 없으면 로그인 페이지로 이동
+      sessionStorage.setItem('redirect_after_login', '/consent')
+      sessionStorage.setItem('from_external_popup', 'true')
+      window.location.href = '/'
     }
     
     // 2. postMessage 리스너 추가
@@ -719,6 +724,7 @@ function ConsentPageContent() {
           sessionStorage.removeItem('openPopup')
           sessionStorage.removeItem('redirect_after_login')
           sessionStorage.removeItem('redirect_after_profile')
+          sessionStorage.removeItem('redirect_after_additional_info')
           sessionStorage.removeItem('from_external_popup')
           window.close()
         }, 100)
@@ -791,6 +797,7 @@ function ConsentPageContent() {
       sessionStorage.removeItem('openPopup')
       sessionStorage.removeItem('redirect_after_login')
       sessionStorage.removeItem('redirect_after_profile')
+      sessionStorage.removeItem('redirect_after_additional_info')
       sessionStorage.removeItem('from_external_popup')
       window.close()
     }
@@ -892,6 +899,7 @@ function ConsentPageContent() {
                   sessionStorage.removeItem('openPopup')
                   sessionStorage.removeItem('redirect_after_login')
                   sessionStorage.removeItem('redirect_after_profile')
+                  sessionStorage.removeItem('redirect_after_additional_info')
                   sessionStorage.removeItem('from_external_popup')
                   window.close()
                 }} variant="outline" className="w-full">
