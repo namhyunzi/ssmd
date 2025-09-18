@@ -32,15 +32,18 @@ function ConsentPageContent() {
     
     // 1. sessionStorage에 있는 JWT 확인
     const jwtToken = sessionStorage.getItem('openPopup')
+    console.log('=== JWT 확인 ===')
+    console.log('JWT 존재 여부:', jwtToken ? '존재함' : '없음')
+    console.log('JWT 값:', jwtToken)
+    
     if (jwtToken) {
       console.log('sessionStorage에서 JWT 발견 - checkLoginStatus 실행')
       setToken(jwtToken)
       verifyToken(jwtToken)
     } else {
-      // JWT가 없으면 로그인 페이지로 이동
-      sessionStorage.setItem('redirect_after_login', '/consent')
-      sessionStorage.setItem('from_external_popup', 'true')
-      window.location.href = '/'
+      console.log('JWT 없음 - 로그인 상태 확인')
+      // JWT가 없으면 로그인 상태 확인 후 처리
+      checkLoginStatus()
     }
     
     // 2. postMessage 리스너 추가
