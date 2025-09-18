@@ -155,18 +155,31 @@ export default function StorageSetupPage() {
       
       console.log('저장할 분산저장소 설정:', storageData)
       
-      const saved = await saveStorageConfig(currentUser, storageData)
-      console.log('분산저장소 설정 저장 결과:', saved)
+      // 1. 임시 개인정보 데이터 가져오기
+      const tempProfile = JSON.parse(sessionStorage.getItem('temp_profile_data') || '{}')
+      const tempAdditional = JSON.parse(sessionStorage.getItem('temp_additional_data') || '{}')
       
-      if (saved) {
-        console.log('분산저장소 설정 저장 성공')
+      // 2. 개인정보와 분산저장소 설정을 함께 저장
+      const { saveUserProfile } = await import('@/lib/data-storage')
+      const profileData = { ...tempProfile, ...tempAdditional }
+      const profileSaved = await saveUserProfile(currentUser, profileData)
+      
+      const storageSaved = await saveStorageConfig(currentUser, storageData)
+      console.log('개인정보 및 분산저장소 설정 저장 결과:', { profileSaved, storageSaved })
+      
+      if (profileSaved && storageSaved) {
+        console.log('개인정보 및 분산저장소 설정 저장 성공')
         
-        // 성공 토스트 표시 후 대시보드로 이동
-        showToastMessage("분산저장소 설정이 완료되었습니다.", "success")
+        // 3. 임시 데이터 삭제
+        sessionStorage.removeItem('temp_profile_data')
+        sessionStorage.removeItem('temp_additional_data')
         
-        // 토스트 표시 후 1초 뒤 대시보드로 이동
+        // 성공 토스트 표시 후 이동
+        showToastMessage("개인정보 및 분산저장소 설정이 완료되었습니다.", "success")
+        
+        // 토스트 표시 후 1초 뒤 이동
         setTimeout(() => {
-          // 외부 팝업에서 온 경우 consent 페이지로 돌아가기
+          // 외부 팝업에서 온 경우 consent 페이지로 이동
           const fromExternalPopup = sessionStorage.getItem('from_external_popup')
           if (fromExternalPopup === 'true') {
             sessionStorage.removeItem('from_external_popup')

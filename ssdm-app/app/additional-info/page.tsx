@@ -177,15 +177,10 @@ function AdditionalInfoContent() {
         additionalData.zipCode = zipCode
       }
       
-      // 1. SSDM 로컬 암호화 데이터 업데이트 (기존 데이터 + 추가 데이터)
-      await updateFirebaseProfile(additionalData)
+      // 1. 임시 저장 후 분산저장소 설정으로 이동
+      sessionStorage.setItem('temp_additional_data', JSON.stringify(additionalData))
       
-      // 2. SSDM 사용자 프로필 업데이트 (어떤 필드가 있는지)
-      await updateUserProfile()
-      
-      // 3. 완료 후 개인저장소 설정 페이지로 이동 (개인저장소 → 분산저장소 순서)
-      sessionStorage.setItem('redirect_after_additional_info', '/storage-setup')
-      // JWT와 파라미터는 sessionStorage에 이미 저장되어 있음
+      // 2. 분산저장소 설정 페이지로 이동
       window.location.href = '/storage-setup'
       
     } catch (error) {

@@ -658,7 +658,10 @@ function ConsentPageContent() {
             // 1. 동의 정보 저장
             await saveConsentData(consentId, mallId, shopId, consentType)
             
-            // 2. 택배사용 JWT 생성
+            // 2. Firebase 동기화 대기
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            
+            // 3. 택배사용 JWT 생성
             const deliveryJWT = await generateDeliveryJWT(shopId, mallId)
             
             console.log('postMessage로 동의 결과 전달 (팝업):', {
