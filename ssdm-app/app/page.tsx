@@ -61,11 +61,19 @@ export default function LoginPage() {
         if (!isNewUser) {
           // 기존 사용자만 리디렉션 처리
           const redirectUrl = sessionStorage.getItem('redirect_after_login')
+          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
+          
+          console.log('=== 로그인 완료 후 리다이렉트 확인 ===')
+          console.log('redirectUrl:', redirectUrl)
+          console.log('fromExternalPopup:', fromExternalPopup)
+          
           if (redirectUrl) {
-            sessionStorage.removeItem('redirect_after_login')
+            // redirect_after_login은 제거하지 말고 보존
             sessionStorage.removeItem('from_external_popup')
+            console.log('리다이렉트 실행:', redirectUrl)
             router.push(redirectUrl)
           } else {
+            console.log('리다이렉트 URL 없음 - 대시보드로 이동')
             router.push('/dashboard')
           }
         }
@@ -75,9 +83,10 @@ export default function LoginPage() {
         const fromExternalPopup = sessionStorage.getItem('from_external_popup')
         if (!fromExternalPopup) {
           console.log('로그인되지 않음 - sessionStorage 정리')
-          sessionStorage.removeItem('redirect_after_login')
+          // redirect_after_login과 openPopup은 제거하지 않음
           sessionStorage.removeItem('from_external_popup')
-          sessionStorage.removeItem('openPopup')
+        } else {
+          console.log('팝업에서 온 경우 - sessionStorage 보존')
         }
       }
     })
@@ -120,9 +129,8 @@ export default function LoginPage() {
           const fromExternalPopup = sessionStorage.getItem('from_external_popup')
           if (!fromExternalPopup) {
             console.log('초기 로드 시 로그인되지 않음 - sessionStorage 정리')
-            sessionStorage.removeItem('redirect_after_login')
+            // redirect_after_login과 openPopup은 제거하지 않음
             sessionStorage.removeItem('from_external_popup')
-            sessionStorage.removeItem('openPopup')
           }
         }
       } catch (error) {
