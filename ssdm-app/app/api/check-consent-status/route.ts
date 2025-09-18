@@ -32,7 +32,16 @@ export async function POST(request: NextRequest) {
     const currentUser = auth.currentUser
 
     if (!currentUser) {
-      return NextResponse.json({ status: 'need_connect' })
+      return NextResponse.json(
+        { status: 'need_connect' },
+        {
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
+      )
     }
 
     const uid = currentUser.uid
@@ -42,7 +51,16 @@ export async function POST(request: NextRequest) {
     const consentSnapshot = await get(consentRef)
     
     if (!consentSnapshot.exists()) {
-      return NextResponse.json({ status: 'need_connect' })
+      return NextResponse.json(
+        { status: 'need_connect' },
+        {
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
+      )
     }
     
     const consentData = consentSnapshot.val()
@@ -51,33 +69,58 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(consentData.expiresAt)
     const now = new Date()
     if ((consentData.isActive === false) || (now > expiresAt)) {
-      return NextResponse.json({ status: 'need_connect' })
+      return NextResponse.json(
+        { status: 'need_connect' },
+        {
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
+      )
     }
 
     // 상황별 응답
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+
     if (consentData.consentType === 'always') {
       // 1번: 항상 허용 + 유효함
       return NextResponse.json({
         status: 'connected',
         consentType: 'always'
-      })
+      }, { headers: corsHeaders })
     } else if (consentData.consentType === 'once') {
       // 2번: 일회성 동의 + 유효함
       return NextResponse.json({
         status: 'connected',
         consentType: 'once',
         expiresAt: consentData.expiresAt
-      })
+      }, { headers: corsHeaders })
     } else {
       // 3번: 동의 없음/만료됨
-      return NextResponse.json({ status: 'need_connect' })
+      return NextResponse.json(
+        { status: 'need_connect' },
+        { headers: corsHeaders }
+      )
     }
 
   } catch (error) {
     console.error('동의 상태 확인 실패:', error)
     return NextResponse.json(
       { error: '동의 상태 확인 중 오류가 발생했습니다.' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+      }
     )
   }
 }
