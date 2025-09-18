@@ -30,23 +30,7 @@ function ConsentPageContent() {
     console.log('=== useEffect 시작 ===')
     console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
     
-    // 1. sessionStorage에 있는 JWT 확인
-    const jwtToken = sessionStorage.getItem('openPopup')
-    console.log('=== JWT 확인 ===')
-    console.log('JWT 존재 여부:', jwtToken ? '존재함' : '없음')
-    console.log('JWT 값:', jwtToken)
-    
-    if (jwtToken) {
-      console.log('sessionStorage에서 JWT 발견 - checkLoginStatus 실행')
-      setToken(jwtToken)
-      verifyToken(jwtToken)
-    } else {
-      console.log('JWT 없음 - 로그인 상태 확인')
-      // JWT가 없으면 로그인 상태 확인 후 처리
-      checkLoginStatus()
-    }
-    
-    // 2. postMessage 리스너 추가
+    // postMessage 리스너 추가
     const handleMessage = async (event: MessageEvent) => {
       console.log('=== postMessage 수신 ===')
       console.log('event.origin:', event.origin)
@@ -62,9 +46,6 @@ function ConsentPageContent() {
           try {
             console.log('JWT 토큰 처리 시작')
             setToken(jwtToken)
-            
-            // JWT 토큰을 sessionStorage에 저장
-            sessionStorage.setItem('openPopup', jwtToken)
             
             // JWT 토큰 검증 및 파라미터 추출
             verifyToken(jwtToken)
@@ -202,11 +183,6 @@ function ConsentPageContent() {
       
       console.log('현재 shopId:', currentShopId, 'mallId:', currentMallId)
       
-      if (!currentShopId || !currentMallId) {
-        console.log('shopId 또는 mallId가 없습니다.')
-        setError("필수 파라미터가 누락되었습니다. (shopId, mallId 필요)")
-        return
-      }
       
       // Firebase 모듈 동적 import with 에러 처리
       let auth, onAuthStateChanged
@@ -645,10 +621,6 @@ function ConsentPageContent() {
     // userInfo 로그 제거 - 실시간 복호화 방식으로 변경
     console.log('개인정보: 실시간 복호화 방식 사용')
     
-    if (!mallInfo || !shopId || !mallId) {
-      console.log('handleConsent: 필수 파라미터 누락', { mallInfo: !!mallInfo, shopId, mallId })
-      return
-    }
     
     // 동의 결과 식별을 위한 고유 ID 생성
     const consentId = `${mallId}_${shopId}`
@@ -727,7 +699,6 @@ function ConsentPageContent() {
           sessionStorage.removeItem('openPopup')
           sessionStorage.removeItem('redirect_after_login')
           sessionStorage.removeItem('redirect_after_profile')
-          sessionStorage.removeItem('redirect_after_additional_info')
           sessionStorage.removeItem('from_external_popup')
           window.close()
         }, 100)
@@ -800,7 +771,6 @@ function ConsentPageContent() {
       sessionStorage.removeItem('openPopup')
       sessionStorage.removeItem('redirect_after_login')
       sessionStorage.removeItem('redirect_after_profile')
-      sessionStorage.removeItem('redirect_after_additional_info')
       sessionStorage.removeItem('from_external_popup')
       window.close()
     }
@@ -897,15 +867,7 @@ function ConsentPageContent() {
               
               {/* 팝업인 경우에만 창 닫기 버튼 표시 */}
               {window.parent !== window && (
-                <Button onClick={() => {
-                  // sessionStorage 정리
-                  sessionStorage.removeItem('openPopup')
-                  sessionStorage.removeItem('redirect_after_login')
-                  sessionStorage.removeItem('redirect_after_profile')
-                  sessionStorage.removeItem('redirect_after_additional_info')
-                  sessionStorage.removeItem('from_external_popup')
-                  window.close()
-                }} variant="outline" className="w-full">
+                <Button onClick={() => window.close()} variant="outline" className="w-full">
                   창 닫기
                 </Button>
               )}
@@ -929,9 +891,14 @@ function ConsentPageContent() {
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="mb-4">사용자 정보를 불러오는 중...</p>
+            <p className="mb-4">
+              {isLoggedIn === null ? '로그인 상태 확인 중...' : 
+               isLoggedIn === false ? '로그인 확인 완료, 정보 처리 중...' :
+               '사용자 정보를 불러오는 중...'}
+            </p>
+            {/* 30초 이상 로딩 시 문제 해결 안내 */}
             <div className="text-xs text-gray-500">
-              잠시만 기다려주세요. 정보를 확인하고 있습니다.
+              페이지 로딩이 오래 걸리면 새로고침을 시도해보세요.
             </div>
           </CardContent>
         </Card>
