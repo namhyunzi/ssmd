@@ -929,14 +929,9 @@ function ConsentPageContent() {
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="mb-4">
-              {isLoggedIn === null ? '로그인 상태 확인 중...' : 
-               isLoggedIn === false ? '로그인 확인 완료, 정보 처리 중...' :
-               '사용자 정보를 불러오는 중...'}
-            </p>
-            {/* 30초 이상 로딩 시 문제 해결 안내 */}
+            <p className="mb-4">사용자 정보를 불러오는 중...</p>
             <div className="text-xs text-gray-500">
-              페이지 로딩이 오래 걸리면 새로고침을 시도해보세요.
+              잠시만 기다려주세요. 정보를 확인하고 있습니다.
             </div>
           </CardContent>
         </Card>
