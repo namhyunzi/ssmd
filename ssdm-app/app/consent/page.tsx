@@ -879,7 +879,14 @@ function ConsentPageContent() {
               
               {/* 팝업인 경우에만 창 닫기 버튼 표시 */}
               {window.parent !== window && (
-                <Button onClick={() => window.close()} variant="outline" className="w-full">
+                <Button onClick={() => {
+                  // sessionStorage 정리
+                  sessionStorage.removeItem('openPopup')
+                  sessionStorage.removeItem('redirect_after_login')
+                  sessionStorage.removeItem('redirect_after_profile')
+                  sessionStorage.removeItem('from_external_popup')
+                  window.close()
+                }} variant="outline" className="w-full">
                   창 닫기
                 </Button>
               )}
