@@ -47,6 +47,9 @@ function ConsentPageContent() {
             console.log('JWT 토큰 처리 시작')
             setToken(jwtToken)
             
+            // JWT 토큰을 sessionStorage에 저장 (페이지 이동 후 유지용)
+            sessionStorage.setItem('openPopup', jwtToken)
+            
             // JWT 토큰 검증 및 파라미터 추출
             verifyToken(jwtToken)
             
