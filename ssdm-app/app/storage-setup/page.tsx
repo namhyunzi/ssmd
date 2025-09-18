@@ -223,7 +223,8 @@ export default function StorageSetupPage() {
           </Button>
           <button 
             onClick={() => {
- // 임시 세션 삭제
+              // 임시 세션 삭제
+              sessionStorage.removeItem('temp_profile_data')
               router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"

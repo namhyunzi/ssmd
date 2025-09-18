@@ -77,47 +77,27 @@ export default function ProfileSetupPage() {
         setCurrentUser(user)
         
         // 임시 세션에서 데이터 복원 (뒤로 버튼으로 돌아온 경우)
-        const tempName = sessionStorage.getItem('temp_profile_name')
-        const tempPhone = sessionStorage.getItem('temp_profile_phone')
-        const tempAddress = sessionStorage.getItem('temp_profile_address')
-        const tempDetailAddress = sessionStorage.getItem('temp_profile_detailAddress')
-        const tempZipCode = sessionStorage.getItem('temp_profile_zipCode')
-        const tempEmail = sessionStorage.getItem('temp_profile_email')
-        
-        if (tempName) setName(tempName)
-        if (tempPhone) {
-          // 전화번호에서 지역번호와 나머지 분리
-          if (tempPhone.startsWith('010')) {
-            setPhonePrefix('010')
-            setPhone(tempPhone.substring(3))
-          } else if (tempPhone.startsWith('011')) {
-            setPhonePrefix('011')
-            setPhone(tempPhone.substring(3))
-          } else if (tempPhone.startsWith('016')) {
-            setPhonePrefix('016')
-            setPhone(tempPhone.substring(3))
-          } else if (tempPhone.startsWith('017')) {
-            setPhonePrefix('017')
-            setPhone(tempPhone.substring(3))
-          } else if (tempPhone.startsWith('018')) {
-            setPhonePrefix('018')
-            setPhone(tempPhone.substring(3))
-          } else if (tempPhone.startsWith('019')) {
-            setPhonePrefix('019')
-            setPhone(tempPhone.substring(3))
+        const tempData = sessionStorage.getItem('temp_profile_data')
+        if (tempData) {
+          const parsedData = JSON.parse(tempData)
+          setName(parsedData.name || '')
+          setPhone(parsedData.phone || '')
+          setAddress(parsedData.address || '')
+          setDetailAddress(parsedData.detailAddress || '')
+          setZipCode(parsedData.zipCode || '')
+          
+          // 이메일 복원 로직
+          if (parsedData.email && parsedData.email !== user.email) {
+            // 다른 이메일을 사용한 경우
+            setEmailOption("different")
+            const [username, domain] = parsedData.email.split('@')
+            setEmailUsername(username)
+            setEmailDomain(domain)
+            setEmailVerificationStep("verified") // 이미 인증된 상태로 복원
+          } else {
+            // 계정 이메일과 동일한 경우
+            setEmailOption("same")
           }
-        }
-        if (tempAddress) setAddress(tempAddress)
-        if (tempDetailAddress) setDetailAddress(tempDetailAddress)
-        if (tempZipCode) setZipCode(tempZipCode)
-        
-        // 이메일 복원
-        if (tempEmail && tempEmail !== user.email) {
-          setEmailOption("different")
-          const [username, domain] = tempEmail.split('@')
-          setEmailUsername(username)
-          setEmailDomain(domain)
-          setEmailVerificationStep("verified") // 이미 인증된 상태로 복원
         }
         
         console.log('임시 세션 데이터 복원 완료')
@@ -467,15 +447,16 @@ export default function ProfileSetupPage() {
       <header className="bg-card border-b border-border p-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => {
- // 임시 세션 삭제
+            // 임시 세션 삭제
+            sessionStorage.removeItem('temp_profile_data')
             router.push('/dashboard')
           }}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button 
             onClick={() => {
- // 임시 세션 삭제
-              // 로그인 상태는 Firebase Auth로 확인하므로 localStorage 불필요
+              // 임시 세션 삭제
+              sessionStorage.removeItem('temp_profile_data')
               router.push('/dashboard')
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
@@ -845,7 +826,8 @@ export default function ProfileSetupPage() {
                 variant="outline" 
                 className="flex-1 bg-transparent"
                 onClick={() => {
- // 임시 세션 삭제
+                  // 임시 세션 삭제
+                  sessionStorage.removeItem('temp_profile_data')
                   router.push('/dashboard')
                 }}
               >
