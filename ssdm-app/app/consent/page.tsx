@@ -405,8 +405,12 @@ function ConsentPageContent() {
       if (!userProfile || !userProfile.profileCompleted) {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
-        // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
-        sessionStorage.setItem('redirect_after_profile', '/consent')
+        // JWT 토큰을 sessionStorage에 저장
+        const jwtToken = sessionStorage.getItem('openPopup')
+        if (jwtToken) {
+          sessionStorage.setItem('openPopup', jwtToken)
+        }
+        sessionStorage.setItem('redirect_after_profile', '/storage-setup')
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/profile-setup'
