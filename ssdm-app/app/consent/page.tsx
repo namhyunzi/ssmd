@@ -737,8 +737,13 @@ function ConsentPageContent() {
       console.log("window", window);
       console.log('팝업 창 닫기')
       
-      // 거부 결과 전달
-      const targetOrigin = window.location.origin
+      // 거부 결과 전달 (동의 시와 같은 targetOrigin 사용)
+      const targetOrigin = allowedDomain || null
+      console.log('거부 결과 전달:', {
+        type: 'consent_rejected',
+        timestamp: new Date().toISOString(),
+        targetOrigin
+      })
       window.opener.postMessage({
         type: 'consent_rejected',
         timestamp: new Date().toISOString()
