@@ -183,18 +183,13 @@ export default function StorageSetupPage() {
           const fromExternalPopup = sessionStorage.getItem('from_external_popup')
           if (fromExternalPopup === 'true') {
             sessionStorage.removeItem('from_external_popup')
+            // redirect_after_profile 세션 정리
+            sessionStorage.removeItem('redirect_after_profile')
             // JWT 토큰을 sessionStorage에서 가져와서 consent 페이지로 이동
             const jwtToken = sessionStorage.getItem('openPopup')
             if (jwtToken) {
-              // JWT 토큰과 함께 동의 페이지로 이동
+              // JWT 토큰과 함께 동의 페이지로 이동 (postMessage 없이)
               router.push('/consent')
-              // 페이지 로드 후 postMessage로 JWT 전달
-              setTimeout(() => {
-                window.postMessage({
-                  type: 'init_consent',
-                  jwt: jwtToken
-                }, '*')
-              }, 100)
             } else {
               router.push('/consent')
             }
