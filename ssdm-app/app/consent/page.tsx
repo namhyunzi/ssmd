@@ -146,175 +146,43 @@ function ConsentPageContent() {
     return `${mallId}-${uuid}`;
   }
 
-  // JWT 토큰 검증 함수
+  // verifyToken 함수 수정
   const verifyToken = async (jwtToken: string) => {
     try {
-      console.log('=== verifyToken 함수 시작 ===')
-      console.log('JWT 토큰:', jwtToken ? '존재함' : '없음')
-      
       const response = await fetch('/api/popup/consent', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jwt: jwtToken })
       })
       
-      console.log('JWT 검증 API 응답 상태:', response.status)
-      
       if (response.ok) {
         const { valid, payload } = await response.json()
-        console.log('JWT 검증 API 응답:', { valid, payload })
         
         if (valid && payload) {
-          console.log('JWT 토큰 검증 성공:', payload)
           setShopId(payload.shopId)
           setMallId(payload.mallId)
           
-          // UID 생성 및 매핑 정보 저장 제거
-          // await ensureUserMapping(payload.shopId, payload.mallId)
-          
-          console.log('checkLoginStatus 호출 예정 (100ms 후)')
-          // 로그인 상태 확인 시작 (파라미터 직접 전달)
-          const timer = setTimeout(() => {
-            console.log('=== checkLoginStatus 호출됨 ===')
-            checkLoginStatus(payload.shopId, payload.mallId)
-          }, 100) // 100ms 지연으로 Firebase 초기화 대기
-          
-          return () => clearTimeout(timer)
-        } else {
-          console.log('JWT 토큰이 유효하지 않음')
-          throw new Error('JWT 토큰이 유효하지 않습니다.')
+          // JWT 검증 성공 후 바로 사용자 연결 초기화
+          await initializeUserConnection(payload.mallId)
         }
       } else {
-        console.log('JWT 토큰 검증 API 실패')
-        throw new Error('JWT 토큰 검증 실패')
+        console.error('JWT 토큰 검증 실패')
+        setError('JWT 토큰 검증에 실패했습니다.')
       }
     } catch (error) {
-      console.error('JWT 토큰 검증 실패:', error)
+      console.error('JWT 토큰 검증 중 오류:', error)
       setError('JWT 토큰 검증 중 오류가 발생했습니다.')
     }
   }
 
-  const checkLoginStatus = async (shopIdParam?: string, mallIdParam?: string) => {
-    try {
-      console.log('=== checkLoginStatus 함수 시작 ===')
-      console.log('Firebase import 시작')
-      
-      // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
-      const currentShopId = shopIdParam || shopId
-      const currentMallId = mallIdParam || mallId
-      
-      console.log('현재 shopId:', currentShopId, 'mallId:', currentMallId)
-      
-      
-      // Firebase 모듈 동적 import with 에러 처리
-      let auth, onAuthStateChanged
-      try {
-        const firebaseModule = await import('@/lib/firebase')
-        auth = firebaseModule.auth
-        
-        // Firebase Auth가 제대로 초기화되었는지 확인
-        if (!auth) {
-          throw new Error('Firebase Auth 인스턴스가 생성되지 않았습니다.')
-        }
-        
-        const authModule = await import('firebase/auth')
-        onAuthStateChanged = authModule.onAuthStateChanged
-        
-        if (!onAuthStateChanged) {
-          throw new Error('Firebase Auth 메서드를 불러올 수 없습니다.')
-        }
-      } catch (importError: any) {
-        console.error('Firebase 모듈 로드 실패:', importError)
-        
-        // 구체적인 에러 메시지 제공
-        let errorMessage = 'Firebase 초기화에 실패했습니다.'
-        if (importError?.message?.includes('환경변수')) {
-          errorMessage = 'Firebase 설정이 올바르지 않습니다. 관리자에게 문의하세요.'
-        } else if (importError?.message?.includes('network')) {
-          errorMessage = '네트워크 연결을 확인하고 다시 시도해주세요.'
-        } else {
-          errorMessage = 'Firebase 초기화에 실패했습니다. 페이지를 새로고침해주세요.'
-        }
-        
-        setError(errorMessage)
-        return
-      }
-      
-      // Auth 상태 확인을 위한 타임아웃 설정 (5초)
-      const currentUser = await Promise.race([
-        new Promise<any>((resolve) => {
-          const unsubscribe = onAuthStateChanged(auth, (user) => {
-            console.log('Auth state changed:', !!user, user?.uid)
-            unsubscribe()
-            resolve(user)
-          })
-        }),
-        new Promise<null>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('로그인 상태 확인 타임아웃'))
-          }, 5000)
-        })
-      ])
-      
-      if (!currentUser) {
-        // 로그인되지 않은 경우 → 부모 창에 로그인 요청 또는 로그인 페이지로 리디렉션
-        console.log('로그인되지 않음 - 처리 방법 결정')
-        
-        // 외부 팝업인 경우 부모 창에 로그인 필요 메시지 전달
-        if (window.parent !== window) {
-          window.parent.postMessage({
-            type: 'login_required',
-            message: '로그인이 필요합니다.',
-            returnUrl: '/consent'
-          }, '*')
-          
-          // 팝업 환경에서는 에러 메시지 표시
-          setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
-        } else {
-          // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          // JWT 토큰을 세션에 저장
-          if (token) {
-            sessionStorage.setItem('openPopup', token)
-          }
-          // 외부 팝업에서 온 경우를 표시
-          sessionStorage.setItem('from_external_popup', 'true')
-          window.location.href = '/'
-        }
-        return
-      }
-      
-      // 로그인된 경우 → 매핑 생성
-      await ensureUserMapping(currentShopId!, currentMallId!)
-      
-      console.log('=== 로그인 상태 확인 완료 ===')
-      console.log('로그인된 사용자 UID:', currentUser.uid)
-      
-      setIsLoggedIn(true)
-      console.log('initializeUserConnection 호출 예정')
-      // 로그인된 경우 동의 프로세스 진행
-      await initializeUserConnection(currentMallId!)
-      
-    } catch (error: any) {
-      console.error('로그인 상태 확인 오류:', error)
-      
-      if (error?.message?.includes('타임아웃')) {
-        setError('로그인 상태 확인이 시간 초과되었습니다. 페이지를 새로고침해주세요.')
-      } else {
-        setError('로그인 상태를 확인할 수 없습니다. 네트워크 연결을 확인하고 다시 시도해주세요.')
-      }
-    }
-  }
-
   const initializeUserConnection = async (mallIdParam?: string) => {
+    setLoading(true)
+    
     try {
       console.log('=== initializeUserConnection 함수 시작 ===')
-      setLoading(true)
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId
-      const currentShopId = shopId
       
       console.log('현재 mallId:', currentMallId)
       
@@ -348,7 +216,7 @@ function ConsentPageContent() {
       
     } catch (error) {
       console.error('사용자 연결 초기화 오류:', error)
-      setError('사용자 연결 초기화 중 오류가 발생했습니다.')
+      setError(`사용자 연결 초기화 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     } finally {
       setLoading(false)
     }
@@ -901,7 +769,7 @@ function ConsentPageContent() {
                   if (jwtToken) {
                     verifyToken(jwtToken)
                   } else {
-                    checkLoginStatus()
+                    setError("JWT 토큰이 없습니다. 다시 시도해주세요.")
                   }
                 }} 
                 className="w-full"
