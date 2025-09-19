@@ -68,6 +68,12 @@ export default function LoginPage() {
             sessionStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
+            // 팝업인지 확인 후 적절한 페이지로 이동
+            if (window.opener && window.opener !== window) {
+              router.push('/consent')
+            } else {
+              router.push('/dashboard')
+            }
           }
         }
       }
