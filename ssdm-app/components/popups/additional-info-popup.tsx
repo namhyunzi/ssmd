@@ -90,10 +90,10 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           
           if (mappingSnapshot.exists()) {
             const mappingData = mappingSnapshot.val()
-            const uid = mappingData.uid
+            const ssdmUid = mappingData.ssdmUid
             
-            // 2. 조회된 uid로 사용자 프로필 조회
-            const userProfileRef = ref(realtimeDb, `users/${uid}/profile`)
+            // 2. 조회된 ssdmUid로 사용자 프로필 조회
+            const userProfileRef = ref(realtimeDb, `users/${ssdmUid}/profile`)
             const userSnapshot = await get(userProfileRef)
             
             if (userSnapshot.exists()) {
@@ -289,9 +289,9 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                     value={zipCode}
                     onChange={(e) => setZipCode(e.target.value)}
                     className={`w-24 ${
-                      isFieldMissing('address') && zipCode.trim() === "" 
+                      hasUserInteracted.address && validationErrors.address
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                        : "focus:border-primary focus:ring-primary"
+                        : "border-gray-300 focus:border-primary focus:ring-primary"
                     }`}
                   />
                   <Button 
