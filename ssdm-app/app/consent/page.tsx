@@ -247,7 +247,6 @@ function ConsentPageContent() {
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
           // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
-          sessionStorage.setItem('redirect_after_login', '/consent')
           // 외부 팝업에서 온 경우를 표시
           sessionStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
