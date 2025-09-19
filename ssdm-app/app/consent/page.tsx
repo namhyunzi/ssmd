@@ -586,8 +586,8 @@ function ConsentPageContent() {
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, set } = await import('firebase/database')
       
-      // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/uid)
-      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${uid}`)
+      // mallServiceConsents 테이블에 저장 (올바른 구조: uid/mallId/shopId)
+      const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
       await set(consentRef, {
         consentType,
         createdAt: new Date().toISOString(),

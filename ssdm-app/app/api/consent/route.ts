@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     };
 
     // 동의 데이터 저장 (사용자별, 쇼핑몰별, shopId별)
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId || 'default'}`);
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId}`);
     await set(consentRef, consentData);
 
     console.log(`6개월 동의 저장: ${uid}, 만료일: ${expiresAt}`);
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
     const { mallId, userId } = parsed;
 
     // 동의 데이터 조회
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId || 'default'}`);
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId}`);
     const snapshot = await get(consentRef);
 
     if (!snapshot.exists()) {
