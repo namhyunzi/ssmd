@@ -52,7 +52,7 @@ export default function LoginPage() {
         // 외부 팝업에서 온 경우 약관동의 팝업 강제 표시
         if (fromExternalPopup === 'true' && isNewUser) {
           console.log('외부 팝업에서 온 신규 사용자 - 약관동의 팝업 강제 표시')
-          localStorage.removeItem('from_external_popup')
+          sessionStorage.removeItem('from_external_popup')
           setPendingGoogleUser(user)
           setShowTermsPopup(true)
           return
@@ -64,8 +64,8 @@ export default function LoginPage() {
                    sessionStorage.getItem('redirect_after_profile') || 
                    sessionStorage.getItem('redirect_after_login')
           if (redirectUrl) {
-            localStorage.removeItem('redirect_after_login')
-            localStorage.removeItem('from_external_popup')
+            sessionStorage.removeItem('redirect_after_login')
+            sessionStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
             router.push('/dashboard')
@@ -135,9 +135,9 @@ export default function LoginPage() {
       setBlockUntil(null)
       
       // 로그인 후 돌아갈 URL이 있는지 확인
-      const redirectUrl = localStorage.getItem('redirect_after_login')
+      const redirectUrl = sessionStorage.getItem('redirect_after_login')
       if (redirectUrl) {
-        localStorage.removeItem('redirect_after_login')
+        sessionStorage.removeItem('redirect_after_login')
         router.push(redirectUrl)
       } else {
         router.push("/dashboard")
@@ -215,9 +215,9 @@ export default function LoginPage() {
         console.log('신규 사용자 처리 완료')
       } else {
         // 기존 사용자의 경우 리디렉션 URL 확인 후 이동
-        const redirectUrl = localStorage.getItem('redirect_after_login')
+        const redirectUrl = sessionStorage.getItem('redirect_after_login')
         if (redirectUrl) {
-          localStorage.removeItem('redirect_after_login')
+          sessionStorage.removeItem('redirect_after_login')
           router.push(redirectUrl)
         } else {
           router.push("/dashboard")
@@ -247,11 +247,7 @@ export default function LoginPage() {
     }
   }
 
-  const handleTermsConsent = async (consentValues: {
-    termsAgreed: boolean
-    privacyAgreed: boolean
-    marketingAgreed: boolean
-  }) => {
+  const handleTermsConsent = async () => {
     setShowTermsPopup(false)
     
     try {
@@ -265,11 +261,11 @@ export default function LoginPage() {
           updatedAt: new Date().toISOString()
         }
         
-        // 2. 동의 정보 저장 (전달받은 실제 값 사용)
+        // 2. 동의 정보 저장
         const consentData = {
-          termsAgreed: consentValues.termsAgreed,
-          privacyAgreed: consentValues.privacyAgreed,
-          marketingAgreed: consentValues.marketingAgreed,
+          termsAgreed: true,
+          privacyAgreed: true,
+          marketingAgreed: false, // 기본값
           agreedAt: new Date().toISOString(),
           createdAt: new Date().toISOString()
         }
