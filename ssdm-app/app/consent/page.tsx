@@ -76,7 +76,6 @@ function ConsentPageContent() {
     const handleBeforeUnload = () => {
       // 팝업인 경우에만 세션 정리
       if (window.opener && window.opener !== window) {
-        sessionStorage.removeItem('openPopup')
         sessionStorage.removeItem('redirect_after_login')
         sessionStorage.removeItem('redirect_after_profile')
         sessionStorage.removeItem('from_external_popup')
