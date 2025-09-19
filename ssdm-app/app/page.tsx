@@ -52,20 +52,27 @@ export default function LoginPage() {
         // 외부 팝업에서 온 경우 약관동의 팝업 강제 표시
         if (fromExternalPopup === 'true' && isNewUser) {
           console.log('외부 팝업에서 온 신규 사용자 - 약관동의 팝업 강제 표시')
-          sessionStorage.removeItem('from_external_popup')
+          localStorage.removeItem('from_external_popup')
           setPendingGoogleUser(user)
           setShowTermsPopup(true)
           return
         }
         
         if (!isNewUser) {
+          // JWT 토큰이 있으면 consent로 리다이렉트
+          const jwtToken = sessionStorage.getItem('openPopup')
+          if (jwtToken) {
+            router.push('/consent')
+            return
+          }
+          
           // 기존 사용자만 리디렉션 처리
           const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
                    sessionStorage.getItem('redirect_after_profile') || 
                    sessionStorage.getItem('redirect_after_login')
           if (redirectUrl) {
-            sessionStorage.removeItem('redirect_after_login')
-            sessionStorage.removeItem('from_external_popup')
+            localStorage.removeItem('redirect_after_login')
+            localStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
             router.push('/dashboard')
@@ -135,9 +142,9 @@ export default function LoginPage() {
       setBlockUntil(null)
       
       // 로그인 후 돌아갈 URL이 있는지 확인
-      const redirectUrl = sessionStorage.getItem('redirect_after_login')
+      const redirectUrl = localStorage.getItem('redirect_after_login')
       if (redirectUrl) {
-        sessionStorage.removeItem('redirect_after_login')
+        localStorage.removeItem('redirect_after_login')
         router.push(redirectUrl)
       } else {
         router.push("/dashboard")
@@ -215,9 +222,9 @@ export default function LoginPage() {
         console.log('신규 사용자 처리 완료')
       } else {
         // 기존 사용자의 경우 리디렉션 URL 확인 후 이동
-        const redirectUrl = sessionStorage.getItem('redirect_after_login')
+        const redirectUrl = localStorage.getItem('redirect_after_login')
         if (redirectUrl) {
-          sessionStorage.removeItem('redirect_after_login')
+          localStorage.removeItem('redirect_after_login')
           router.push(redirectUrl)
         } else {
           router.push("/dashboard")

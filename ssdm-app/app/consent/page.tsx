@@ -265,7 +265,10 @@ function ConsentPageContent() {
           setError('로그인이 필요합니다. 부모 창에서 로그인 후 다시 시도해주세요.')
         } else {
           // 일반 페이지인 경우 로그인 페이지로 리디렉션
-          // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
+          // JWT 토큰을 세션에 저장
+          if (token) {
+            sessionStorage.setItem('openPopup', token)
+          }
           // 외부 팝업에서 온 경우를 표시
           sessionStorage.setItem('from_external_popup', 'true')
           window.location.href = '/'
