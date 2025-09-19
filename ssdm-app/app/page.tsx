@@ -68,7 +68,6 @@ export default function LoginPage() {
             sessionStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
-            router.push('/consent')
           }
         }
       }
