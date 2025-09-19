@@ -71,6 +71,15 @@ function ConsentPageContent() {
     }
     }, [])
 
+  // JWT가 없을 때는 사용자 연결 초기화를 하지 않음
+  useEffect(() => {
+    if (!token && !mallId && !shopId) {
+      console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
+      setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
+      return
+    }
+  }, [token, mallId, shopId])
+
   useEffect(() => {
     // 팝업이 닫힐 때만 세션 정리 (X 버튼으로 닫기 감지)
     const handleBeforeUnload = () => {
@@ -164,6 +173,9 @@ function ConsentPageContent() {
           
           // JWT 검증 성공 후 바로 사용자 연결 초기화
           await initializeUserConnection(payload.mallId)
+        } else {
+          console.error('JWT 토큰 검증 실패: 유효하지 않은 토큰')
+          setError('JWT 토큰이 유효하지 않습니다.')
         }
       } else {
         console.error('JWT 토큰 검증 실패')
@@ -180,6 +192,13 @@ function ConsentPageContent() {
     
     try {
       console.log('=== initializeUserConnection 함수 시작 ===')
+      
+      // JWT가 없으면 사용자 연결 초기화를 하지 않음
+      if (!token || !mallId || !shopId) {
+        console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
+        setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
+        return
+      }
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId
