@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
   const router = useRouter()
 
-  // 이미 로그인된 사용자는 대시보드로 리다이렉트 (신규 사용자가 아닐 때만)
+  // 로그인 상태 변경 감지 (자동 리다이렉션 제거)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && !showTermsPopup && !pendingGoogleUser) {
@@ -58,24 +58,8 @@ export default function LoginPage() {
           return
         }
         
-        // 61-78줄: 로그인 성공 후 리다이렉션 로직
-        if (!isNewUser) {
-          const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
-                  sessionStorage.getItem('redirect_after_profile') || 
-                  sessionStorage.getItem('redirect_after_login')
-          if (redirectUrl) {
-            sessionStorage.removeItem('redirect_after_login')
-            sessionStorage.removeItem('from_external_popup')
-            router.push(redirectUrl)
-          } else {
-            // 팝업인지 확인 후 적절한 페이지로 이동
-            if (window.opener && window.opener !== window) {
-              router.push('/consent')  // ← 이 부분이 올바른 플로우
-            } else {
-              router.push('/dashboard')
-            }
-          }
-        }
+        // 자동 리다이렉션 제거 - 사용자가 직접 로그인할 때만 처리
+        console.log('로그인된 사용자 감지되었지만 자동 리다이렉션하지 않음')
       }
     })
 
@@ -144,7 +128,18 @@ export default function LoginPage() {
         localStorage.removeItem('redirect_after_login')
         router.push(redirectUrl)
       } else {
-        router.push("/dashboard")
+        // 팝업인지 확인 후 적절한 페이지로 이동
+        if (window.opener && window.opener !== window) {
+          // JWT가 있을 때만 consent로 이동
+          const jwtToken = sessionStorage.getItem('openPopup')
+          if (jwtToken) {
+            router.push('/consent')
+          } else {
+            router.push('/dashboard')
+          }
+        } else {
+          router.push('/dashboard')
+        }
       }
     } catch (error: any) {
       // 로그인 실패 시 비밀번호 입력란 지우기
@@ -224,7 +219,18 @@ export default function LoginPage() {
           localStorage.removeItem('redirect_after_login')
           router.push(redirectUrl)
         } else {
-          router.push("/dashboard")
+          // 팝업인지 확인 후 적절한 페이지로 이동
+          if (window.opener && window.opener !== window) {
+            // JWT가 있을 때만 consent로 이동
+            const jwtToken = sessionStorage.getItem('openPopup')
+            if (jwtToken) {
+              router.push('/consent')
+            } else {
+              router.push('/dashboard')
+            }
+          } else {
+            router.push('/dashboard')
+          }
         }
       }
     } catch (error: any) {
