@@ -75,7 +75,7 @@ export default function LoginPage() {
             localStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
-            router.push('/profile-setup')
+            router.push('/consent')
           }
         }
       }
