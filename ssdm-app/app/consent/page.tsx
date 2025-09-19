@@ -56,13 +56,14 @@ function ConsentPageContent() {
             console.log('JWT 토큰 처리 시작')
             setToken(jwtToken)
             
-            // JWT 토큰을 sessionStorage에 저장 (페이지 이동 후 유지용)
+            // JWT 검증 먼저 시도
+            await verifyToken(jwtToken)
+            
+            // 검증 성공 시에만 세션에 저장
             sessionStorage.setItem('openPopup', jwtToken)
             
-            // JWT 토큰 검증 및 파라미터 추출
-            verifyToken(jwtToken)
-            
           } catch (error) {
+            // 검증 실패 시 세션에 저장하지 않음
             console.error('JWT 처리 실패:', error)
             setError("JWT 토큰 처리 중 오류가 발생했습니다.")
           }

@@ -100,7 +100,7 @@ async function checkConsentStatus(shopId: string, mallId: string): Promise<Conse
 
 /**
  * 동의 상태 확인 API
- * POST /api/consent-status
+ * POST -status
  */
 export async function POST(request: NextRequest) {
   try {
