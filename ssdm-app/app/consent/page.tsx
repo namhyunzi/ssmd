@@ -27,13 +27,9 @@ function ConsentPageContent() {
   
 
   useEffect(() => {
-    console.log('=== useEffect 시작 ===')
-    console.log('현재 환경:', window.parent === window ? '일반 페이지' : '팝업/iframe')
-    
     // 1. sessionStorage에서 JWT 확인 (분산저장소 설정 완료 후 돌아온 경우)
     const jwtToken = sessionStorage.getItem('openPopup')
     if (jwtToken) {
-      console.log('sessionStorage에서 JWT 발견')
       setToken(jwtToken)
       verifyToken(jwtToken)
       return
@@ -41,19 +37,12 @@ function ConsentPageContent() {
     
     // 2. postMessage 리스너 추가 (팝업에서 직접 이동한 경우)
     const handleMessage = async (event: MessageEvent) => {
-      console.log('=== postMessage 수신 ===')
-      console.log('event.origin:', event.origin)
-      console.log('event.data:', event.data)
-      console.log('event.data.type:', event.data.type)
-      
       if (event.data.type === 'init_consent') {
-        console.log('init_consent 메시지 수신됨!')
         const { jwt: jwtToken } = event.data
         console.log('받은 JWT:', jwtToken ? '존재함' : '없음')
         
         if (jwtToken) {
           try {
-            console.log('JWT 토큰 처리 시작')
             setToken(jwtToken)
             
             // JWT 검증 먼저 시도
@@ -68,11 +57,8 @@ function ConsentPageContent() {
             setError("JWT 토큰 처리 중 오류가 발생했습니다.")
           }
         } else {
-          console.log('JWT 토큰 누락')
           setError("JWT 토큰이 누락되었습니다.")
         }
-      } else {
-        console.log('다른 타입의 메시지:', event.data.type)
       }
     }
 
