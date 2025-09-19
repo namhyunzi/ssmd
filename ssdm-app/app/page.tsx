@@ -59,20 +59,13 @@ export default function LoginPage() {
         }
         
         if (!isNewUser) {
-          // JWT 토큰이 있으면 consent로 리다이렉트
-          const jwtToken = sessionStorage.getItem('openPopup')
-          if (jwtToken) {
-            router.push('/consent')
-            return
-          }
-          
           // 기존 사용자만 리디렉션 처리
           const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
                    sessionStorage.getItem('redirect_after_profile') || 
                    sessionStorage.getItem('redirect_after_login')
           if (redirectUrl) {
-            localStorage.removeItem('redirect_after_login')
-            localStorage.removeItem('from_external_popup')
+            sessionStorage.removeItem('redirect_after_login')
+            sessionStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
             router.push('/consent')

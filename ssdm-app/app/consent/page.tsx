@@ -377,9 +377,9 @@ function ConsentPageContent() {
       if (!userSnapshot.exists()) {
         console.log('사용자 정보를 찾을 수 없습니다 - 로그인 페이지로 리디렉션')
         
-        // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
-        // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
-        sessionStorage.setItem('redirect_after_login', '/consent')
+        // 리다이렉트 경로 설정하지 않음 (무한 루프 방지)
+        console.log('리다이렉트 경로 설정 안함')
+        
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/'
