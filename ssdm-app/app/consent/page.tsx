@@ -94,18 +94,14 @@ function ConsentPageContent() {
       console.log('새 UID 생성:', uid)
       
       // 매핑 정보 저장
-      const { auth } = await import('@/lib/firebase')
       await set(mappingRef, {
         uid: uid,
-        ssdmUid: auth.currentUser?.uid,
         createdAt: new Date().toISOString(),
         isActive: true
       })
       
-      console.log('사용자 매핑 정보 저장 완료:', { shopId, mallId, uid })
       return uid
     } catch (error) {
-      console.error('사용자 매핑 정보 확인/생성 오류:', error)
       throw error
     }
   }
@@ -135,7 +131,6 @@ function ConsentPageContent() {
   // JWT 토큰 검증 함수
   const verifyToken = async (jwtToken: string) => {
     try {
-      console.log('JWT 토큰 검증 시작')
       
       const response = await fetch('/api/popup/consent', {
         method: 'POST',
@@ -153,8 +148,8 @@ function ConsentPageContent() {
           setShopId(payload.shopId)
           setMallId(payload.mallId)
           
-          // UID 생성 및 매핑 정보 저장
-          await ensureUserMapping(payload.shopId, payload.mallId)
+          // UID 생성 및 매핑 정보 저장 제거
+          // await ensureUserMapping(payload.shopId, payload.mallId)
           
           // 로그인 상태 확인 시작 (파라미터 직접 전달)
           const timer = setTimeout(() => {
@@ -190,7 +185,6 @@ function ConsentPageContent() {
       try {
         const firebaseModule = await import('@/lib/firebase')
         auth = firebaseModule.auth
-        console.log('Firebase auth import 완료:', !!auth)
         
         // Firebase Auth가 제대로 초기화되었는지 확인
         if (!auth) {
@@ -199,7 +193,6 @@ function ConsentPageContent() {
         
         const authModule = await import('firebase/auth')
         onAuthStateChanged = authModule.onAuthStateChanged
-        console.log('onAuthStateChanged import 완료:', !!onAuthStateChanged)
         
         if (!onAuthStateChanged) {
           throw new Error('Firebase Auth 메서드를 불러올 수 없습니다.')
@@ -262,13 +255,16 @@ function ConsentPageContent() {
         return
       }
       
+      // 로그인된 경우 → 매핑 생성
+      await ensureUserMapping(currentShopId!, currentMallId!)
+      
       console.log('=== 로그인 상태 확인 완료 ===')
       console.log('로그인된 사용자 UID:', currentUser.uid)
       console.log('JWT에서 추출된 파라미터 - shopId:', currentShopId, 'mallId:', currentMallId)
       
       setIsLoggedIn(true)
       // 로그인된 경우 동의 프로세스 진행
-      await initializeUserConnection(currentMallId)
+      await initializeUserConnection(currentMallId!)
       
     } catch (error: any) {
       console.error('로그인 상태 확인 오류:', error)
