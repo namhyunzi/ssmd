@@ -149,6 +149,8 @@ function ConsentPageContent() {
   // JWT 토큰 검증 함수
   const verifyToken = async (jwtToken: string) => {
     try {
+      console.log('=== verifyToken 함수 시작 ===')
+      console.log('JWT 토큰:', jwtToken ? '존재함' : '없음')
       
       const response = await fetch('/api/popup/consent', {
         method: 'POST',
@@ -158,8 +160,11 @@ function ConsentPageContent() {
         body: JSON.stringify({ jwt: jwtToken })
       })
       
+      console.log('JWT 검증 API 응답 상태:', response.status)
+      
       if (response.ok) {
         const { valid, payload } = await response.json()
+        console.log('JWT 검증 API 응답:', { valid, payload })
         
         if (valid && payload) {
           console.log('JWT 토큰 검증 성공:', payload)
@@ -169,16 +174,20 @@ function ConsentPageContent() {
           // UID 생성 및 매핑 정보 저장 제거
           // await ensureUserMapping(payload.shopId, payload.mallId)
           
+          console.log('checkLoginStatus 호출 예정 (100ms 후)')
           // 로그인 상태 확인 시작 (파라미터 직접 전달)
           const timer = setTimeout(() => {
+            console.log('=== checkLoginStatus 호출됨 ===')
             checkLoginStatus(payload.shopId, payload.mallId)
           }, 100) // 100ms 지연으로 Firebase 초기화 대기
           
           return () => clearTimeout(timer)
         } else {
+          console.log('JWT 토큰이 유효하지 않음')
           throw new Error('JWT 토큰이 유효하지 않습니다.')
         }
       } else {
+        console.log('JWT 토큰 검증 API 실패')
         throw new Error('JWT 토큰 검증 실패')
       }
     } catch (error) {
@@ -189,6 +198,7 @@ function ConsentPageContent() {
 
   const checkLoginStatus = async (shopIdParam?: string, mallIdParam?: string) => {
     try {
+      console.log('=== checkLoginStatus 함수 시작 ===')
       console.log('Firebase import 시작')
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
@@ -280,9 +290,9 @@ function ConsentPageContent() {
       
       console.log('=== 로그인 상태 확인 완료 ===')
       console.log('로그인된 사용자 UID:', currentUser.uid)
-      console.log('JWT에서 추출된 파라미터 - shopId:', currentShopId, 'mallId:', currentMallId)
       
       setIsLoggedIn(true)
+      console.log('initializeUserConnection 호출 예정')
       // 로그인된 경우 동의 프로세스 진행
       await initializeUserConnection(currentMallId!)
       
@@ -299,17 +309,22 @@ function ConsentPageContent() {
 
   const initializeUserConnection = async (mallIdParam?: string) => {
     try {
+      console.log('=== initializeUserConnection 함수 시작 ===')
       setLoading(true)
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId
       const currentShopId = shopId
       
+      console.log('현재 mallId:', currentMallId)
+      
       // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
       const allowedFields = await getMallAllowedFields(currentMallId!)
+      console.log('허용 필드:', allowedFields)
       
       if (!allowedFields || allowedFields.length === 0) {
+        console.log('허용 필드가 없음')
         setError('쇼핑몰의 허용 필드가 설정되지 않았습니다.')
         return
       }
@@ -319,14 +334,16 @@ function ConsentPageContent() {
       const currentUser = auth.currentUser
       
       if (!currentUser) {
+        console.log('로그인된 사용자 없음')
         setError('로그인된 사용자 정보를 찾을 수 없습니다.')
         return
       }
       
       const userId = currentUser.uid
-      console.log('사용할 실제 사용자 UID:', userId)
+      console.log('사용자 UID:', userId)
       
       // 3. 사용자 데이터 로드
+      console.log('loadUserData 호출 예정')
       await loadUserData(userId, allowedFields, currentMallId || undefined)
       
     } catch (error) {
@@ -340,12 +357,12 @@ function ConsentPageContent() {
 
   const loadUserData = async (uid: string, requiredFields: string[], mallIdParam?: string) => {
     try {
+      console.log('=== loadUserData 함수 시작 ===')
       // Firebase Auth UID를 그대로 사용 (별도 파싱 불필요)
       const userId = uid
       
-      console.log('=== 사용자 데이터 로드 디버깅 ===')
+      console.log('=== 사용자 데이터 로드 시작 ===')
       console.log('Firebase Auth UID:', uid)
-      console.log('조회할 경로: users/' + userId)
       
       // Firebase에서 사용자 데이터 로드
       const { realtimeDb } = await import('@/lib/firebase')
@@ -358,8 +375,7 @@ function ConsentPageContent() {
       console.log('사용자 데이터 존재 여부:', userSnapshot.exists())
       
       if (!userSnapshot.exists()) {
-        console.log('사용자 정보를 찾을 수 없습니다. userId:', userId)
-        console.log('사용자 데이터가 없으므로 로그인 페이지로 리디렉션')
+        console.log('사용자 정보를 찾을 수 없습니다 - 로그인 페이지로 리디렉션')
         
         // 사용자 데이터가 없으면 로그인 페이지로 리디렉션
         // JWT 토큰만 저장하고 쿼리스트링은 저장하지 않음
@@ -379,7 +395,7 @@ function ConsentPageContent() {
       let userProfile = null
       try {
         userProfile = await getUserProfile(auth.currentUser!)
-        console.log('개인정보 조회 성공:', userProfile)
+        console.log('개인정보 조회 성공')
       } catch (error) {
         console.error('개인정보 조회 실패:', error)
         setError('개인정보를 불러오는 중 오류가 발생했습니다.')
@@ -419,6 +435,7 @@ function ConsentPageContent() {
       }
       
       // 1. 프로필 완료 여부 확인 (profile 객체에서 확인)
+      console.log('프로필 완료 여부 확인:', userProfile?.profileCompleted)
       if (!userProfile || !userProfile.profileCompleted) {
         // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
         console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
@@ -430,6 +447,7 @@ function ConsentPageContent() {
         sessionStorage.setItem('redirect_after_profile', '/storage-setup')
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
+        console.log('개인정보 설정페이지로 리디렉션 실행')
         window.location.href = '/profile-setup'
         return
       }
@@ -440,8 +458,10 @@ function ConsentPageContent() {
         return !value || value.trim() === ""
       })
       
+      console.log('누락된 필드 확인:', missingFields)
       if (missingFields.length > 0) {
         // 요청 정보보다 적게 입력한 사람 → 추가정보 입력
+        console.log('누락된 필드 있음 - 추가정보 입력 팝업 표시')
         setShowAdditionalInfo(true)
         // 쇼핑몰 ID는 파라미터에서 가져옴
         const mallIdFromUid = mallIdParam || mallId
