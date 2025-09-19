@@ -107,8 +107,10 @@ function ConsentPageContent() {
       console.log('새 UID 생성:', uid)
       
       // 매핑 정보 저장
+      const { auth } = await import('@/lib/firebase')
       await set(mappingRef, {
         uid: uid,
+        ssdmUid: auth.currentUser?.uid,
         createdAt: new Date().toISOString(),
         isActive: true
       })
