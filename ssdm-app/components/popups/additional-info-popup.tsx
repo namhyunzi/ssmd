@@ -80,13 +80,20 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           const { payload } = await response.json()
           const { shopId, mallId } = payload
           
-          // 사용자 기존 개인정보 조회 (올바른 경로 사용)
-          const { auth } = await import('@/lib/firebase')
-          if (auth.currentUser) {
-            const { realtimeDb } = await import('@/lib/firebase')
-            const { ref, get } = await import('firebase/database')
+          // 사용자 기존 개인정보 조회 (userMappings에서 uid 조회 후 사용자 프로필 조회)
+          const { realtimeDb } = await import('@/lib/firebase')
+          const { ref, get } = await import('firebase/database')
+          
+          // 1. userMappings에서 uid 조회
+          const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
+          const mappingSnapshot = await get(mappingRef)
+          
+          if (mappingSnapshot.exists()) {
+            const mappingData = mappingSnapshot.val()
+            const uid = mappingData.uid
             
-            const userProfileRef = ref(realtimeDb, `users/${auth.currentUser.uid}/profile`)
+            // 2. 조회된 uid로 사용자 프로필 조회
+            const userProfileRef = ref(realtimeDb, `users/${uid}/profile`)
             const userSnapshot = await get(userProfileRef)
             
             if (userSnapshot.exists()) {
