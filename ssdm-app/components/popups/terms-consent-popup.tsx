@@ -10,7 +10,11 @@ import { Shield, FileText, Lock } from "lucide-react"
 interface TermsConsentPopupProps {
   isOpen: boolean
   onClose: () => void
-  onConsent: () => void
+  onConsent: (consentValues: {
+    termsAgreed: boolean
+    privacyAgreed: boolean
+    marketingAgreed: boolean
+  }) => void
   userEmail?: string
   userName?: string
 }
@@ -28,7 +32,11 @@ export default function TermsConsentPopup({
 
   const handleConsent = () => {
     if (termsAgreed && privacyAgreed) {
-      onConsent()
+      onConsent({
+        termsAgreed,
+        privacyAgreed,
+        marketingAgreed
+      })
     }
   }
 
