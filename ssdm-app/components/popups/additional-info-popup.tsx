@@ -64,7 +64,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
   // useEffect에서 데이터 로드
   useEffect(() => {
-    const loadJwtAndMallData = async () => {
+    const loadUserData = async () => {
       const jwtToken = sessionStorage.getItem('openPopup')
       if (!jwtToken) return
       
@@ -80,25 +80,33 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           const { payload } = await response.json()
           const { shopId, mallId } = payload
           
-          // 실시간 데이터베이스에서 쇼핑몰 정보 조회
-          const { realtimeDb } = await import('@/lib/firebase')
-          const { ref, get } = await import('firebase/database')
-          
-          const mallRef = ref(realtimeDb, `malls/${mallId}`)
-          const mallSnapshot = await get(mallRef)
-          
-          if (mallSnapshot.exists()) {
-            const mallData = mallSnapshot.val()
-            // 쇼핑몰 정보를 바로 사용 (별도 state 저장 불필요)
-            console.log('쇼핑몰 정보:', mallData.mallName)
+          // 사용자 기존 개인정보 조회 (올바른 경로 사용)
+          const { auth } = await import('@/lib/firebase')
+          if (auth.currentUser) {
+            const { realtimeDb } = await import('@/lib/firebase')
+            const { ref, get } = await import('firebase/database')
+            
+            const userProfileRef = ref(realtimeDb, `users/${auth.currentUser.uid}/profile`)
+            const userSnapshot = await get(userProfileRef)
+            
+            if (userSnapshot.exists()) {
+              const userProfile = userSnapshot.val()
+              setExistingData({
+                name: userProfile.name || '',
+                phone: formatPhoneNumber(userProfile.phone || ''),
+                address: userProfile.address || '',
+                zipCode: userProfile.zipCode || '',
+                detailAddress: userProfile.detailAddress || ''
+              })
+            }
           }
         }
       } catch (error) {
-        console.error('JWT 및 쇼핑몰 정보 조회 실패:', error)
+        console.error('JWT 및 사용자 데이터 조회 실패:', error)
       }
     }
     
-    loadJwtAndMallData()
+    loadUserData()
   }, [])
 
   // Firebase에서 개인정보 조회하여 표시
@@ -122,7 +130,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
   const isFormValid = () => {
     if (isFieldMissing('name') && name.trim() === "") return false
     if (isFieldMissing('phone') && phone.trim() === "") return false
-    if (isFieldMissing('address') && address.trim() === "") return false
+    if (isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "")) return false
     return true
   }
 
@@ -310,7 +318,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   className={`${
                     hasUserInteracted.address && validationErrors.address
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                      : "focus:border-primary focus:ring-primary"
+                      : "border-gray-300 focus:border-primary focus:ring-primary"
                   }`}
                 />
                 <Input 
@@ -362,7 +370,15 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
           <Button 
             className="w-full h-12 bg-primary hover:bg-primary/90"
+            disabled={!isFormValid()}
             onClick={async () => {
+              // 모든 필드에 대해 사용자 상호작용 상태를 true로 설정
+              setHasUserInteracted({
+                name: true,
+                phone: true,
+                address: true
+              })
+              
               // 검증 오류 초기화
               setValidationErrors({ name: '', phone: '', address: '' })
               
