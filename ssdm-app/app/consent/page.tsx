@@ -69,9 +69,28 @@ function ConsentPageContent() {
     return () => {
       window.removeEventListener('message', handleMessage)
     }
-  }, [])
+    }, [])
 
-  // 사용자 매핑 정보 확인 및 생성 함수
+  useEffect(() => {
+    // 팝업이 닫힐 때만 세션 정리 (X 버튼으로 닫기 감지)
+    const handleBeforeUnload = () => {
+      // 팝업인 경우에만 세션 정리
+      if (window.opener && window.opener !== window) {
+        sessionStorage.removeItem('openPopup')
+        sessionStorage.removeItem('redirect_after_login')
+        sessionStorage.removeItem('redirect_after_profile')
+        sessionStorage.removeItem('from_external_popup')
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
+  
+    // 사용자 매핑 정보 확인 및 생성 함수
   const ensureUserMapping = async (shopId: string, mallId: string) => {
     try {
       console.log('사용자 매핑 정보 확인 시작:', { shopId, mallId })
