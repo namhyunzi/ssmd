@@ -58,24 +58,25 @@ export default function LoginPage() {
           return
         }
         
-    // 61-78줄: 로그인 성공 후 리다이렉션 로직
-    if (!isNewUser) {
-      const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
-              sessionStorage.getItem('redirect_after_profile') || 
-              sessionStorage.getItem('redirect_after_login')
-      if (redirectUrl) {
-        sessionStorage.removeItem('redirect_after_login')
-        sessionStorage.removeItem('from_external_popup')
-        router.push(redirectUrl)
-      } else {
-        // 팝업인지 확인 후 적절한 페이지로 이동
-        if (window.opener && window.opener !== window) {
-          router.push('/consent')  // ← 이 부분이 올바른 플로우
-        } else {
-          router.push('/dashboard')
+        // 61-78줄: 로그인 성공 후 리다이렉션 로직
+        if (!isNewUser) {
+          const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
+                  sessionStorage.getItem('redirect_after_profile') || 
+                  sessionStorage.getItem('redirect_after_login')
+          if (redirectUrl) {
+            sessionStorage.removeItem('redirect_after_login')
+            sessionStorage.removeItem('from_external_popup')
+            router.push(redirectUrl)
+          } else {
+            // 팝업인지 확인 후 적절한 페이지로 이동
+            if (window.opener && window.opener !== window) {
+              router.push('/consent')  // ← 이 부분이 올바른 플로우
+            } else {
+              router.push('/dashboard')
+            }
+          }
         }
       }
-    }
 
     return () => unsubscribe()
   }, [router, showTermsPopup, pendingGoogleUser])
