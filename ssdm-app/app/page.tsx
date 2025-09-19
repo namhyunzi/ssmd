@@ -57,13 +57,11 @@ export default function LoginPage() {
           setShowTermsPopup(true)
           return
         }
-        const jwtToken = sessionStorage.getItem('openPopup')
-        console.log('jwtToken111111:', jwtToken);
+        
         if (!isNewUser) {
-          console.log('들어옴?:', jwtToken);
           // JWT 토큰이 있으면 consent로 리다이렉트
+          const jwtToken = sessionStorage.getItem('openPopup')
           if (jwtToken) {
-            console.log('if문 ?:', jwtToken);
             router.push('/consent')
             return
           }
@@ -77,10 +75,9 @@ export default function LoginPage() {
             localStorage.removeItem('from_external_popup')
             router.push(redirectUrl)
           } else {
-            router.push('/dashboard')
+            router.push('/profile-setup')
           }
         }
-        // 신규 사용자는 handleGoogleLogin에서 처리 (useEffect에서 건드리지 않음)
       }
     })
 
