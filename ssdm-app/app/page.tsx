@@ -77,6 +77,7 @@ export default function LoginPage() {
           }
         }
       }
+    })
 
     return () => unsubscribe()
   }, [router, showTermsPopup, pendingGoogleUser])
