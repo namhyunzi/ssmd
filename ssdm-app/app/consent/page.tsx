@@ -73,12 +73,12 @@ function ConsentPageContent() {
 
   // JWT가 없을 때는 사용자 연결 초기화를 하지 않음
   useEffect(() => {
-    if (!token && !mallId && !shopId) {
+    if (!token) {
       console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
       setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
       return
     }
-  }, [token, mallId, shopId])
+  }, [token])
 
   useEffect(() => {
     // 팝업이 닫힐 때만 세션 정리 (X 버튼으로 닫기 감지)
