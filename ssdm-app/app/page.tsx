@@ -77,8 +77,15 @@ export default function LoginPage() {
           return
         }
         
-        // 자동 리다이렉션 제거 - handleLogin/handleGoogleLogin에서 처리
-        console.log('로그인된 사용자 감지되었지만 자동 리다이렉션하지 않음')
+        // 이미 로그인된 사용자 - JWT에 따라 적절한 페이지로 리다이렉트
+        const jwtToken = sessionStorage.getItem('openPopup')
+        if (jwtToken) {
+          console.log('이미 로그인된 사용자 + JWT 있음 - /consent로 리다이렉트')
+          router.push('/consent')
+        } else {
+          console.log('이미 로그인된 사용자 + JWT 없음 - /dashboard로 리다이렉트')
+          router.push('/dashboard')
+        }
       }
     })
 
