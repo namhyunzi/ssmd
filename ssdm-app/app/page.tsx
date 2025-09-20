@@ -30,15 +30,12 @@ export default function LoginPage() {
     const handleMessage = (event: MessageEvent) => {
       console.log('postMessage 받음:', event.data)
       
-      if (event.data.type === 'init_login') {
+      if (event.data.type === 'init_consent') {
         const { jwt } = event.data
-        console.log('init_login 타입 확인, JWT:', jwt)
         if (jwt) {
           sessionStorage.setItem('openPopup', jwt)
-          console.log('JWT 토큰을 세션에 저장했습니다:', jwt)
         }
       } else {
-        console.log('다른 타입의 postMessage:', event.data.type)
       }
     }
     
