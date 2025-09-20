@@ -390,7 +390,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       {!jwtReceived ? (
         // JWT를 받지 못한 경우: 로딩 스피너 + 메시지
         <Card className="w-full max-w-md">
