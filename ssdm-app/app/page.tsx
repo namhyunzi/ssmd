@@ -34,8 +34,13 @@ export default function LoginPage() {
         const { jwt } = event.data
         if (jwt) {
           sessionStorage.setItem('openPopup', jwt)
+          console.log('JWT 토큰을 세션에 저장했습니다:', jwt)
+          
+          // JWT를 받았을 때 /consent로 이동
+          router.push('/consent')
         }
       } else {
+        console.log('다른 타입의 postMessage:', event.data.type)
       }
     }
     
