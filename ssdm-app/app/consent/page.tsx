@@ -31,7 +31,12 @@ function ConsentPageContent() {
     const jwtToken = sessionStorage.getItem('openPopup')
     if (jwtToken) {
       setToken(jwtToken)
-      verifyToken(jwtToken)
+      verifyToken(jwtToken).then(() => {
+        console.log('JWT 검증 완료')
+      }).catch(error => {
+        console.error('JWT 검증 실패:', error)
+        setError("JWT 토큰 검증에 실패했습니다.")
+      })
       return
     }
     
@@ -73,6 +78,12 @@ function ConsentPageContent() {
 
   // JWT가 없을 때는 사용자 연결 초기화를 하지 않음
   useEffect(() => {
+    // JWT가 세션에 있으면 에러 체크하지 않음
+    const jwtToken = sessionStorage.getItem('openPopup')
+    if (jwtToken) {
+      return
+    }
+    
     if (!token) {
       console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
       setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
