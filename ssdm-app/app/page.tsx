@@ -25,6 +25,22 @@ export default function LoginPage() {
   const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
   const router = useRouter()
 
+  // postMessage로 JWT 받아서 세션에 저장
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'init_login') {
+        const { jwt } = event.data
+        if (jwt) {
+          sessionStorage.setItem('openPopup', jwt)
+          console.log('JWT 토큰을 세션에 저장했습니다:', jwt)
+        }
+      }
+    }
+    
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
   // 로그인 상태 변경 감지 (자동 리다이렉션 제거)
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth')
