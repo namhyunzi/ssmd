@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signInWithEmailAndPassword, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, deleteUser } from 'firebase/auth'
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, deleteUser } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import TermsConsentPopup from '@/components/popups/terms-consent-popup'
 
@@ -27,7 +27,8 @@ export default function LoginPage() {
 
   // 로그인 상태 변경 감지 (자동 리다이렉션 제거)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const { onAuthStateChanged } = require('firebase/auth')
+    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
       if (user && !showTermsPopup && !pendingGoogleUser) {
         // 신규 사용자인지 확인
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
@@ -58,7 +59,7 @@ export default function LoginPage() {
           return
         }
         
-        // 자동 리다이렉션 제거 - 사용자가 직접 로그인할 때만 처리
+        // 자동 리다이렉션 제거 - handleLogin/handleGoogleLogin에서 처리
         console.log('로그인된 사용자 감지되었지만 자동 리다이렉션하지 않음')
       }
     })
@@ -91,6 +92,32 @@ export default function LoginPage() {
     }
   }, [])
 
+  // 리다이렉션 처리 함수
+  const handleRedirectAfterLogin = () => {
+    const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
+            sessionStorage.getItem('redirect_after_profile')
+    
+    if (redirectUrl) {
+      sessionStorage.removeItem('redirect_after_additional_info')
+      sessionStorage.removeItem('redirect_after_profile')
+      sessionStorage.removeItem('from_external_popup')
+      router.push(redirectUrl)
+    } else {
+      // 팝업인지 확인 후 적절한 페이지로 이동
+      if (window.opener && window.opener !== window) {
+        // JWT가 있을 때만 consent로 이동
+        const jwtToken = sessionStorage.getItem('openPopup')
+        if (jwtToken) {
+          router.push('/consent')
+        } else {
+          router.push('/dashboard')
+        }
+      } else {
+        router.push('/dashboard')
+      }
+    }
+  }
+
   const handleLogin = async () => {
     // 제한 상태 확인
     if (isBlocked && blockUntil && blockUntil > new Date()) {
@@ -122,25 +149,8 @@ export default function LoginPage() {
       setIsBlocked(false)
       setBlockUntil(null)
       
-      // 로그인 후 돌아갈 URL이 있는지 확인
-      const redirectUrl = localStorage.getItem('redirect_after_login')
-      if (redirectUrl) {
-        localStorage.removeItem('redirect_after_login')
-        router.push(redirectUrl)
-      } else {
-        // 팝업인지 확인 후 적절한 페이지로 이동
-        if (window.opener && window.opener !== window) {
-          // JWT가 있을 때만 consent로 이동
-          const jwtToken = sessionStorage.getItem('openPopup')
-          if (jwtToken) {
-            router.push('/consent')
-          } else {
-            router.push('/dashboard')
-          }
-        } else {
-          router.push('/dashboard')
-        }
-      }
+      // 리다이렉션 함수 호출
+      handleRedirectAfterLogin()
     } catch (error: any) {
       // 로그인 실패 시 비밀번호 입력란 지우기
       setPassword("")
@@ -213,25 +223,8 @@ export default function LoginPage() {
         localStorage.setItem('is_new_user_processing', 'true')
         console.log('신규 사용자 처리 완료')
       } else {
-        // 기존 사용자의 경우 리디렉션 URL 확인 후 이동
-        const redirectUrl = localStorage.getItem('redirect_after_login')
-        if (redirectUrl) {
-          localStorage.removeItem('redirect_after_login')
-          router.push(redirectUrl)
-        } else {
-          // 팝업인지 확인 후 적절한 페이지로 이동
-          if (window.opener && window.opener !== window) {
-            // JWT가 있을 때만 consent로 이동
-            const jwtToken = sessionStorage.getItem('openPopup')
-            if (jwtToken) {
-              router.push('/consent')
-            } else {
-              router.push('/dashboard')
-            }
-          } else {
-            router.push('/dashboard')
-          }
-        }
+        // 기존 사용자의 경우 리다이렉션 함수 호출
+        handleRedirectAfterLogin()
       }
     } catch (error: any) {
       console.error('Google 로그인 오류:', error)
