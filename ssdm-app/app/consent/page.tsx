@@ -211,7 +211,8 @@ function ConsentPageContent() {
       console.log('=== initializeUserConnection 함수 시작 ===')
       
       // JWT가 없으면 사용자 연결 초기화를 하지 않음
-      if (!token || !mallId || !shopId) {
+      if (!token) {
+        console.log('token 초기화할때있음? :', token)
         console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
         setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
         return
@@ -220,7 +221,7 @@ function ConsentPageContent() {
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId
       
-      console.log('현재 mallId:', currentMallId)
+      console.log('현재 mallId 초기화 할때있음? :', currentMallId)
       
       // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
