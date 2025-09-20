@@ -34,6 +34,8 @@ function ConsentPageContent() {
       setToken(jwtToken)
       verifyToken(jwtToken).then(() => {
         console.log('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 완료')
+        // 검증 완료 후 초기화 실행
+        initializeUserConnection()
       }).catch(error => {
         console.error('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 실패:', error)
         setError("JWT 토큰 검증에 실패했습니다.")
@@ -57,6 +59,9 @@ function ConsentPageContent() {
             
             // 검증 성공 시에만 세션에 저장
             sessionStorage.setItem('openPopup', jwtToken)
+            
+            // 검증 완료 후 초기화 실행
+            initializeUserConnection()
             
           } catch (error) {
             // 검증 실패 시 세션에 저장하지 않음
@@ -210,13 +215,15 @@ function ConsentPageContent() {
     try {
       console.log('=== initializeUserConnection 함수 시작 ===')
       
-      // JWT가 없으면 사용자 연결 초기화를 하지 않음
-      if (!token) {
-        console.log('token 초기화할때있음? :', token)
-        console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
+      // 세션에서 JWT 직접 확인
+      const jwtToken = sessionStorage.getItem('openPopup')
+      if (!jwtToken) {
+        console.log('세션에 JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
         setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
         return
       }
+      
+      console.log('세션에서 JWT 확인됨:', jwtToken)
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId
