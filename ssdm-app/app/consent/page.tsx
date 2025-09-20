@@ -27,15 +27,15 @@ function ConsentPageContent() {
   
 
   useEffect(() => {
-    // 1. sessionStorage에서 JWT 확인 (분산저장소 설정 완료 후 돌아온 경우)
+    // 1. sessionStorage에서 JWT 확인 (로그인 후 /consent로 이동한 경우)
     const jwtToken = sessionStorage.getItem('openPopup')
     if (jwtToken) {
-      console.log('🔵 [분산저장소 설정 완료 후 돌아온 경우] JWT 세션에서 발견')
+      console.log('🔵 [로그인 후 /consent로 이동한 경우] JWT 세션에서 발견')
       setToken(jwtToken)
       verifyToken(jwtToken).then(() => {
-        console.log('🔵 [분산저장소 설정 완료 후 돌아온 경우] JWT 검증 완료')
+        console.log('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 완료')
       }).catch(error => {
-        console.error('🔵 [분산저장소 설정 완료 후 돌아온 경우] JWT 검증 실패:', error)
+        console.error('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 실패:', error)
         setError("JWT 토큰 검증에 실패했습니다.")
       })
       return
@@ -81,6 +81,14 @@ function ConsentPageContent() {
   // JWT가 없을 때는 사용자 연결 초기화를 하지 않음
   useEffect(() => {
     console.log('🟡 [에러 체크] useEffect 시작, token:', token)
+    
+    // JWT가 세션에 있으면 에러 체크하지 않음
+    const jwtToken = sessionStorage.getItem('openPopup')
+    if (jwtToken) {
+      console.log('🟡 [에러 체크] JWT 세션에 있음, 에러 체크하지 않음')
+      return
+    }
+    
     if (!token) {
       console.log('🟡 [에러 체크] JWT 토큰 없음, 에러 발생')
       setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
