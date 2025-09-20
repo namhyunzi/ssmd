@@ -23,7 +23,19 @@ export default function LoginPage() {
   const [toastSubMessage, setToastSubMessage] = useState("")
   const [showTermsPopup, setShowTermsPopup] = useState(false)
   const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null)
+  const [jwtReceived, setJwtReceived] = useState(false)
   const router = useRouter()
+
+  // 페이지 로드 시 JWT 상태 확인
+  useEffect(() => {
+    console.log('페이지 로드됨 - JWT 상태 확인')
+    // 이미 세션에 JWT가 있다면 받았다고 표시
+    const existingJwt = sessionStorage.getItem('openPopup')
+    if (existingJwt) {
+      console.log('기존 JWT 발견:', existingJwt)
+      setJwtReceived(true)
+    }
+  }, [])
 
   // postMessage로 JWT 받아서 세션에 저장
   useEffect(() => {
@@ -36,7 +48,8 @@ export default function LoginPage() {
           sessionStorage.setItem('openPopup', jwt)
           console.log('JWT 토큰을 세션에 저장했습니다:', jwt)
           
-          // JWT를 받았을 때 /consent로 이동
+          // JWT를 받았음을 표시하고 /consent로 이동
+          setJwtReceived(true)
           router.push('/consent')
         }
       } else {
@@ -46,7 +59,7 @@ export default function LoginPage() {
     
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [])
+  }, [router])
 
   // 로그인 상태 변경 감지 (자동 리다이렉션 제거)
   useEffect(() => {
@@ -82,20 +95,26 @@ export default function LoginPage() {
           return
         }
         
-        // 이미 로그인된 사용자 - JWT에 따라 적절한 페이지로 리다이렉트
+        // JWT를 받지 못했다면 기다림 (로그인이 이미 되어 있어도)
+        if (!jwtReceived) {
+          console.log('로그인은 되었지만 JWT를 아직 받지 못함 - 대기 중')
+          return
+        }
+        
+        // JWT를 받았다면 consent로 이동
         const jwtToken = sessionStorage.getItem('openPopup')
         if (jwtToken) {
-          console.log('이미 로그인된 사용자 + JWT 있음 - /consent로 리다이렉트')
+          console.log('로그인 + JWT 확인 - /consent로 리다이렉트')
           router.push('/consent')
         } else {
-          console.log('이미 로그인된 사용자 + JWT 없음 - /dashboard로 리다이렉트')
+          console.log('로그인 + JWT 없음 - /dashboard로 리다이렉트')
           router.push('/dashboard')
         }
       }
     })
 
     return () => unsubscribe()
-  }, [router, showTermsPopup, pendingGoogleUser])
+  }, [router, showTermsPopup, pendingGoogleUser, jwtReceived])
 
   // 컴포넌트 마운트 시 로컬 스토리지에서 실패 횟수와 제한 시간 확인
   useEffect(() => {
