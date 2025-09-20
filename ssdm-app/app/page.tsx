@@ -393,10 +393,16 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       {!jwtReceived ? (
         // JWT를 받지 못한 경우: 로딩 스피너 + 메시지
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground text-lg">사용자 정보를 불러오는 중입니다.</p>
-        </div>
+        <Card className="w-full max-w-md">
+          <CardContent className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="mb-4 text-muted-foreground">사용자 정보를 불러오는 중입니다.</p>
+            {/* 30초 이상 로딩 시 문제 해결 안내 */}
+            <div className="text-xs text-gray-500">
+              페이지 로딩이 오래 걸리면 새로고침을 시도해보세요.
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         // JWT를 받은 경우: 기존 로그인 폼 표시
         <Card className="w-full max-w-md">
