@@ -195,6 +195,7 @@ function ConsentPageContent() {
           
           // JWT 검증 성공 후 바로 사용자 연결 초기화
           await initializeUserConnection(payload.mallId)
+          console.log("payload.mallId 확인 검증로직시 ",payload.mallId)
         } else {
           console.error('JWT 토큰 검증 실패: 유효하지 않은 토큰')
           setError('JWT 토큰이 유효하지 않습니다.')
@@ -226,7 +227,8 @@ function ConsentPageContent() {
       console.log('세션에서 JWT 확인됨:', jwtToken)
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
-      const currentMallId = mallIdParam || mallId
+      const currentMallId = mallIdParam || mallId;
+      console.log("currentMallId 확인 초기화로직시 ",currentMallId);
       
       console.log('현재 mallId 초기화 할때있음? :', currentMallId)
       
