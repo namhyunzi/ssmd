@@ -27,28 +27,14 @@ export async function POST(request: NextRequest) {
     const decoded = jwt.verify(jwtToken, apiKey, { algorithms: ['HS256'] }) as any
     const { shopId, mallId } = decoded
 
-    // 현재 로그인한 사용자의 uid 사용
-    const { auth } = await import('@/lib/firebase')
-    const currentUser = auth.currentUser
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { status: 'need_connect' },
-        {
-          headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-          }
-        }
-      )
-    }
-
     // userMappings에서 shopId로 실제 uid 찾기
     const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
+    console.log('매핑 참조 경로:', `userMappings/${mallId}/${shopId}`)
     const mappingSnapshot = await get(mappingRef)
+    console.log('매핑 스냅샷 존재 여부:', mappingSnapshot.exists())
     
     if (!mappingSnapshot.exists()) {
+      console.log('사용자 매핑 정보 없음 - need_connect 반환')
       return NextResponse.json(
         { status: 'need_connect' },
         {
@@ -62,10 +48,13 @@ export async function POST(request: NextRequest) {
     }
     
     const mappedUid = mappingSnapshot.val().uid
+    console.log('찾은 mappedUid:', mappedUid)
 
     // 바로 동의 상태 확인
     const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId}`)
+    console.log('동의 참조 경로:', `mallServiceConsents/${mappedUid}/${mallId}/${shopId}`)
     const consentSnapshot = await get(consentRef)
+    console.log('동의 스냅샷 존재 여부:', consentSnapshot.exists())
     
     if (!consentSnapshot.exists()) {
       return NextResponse.json(
