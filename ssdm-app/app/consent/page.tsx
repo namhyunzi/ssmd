@@ -34,8 +34,7 @@ function ConsentPageContent() {
       setToken(jwtToken)
       verifyToken(jwtToken).then(() => {
         console.log('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 완료')
-        // 검증 완료 후 초기화 실행
-        initializeUserConnection()
+        // 초기화 로직 제거 - 이미 JWT 받을 때 실행됨
       }).catch(error => {
         console.error('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 실패:', error)
         setError("JWT 토큰 검증에 실패했습니다.")
@@ -60,8 +59,7 @@ function ConsentPageContent() {
             // 검증 성공 시에만 세션에 저장
             sessionStorage.setItem('openPopup', jwtToken)
             
-            // 검증 완료 후 초기화 실행
-            initializeUserConnection()
+            // 초기화 로직 제거 - 이미 JWT 받을 때 실행됨
             
           } catch (error) {
             // 검증 실패 시 세션에 저장하지 않음

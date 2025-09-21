@@ -99,8 +99,6 @@ export default function ProfileSetupPage() {
             setEmailOption("same")
           }
         }
-        
-        console.log('임시 세션 데이터 복원 완료')
       } else {
         // 인증되지 않은 사용자는 로그인 페이지로 리다이렉트
         router.push('/')
