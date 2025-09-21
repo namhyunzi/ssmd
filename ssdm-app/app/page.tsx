@@ -27,40 +27,14 @@ export default function LoginPage() {
   const router = useRouter()
 
   // URL 파라미터 확인 및 JWT 상태 확인
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const isFromPopup = urlParams.get('popup') === 'true'
-    
-    if (isFromPopup) {
-      // 팝업에서 온 경우: 기존 JWT 확인 후 처리
-      console.log('팝업에서 접근 - JWT 상태 확인')
-      const existingJwt = sessionStorage.getItem('openPopup')
-      if (existingJwt) {
-        console.log('기존 JWT 발견:', existingJwt)
-        setJwtReceived(true)
-      } else {
-        console.log('팝업에서 접근 - JWT 대기 중')
-        setJwtReceived(false)
-      }
-    } else {
-      // 일반 접근: 바로 로그인 화면 표시
-      setJwtReceived(true)
-    }
-  }, [])
-
-  // postMessage로 JWT 받아서 세션에 저장
-  useEffect(() => {
+  useEffect(() => {    
+    // postMessage로 JWT 받아서 세션에 저장
     const handleMessage = (event: MessageEvent) => {
-      console.log('postMessage 받음:', event.data)
-      
       if (event.data.type === 'init_consent') {
         const { jwt } = event.data
         if (jwt) {
           sessionStorage.setItem('openPopup', jwt)
           console.log('JWT 토큰을 세션에 저장했습니다:', jwt)
-          
-          // JWT를 받았음을 표시하고 /consent로 이동
-          setJwtReceived(true)
           router.push('/consent')
         }
       } else {
@@ -402,21 +376,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      {!jwtReceived ? (
-        // JWT를 받지 못한 경우: 로딩 스피너 + 메시지
-        <Card className="w-full max-w-md">
-          <CardContent className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="mb-4 text-muted-foreground">사용자 정보를 불러오는 중입니다.</p>
-            {/* 30초 이상 로딩 시 문제 해결 안내 */}
-            <div className="text-xs text-gray-500">
-              페이지 로딩이 오래 걸리면 새로고침을 시도해보세요.
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        // JWT를 받은 경우: 기존 로그인 폼 표시
-        <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-4">
             {/* SSDM Logo */}
             <div className="text-center">
@@ -514,7 +474,6 @@ export default function LoginPage() {
             </Link>
           </div>
         </Card>
-      )}
 
       {/* 약관 동의 팝업 */}
       <TermsConsentPopup
