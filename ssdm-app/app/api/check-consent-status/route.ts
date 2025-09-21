@@ -70,11 +70,19 @@ export async function POST(request: NextRequest) {
     }
     
     const consentData = consentSnapshot.val()
+    console.log('동의 데이터:', consentData)
     
     // isActive와 expiresAt 확인 (OR 조건)
     const expiresAt = new Date(consentData.expiresAt)
     const now = new Date()
+    console.log('isActive:', consentData.isActive)
+    console.log('expiresAt:', consentData.expiresAt)
+    console.log('현재 시간:', now.toISOString())
+    console.log('만료 시간:', expiresAt.toISOString())
+    console.log('현재 > 만료:', now > expiresAt)
+    
     if ((consentData.isActive === false) || (now > expiresAt)) {
+      console.log('동의 조건 실패 - need_connect 반환')
       return NextResponse.json(
         { status: 'need_connect' },
         {
@@ -94,14 +102,18 @@ export async function POST(request: NextRequest) {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     }
 
+    console.log('consentType:', consentData.consentType)
+    
     if (consentData.consentType === 'always') {
       // 1번: 항상 허용 + 유효함
+      console.log('항상 허용 - connected 반환')
       return NextResponse.json({
         status: 'connected',
         consentType: 'always'
       }, { headers: corsHeaders })
     } else if (consentData.consentType === 'once') {
       // 2번: 일회성 동의 + 유효함
+      console.log('일회성 동의 - connected 반환')
       return NextResponse.json({
         status: 'connected',
         consentType: 'once',
@@ -109,6 +121,7 @@ export async function POST(request: NextRequest) {
       }, { headers: corsHeaders })
     } else {
       // 3번: 동의 없음/만료됨
+      console.log('동의 타입 불일치 - need_connect 반환')
       return NextResponse.json(
         { status: 'need_connect' },
         { headers: corsHeaders }
