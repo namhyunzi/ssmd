@@ -78,6 +78,19 @@ export async function POST(request: NextRequest) {
 
     const { mallId, userId } = parsed;
 
+    // userMappings에서 shopId로 실제 uid 찾기
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    const mappingSnapshot = await get(mappingRef);
+    
+    if (!mappingSnapshot.exists()) {
+      return NextResponse.json(
+        { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+    
+    const mappedUid = mappingSnapshot.val().uid;
+
     // "이번만 허용"인 경우 저장하지 않고 성공 응답만 반환
     if (consentType === 'once') {
       console.log(`일회성 동의: ${uid}`);
@@ -102,8 +115,8 @@ export async function POST(request: NextRequest) {
       isActive: true
     };
 
-    // 동의 데이터 저장 (사용자별, 쇼핑몰별, shopId별)
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId}`);
+    // 동의 데이터 저장 (mappedUid 사용)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId}`);
     await set(consentRef, consentData);
 
     console.log(`6개월 동의 저장: ${uid}, 만료일: ${expiresAt}`);
@@ -155,8 +168,21 @@ export async function GET(request: NextRequest) {
 
     const { mallId, userId } = parsed;
 
-    // 동의 데이터 조회
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId}`);
+    // userMappings에서 shopId로 실제 uid 찾기
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    const mappingSnapshot = await get(mappingRef);
+    
+    if (!mappingSnapshot.exists()) {
+      return NextResponse.json(
+        { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+    
+    const mappedUid = mappingSnapshot.val().uid;
+
+    // 동의 데이터 조회 (mappedUid 사용)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId}`);
     const snapshot = await get(consentRef);
 
     if (!snapshot.exists()) {
@@ -242,8 +268,21 @@ export async function DELETE(request: NextRequest) {
 
     const { mallId, userId } = parsed;
 
-    // 동의 해제 (삭제)
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${userId}/${mallId}/${shopId || 'default'}`);
+    // userMappings에서 shopId로 실제 uid 찾기
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    const mappingSnapshot = await get(mappingRef);
+    
+    if (!mappingSnapshot.exists()) {
+      return NextResponse.json(
+        { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+    
+    const mappedUid = mappingSnapshot.val().uid;
+
+    // 동의 해제 (삭제) - mappedUid 사용
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId || 'default'}`);
     await remove(consentRef);
 
     console.log(`동의 해제: ${uid}`);
