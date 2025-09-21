@@ -179,22 +179,13 @@ export default function StorageSetupPage() {
         
         // 토스트 표시 후 1초 뒤 이동
         setTimeout(() => {
-          // 외부 팝업에서 온 경우 consent 페이지로 이동
-          const fromExternalPopup = sessionStorage.getItem('from_external_popup')
-          if (fromExternalPopup === 'true') {
-            sessionStorage.removeItem('from_external_popup')
-            // redirect_after_profile 세션 정리
-            sessionStorage.removeItem('redirect_after_profile')
-            // JWT 토큰을 sessionStorage에서 가져와서 consent 페이지로 이동
-            const jwtToken = sessionStorage.getItem('openPopup')
-            if (jwtToken) {
-              // JWT 토큰과 함께 동의 페이지로 이동 (postMessage 없이)
-              router.push('/consent')
-            } else {
-              router.push('/consent')
-            }
+          // JWT 토큰 확인으로 팝업 여부 판단
+          const jwtToken = sessionStorage.getItem('openPopup')
+          if (jwtToken) {
+            // 팝업에서 온 경우 - /consent로 이동
+            router.push('/consent')
           } else {
-            console.log('대시보드로 이동')
+            // 일반 접근 - /dashboard로 이동
             router.push('/dashboard')
           }
         }, 1000)
