@@ -26,13 +26,24 @@ export default function LoginPage() {
   const [jwtReceived, setJwtReceived] = useState(false)
   const router = useRouter()
 
-  // 페이지 로드 시 JWT 상태 확인
+  // URL 파라미터 확인 및 JWT 상태 확인
   useEffect(() => {
-    console.log('페이지 로드됨 - JWT 상태 확인')
-    // 이미 세션에 JWT가 있다면 받았다고 표시
-    const existingJwt = sessionStorage.getItem('openPopup')
-    if (existingJwt) {
-      console.log('기존 JWT 발견:', existingJwt)
+    const urlParams = new URLSearchParams(window.location.search)
+    const isFromPopup = urlParams.get('popup') === 'true'
+    
+    if (isFromPopup) {
+      // 팝업에서 온 경우: 기존 JWT 확인 후 처리
+      console.log('팝업에서 접근 - JWT 상태 확인')
+      const existingJwt = sessionStorage.getItem('openPopup')
+      if (existingJwt) {
+        console.log('기존 JWT 발견:', existingJwt)
+        setJwtReceived(true)
+      } else {
+        console.log('팝업에서 접근 - JWT 대기 중')
+        setJwtReceived(false)
+      }
+    } else {
+      // 일반 접근: 바로 로그인 화면 표시
       setJwtReceived(true)
     }
   }, [])
