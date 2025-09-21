@@ -44,10 +44,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const uid = currentUser.uid
+    // userMappings에서 shopId로 실제 uid 찾기
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
+    const mappingSnapshot = await get(mappingRef)
+    
+    if (!mappingSnapshot.exists()) {
+      return NextResponse.json(
+        { status: 'need_connect' },
+        {
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
+      )
+    }
+    
+    const mappedUid = mappingSnapshot.val().uid
 
     // 바로 동의 상태 확인
-    const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`)
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId}`)
     const consentSnapshot = await get(consentRef)
     
     if (!consentSnapshot.exists()) {
