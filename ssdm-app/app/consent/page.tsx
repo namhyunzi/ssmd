@@ -851,24 +851,13 @@ function ConsentPageContent() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-card border-b border-border p-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => {
-            // 팝업인 경우 닫기, 아니면 대시보드로 이동
-            if (window.opener && window.opener !== window) {
-              window.close()
-            } else {
-              router.push('/dashboard')
-            }
-          }}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+        <div className="max-w-2xl mx-auto flex items-center justify-center">
           <button 
             onClick={() => {
-              // 팝업인 경우 닫기, 아니면 대시보드로 이동
-              if (window.opener && window.opener !== window) {
-                window.close()
+              if (auth.currentUser) {
+                router.push('/dashboard')  // 로그인됨 → 대시보드
               } else {
-                router.push('/dashboard')
+                router.push('/')           // 로그인 안됨 → 로그인 페이지
               }
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
@@ -878,7 +867,6 @@ function ConsentPageContent() {
               <p className="text-xs text-muted-foreground">개인정보보호</p>
             </div>
           </button>
-          <div className="w-16"></div>
         </div>
       </header>
 
