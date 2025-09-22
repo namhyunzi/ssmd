@@ -43,6 +43,7 @@ function InfoPreviewPageContent() {
   const [mallId, setMallId] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(false)
   const isInitializingRef = useRef(false)
+  const processedJwtRef = useRef<string | null>(null)
 
   // JWT 검증 함수 추가
   const verifyToken = async (jwtToken: string) => {
@@ -217,9 +218,10 @@ function InfoPreviewPageContent() {
           
           if (event.data.type === 'init_preview') {
             const { jwt } = event.data
-            if (jwt && !isInitializingRef.current) {
+            if (jwt && !isInitializingRef.current && processedJwtRef.current !== jwt) {
               console.log('=== postMessage에서 JWT 처리 시작 ===')
               isInitializingRef.current = true
+              processedJwtRef.current = jwt
               setIsInitializing(true)
               setToken(jwt)
               try {
@@ -234,7 +236,6 @@ function InfoPreviewPageContent() {
               } finally {
                 isInitializingRef.current = false
                 setIsInitializing(false)
-              }
             }
           }
         }
