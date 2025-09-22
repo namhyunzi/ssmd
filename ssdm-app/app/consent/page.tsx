@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { auth } from '@/lib/firebase'
-import { Shield, X, User, Phone, MapPin, Info, AlertTriangle } from "lucide-react"
+import { Shield, X, User, Phone, MapPin, Info, AlertTriangle, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -848,8 +848,42 @@ function ConsentPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-card border-b border-border p-4">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => {
+            // 팝업인 경우 닫기, 아니면 대시보드로 이동
+            if (window.opener && window.opener !== window) {
+              window.close()
+            } else {
+              router.push('/dashboard')
+            }
+          }}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <button 
+            onClick={() => {
+              // 팝업인 경우 닫기, 아니면 대시보드로 이동
+              if (window.opener && window.opener !== window) {
+                window.close()
+              } else {
+                router.push('/dashboard')
+              }
+            }}
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="text-center">
+              <h1 className="text-lg font-bold text-primary">SSDM</h1>
+              <p className="text-xs text-muted-foreground">개인정보보호</p>
+            </div>
+          </button>
+          <div className="w-16"></div>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto p-4">
+        <Card className="w-full max-w-lg">
         <CardHeader className="text-center pb-4">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Shield className="h-6 w-6 text-primary" />
@@ -954,18 +988,19 @@ function ConsentPageContent() {
           </div>
           
         </CardContent>
-      </Card>
+        </Card>
 
-      {/* 추가정보 입력 팝업 */}
-      {mallInfo && (
-        <AdditionalInfoPopup
-          isOpen={showAdditionalInfo}
-          onClose={() => setShowAdditionalInfo(false)}
-          serviceName={mallInfo.mallName}
-          onComplete={handleAdditionalInfoComplete}
-          missingFields={mallInfo.requiredFields}
-        />
-      )}
+        {/* 추가정보 입력 팝업 */}
+        {mallInfo && (
+          <AdditionalInfoPopup
+            isOpen={showAdditionalInfo}
+            onClose={() => setShowAdditionalInfo(false)}
+            serviceName={mallInfo.mallName}
+            onComplete={handleAdditionalInfoComplete}
+            missingFields={mallInfo.requiredFields}
+          />
+        )}
+      </div>
     </div>
   )
 }
