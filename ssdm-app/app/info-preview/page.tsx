@@ -183,7 +183,7 @@ function InfoPreviewPageContent() {
             const { jwt } = event.data
             if (jwt) {
               sessionStorage.setItem('openPopup_preview', jwt)
-              router.push('/login')
+              router.push('/')
             }
           }
         }
