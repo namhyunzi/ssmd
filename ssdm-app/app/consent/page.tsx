@@ -345,6 +345,20 @@ function ConsentPageContent() {
       
       // 1. 프로필 완료 여부 확인 (profile 객체에서 확인)
       console.log('프로필 완료 여부 확인:', userProfile?.profileCompleted)
+      
+      // 필수 필드들이 모두 있으면 profileCompleted = true 설정
+      if (userProfile && userProfile.name && userProfile.phone && userProfile.address && userProfile.zipCode) {
+        // profileCompleted 필드가 없으면 생성
+        if (!userProfile.profileCompleted) {
+          console.log('필수 필드 모두 있음 - profileCompleted = true 설정')
+          userProfile.profileCompleted = true
+          // Firebase에 저장
+          const { ref, set } = await import('firebase/database')
+          const userProfileRef = ref(realtimeDb, `users/${auth.currentUser!.uid}/profile`)
+          await set(userProfileRef, userProfile)
+        }
+      }
+      
       if (!userProfile || !userProfile.profileCompleted) {
         // JWT 토큰을 sessionStorage에 저장
         const jwtToken = sessionStorage.getItem('openPopup')
@@ -392,7 +406,6 @@ function ConsentPageContent() {
         }
       } else {
         // 모든 정보가 충분한 경우 → 동의 절차 진행
-        // setUserInfo 제거 - 실시간 복호화 방식으로 변경
         // 쇼핑몰 ID는 파라미터에서 가져옴
         const mallIdFromUid = mallIdParam || mallId
         
