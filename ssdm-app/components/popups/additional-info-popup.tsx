@@ -50,6 +50,52 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     return phone
   }
 
+  // Daum 우편번호 API 주소 찾기 함수
+  const handleAddressSearch = () => {
+    if (typeof window !== 'undefined' && window.daum) {
+      new window.daum.Postcode({
+        oncomplete: function(data) {
+          // 도로명 주소와 지번 주소 모두 사용 가능
+          let addr = '';
+          let extraAddr = '';
+
+          // 사용자가 선택한 주소 타입에 따라 해당 주소 값을 가져온다.
+          if (data.userSelectedType === 'R') { // 사용자가 도로명 주소를 선택했을 경우
+            addr = data.roadAddress;
+          } else { // 사용자가 지번 주소를 선택했을 경우(J)
+            addr = data.jibunAddress;
+          }
+
+          // 사용자가 선택한 주소가 도로명 타입일때 참고항목을 조합한다.
+          if(data.userSelectedType === 'R'){
+            // 법정동명이 있을 경우 추가한다. (법정리는 제외)
+            // 법정동의 경우 마지막 문자가 "동/로/가"로 끝난다.
+            if(data.bname !== '' && /[동|로|가]$/g.test(data.bname)){
+              extraAddr += data.bname;
+            }
+            // 건물명이 있고, 공동주택일 경우 추가한다.
+            if(data.buildingName !== '' && data.apartment === 'Y'){
+              extraAddr += (extraAddr !== '' ? ', ' + data.buildingName : data.buildingName);
+            }
+            // 표시할 참고항목이 있을 경우, 괄호까지 추가한 최종 문자열을 만든다.
+            if(extraAddr !== ''){
+              extraAddr = ' (' + extraAddr + ')';
+            }
+          }
+
+          // 우편번호와 주소 정보를 해당 필드에 넣는다.
+          setExistingData(prev => ({
+            ...prev,
+            zipCode: data.zonecode,
+            address: addr + extraAddr
+          }))
+        }
+      }).open();
+    } else {
+      alert('우편번호 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+    }
+  }
+
   // useEffect에서 데이터 로드 (팝업이 열릴 때마다)
   useEffect(() => {
     if (!isOpen) return // 팝업이 닫혀있으면 실행하지 않음
@@ -145,7 +191,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-2 text-center">
-            <span className="text-primary font-medium">{serviceName}</span>에서 요청한 정보 중 일부가 아직 입력되지 않았습니다. 추가 정보를 입력해주세요.
+            <span className="text-primary font-medium">{serviceName}</span>에서 요청한 정보 중 일부가 아직 입력되지 않았습니다. 추가 정보를<br/>입력해주세요.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -239,16 +285,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   variant="outline" 
                   className="flex-shrink-0"
                   disabled={!isFieldMissing('address')}
-                  onClick={() => {
-                    if (isFieldMissing('address')) {
-                      // 주소 API 시뮬레이션
-                      setExistingData(prev => ({
-                        ...prev,
-                        zipCode: "12345",
-                        address: "서울특별시 강남구 테헤란로 123"
-                      }))
-                    }
-                  }}
+                  onClick={handleAddressSearch}
                 >
                   <Search className="h-4 w-4 mr-1" />
                   주소 찾기
