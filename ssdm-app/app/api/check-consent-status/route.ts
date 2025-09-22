@@ -27,22 +27,30 @@ export async function POST(request: NextRequest) {
     const decoded = jwt.verify(jwtToken, apiKey, { algorithms: ['HS256'] }) as any
     const { shopId, mallId } = decoded
 
-    // userMappings에서 shopId로 실제 uid 찾기 (새로운 구조)
-    const { auth } = await import('@/lib/firebase')
-    if (!auth.currentUser) {
+    // userMappings 전체 조회로 shopId로 매핑 찾기
+    const mappingsRef = ref(realtimeDb, `userMappings/${mallId}`)
+    console.log('매핑 참조 경로:', `userMappings/${mallId}`)
+    
+    let mappingsSnapshot
+    try {
+      mappingsSnapshot = await get(mappingsRef)
+      console.log('매핑 스냅샷 존재 여부:', mappingsSnapshot.exists())
+    } catch (mappingError) {
+      console.error('매핑 정보 조회 오류:', mappingError)
       return NextResponse.json(
-        { error: '로그인이 필요합니다.' },
-        { status: 401 }
+        { error: '매핑 정보 조회 중 오류가 발생했습니다.' },
+        { 
+          status: 500,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
     
-    const firebaseUid = auth.currentUser.uid
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`)
-    console.log('매핑 참조 경로:', `userMappings/${mallId}/${firebaseUid}/${shopId}`)
-    const mappingSnapshot = await get(mappingRef)
-    console.log('매핑 스냅샷 존재 여부:', mappingSnapshot.exists())
-    
-    if (!mappingSnapshot.exists()) {
+    if (!mappingsSnapshot.exists()) {
       console.log('사용자 매핑 정보 없음 - need_connect 반환')
       return NextResponse.json(
         { status: 'need_connect' },
@@ -56,7 +64,32 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const mappedUid = mappingSnapshot.val().mappedUid
+    const mappings = mappingsSnapshot.val()
+    let targetMapping = null
+    
+    // shopId로 매핑 찾기
+    for (const [firebaseUid, userMappings] of Object.entries(mappings)) {
+      if (userMappings && typeof userMappings === 'object' && shopId in userMappings) {
+        targetMapping = (userMappings as any)[shopId]
+        break
+      }
+    }
+    
+    if (!targetMapping) {
+      console.log('사용자 매핑 정보 없음 - need_connect 반환')
+      return NextResponse.json(
+        { status: 'need_connect' },
+        {
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
+      )
+    }
+    
+    const mappedUid = targetMapping.mappedUid
     console.log('찾은 mappedUid:', mappedUid)
 
     // 바로 동의 상태 확인
