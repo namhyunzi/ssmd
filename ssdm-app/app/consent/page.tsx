@@ -31,9 +31,28 @@ function ConsentPageContent() {
 
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth')
-    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
       if (user) {
-        // 로그인 됨 → postMessage에서 JWT 받아서 바로 사용
+        // 로그인 완료 후 돌아온 경우 세션에서 JWT 확인
+        const jwtToken = sessionStorage.getItem('openPopup')
+        if (jwtToken && !isInitializing) {
+          setIsInitializing(true)
+          setToken(jwtToken)
+          try {
+            const verifyResult = await verifyToken(jwtToken)
+            if (verifyResult.success) {
+              initializeUserConnection(verifyResult.mallId, user, jwtToken)
+            }
+          } catch (error) {
+            console.error('JWT 처리 실패:', error)
+            setError("JWT 토큰 처리 중 오류가 발생했습니다.")
+          } finally {
+            setIsInitializing(false)
+          }
+          return
+        }
+        
+        // postMessage 리스너 설정 (새로운 JWT 받을 때)
         const handleMessage = async (event: MessageEvent) => {
           if (event.data.type === 'init_consent') {
             const { jwt } = event.data
