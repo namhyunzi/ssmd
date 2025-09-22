@@ -67,10 +67,9 @@ export default function AdminPage() {
     mallName: '',
     englishId: '',
     allowedFields: [] as string[],
-    allowedDomains: [] as string[],
+    allowedDomain: '',
     contactEmail: '',
     description: '',
-    sendEmailImmediately: true
   })
   const [emailError, setEmailError] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
@@ -115,11 +114,26 @@ export default function AdminPage() {
     }
 
 
-    // 활성 상태 필터
+    // 상태 필터
     if (statusFilter !== "all") {
-      filtered = filtered.filter(mall => 
-        statusFilter === "active" ? mall.isActive : !mall.isActive
-      )
+      filtered = filtered.filter(mall => {
+        const now = new Date();
+        const expiryDate = new Date(mall.expiresAt);
+        const isExpired = expiryDate <= now;
+        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const isExpiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+        
+        switch (statusFilter) {
+          case "active":
+            return !isExpired && !isExpiringSoon;
+          case "expiring":
+            return isExpiringSoon;
+          case "expired":
+            return isExpired;
+          default:
+            return true;
+        }
+      })
     }
 
     setFilteredMalls(filtered)
@@ -147,14 +161,11 @@ export default function AdminPage() {
   const handleSubmit = async () => {
     try {
       // 이메일 유효성 검사
-      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
+      if (newMall.contactEmail && newMall.contactEmail.trim()) {
         if (!validateEmail(newMall.contactEmail)) {
           return;
         }
       }
-
-      // 처리 시작
-      setIsProcessing(true)
 
       if (dialogMode === 'create') {
         await handleCreateMall();
@@ -164,8 +175,6 @@ export default function AdminPage() {
     } catch (error) {
       console.error('처리 오류:', error)
       alert('처리 중 오류가 발생했습니다.')
-    } finally {
-      setIsProcessing(false)
     }
   }
 
@@ -190,7 +199,7 @@ export default function AdminPage() {
       const result = await response.json()
       
       // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
+      if (newMall.contactEmail && newMall.contactEmail.trim()) {
         try {
           const emailResponse = await fetch('/api/send-apikey', {
             method: 'POST',
@@ -205,21 +214,12 @@ export default function AdminPage() {
           })
           
           if (emailResponse.ok) {
-            // 이메일 발송 상태 업데이트
-            await fetch('/api/update-email-status', {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'admin_secret_key_12345'
-              },
-              body: JSON.stringify({
-                mallId: result.mallId,
-                emailSent: true
-              })
-            })
             
             // 상태 업데이트 후 쇼핑몰 목록 새로고침
             await loadMalls()
+            
+            // API Key 발급 완료 알림
+            alert('API Key가 성공적으로 발급되었습니다!')
             
             setApiKeyModal({
               isOpen: true,
@@ -249,6 +249,9 @@ export default function AdminPage() {
           alert('⚠️ 이메일 발송 중 오류가 발생했습니다.')
         }
       } else if (newMall.contactEmail && newMall.contactEmail.trim()) {
+        // API Key 발급 완료 알림 (이메일 없음)
+        alert('API Key가 성공적으로 발급되었습니다!')
+        
         setApiKeyModal({
           isOpen: true,
           apiKey: result.apiKey,
@@ -256,15 +259,18 @@ export default function AdminPage() {
           expiresAt: result.expiresAt,
           isReissue: false
         })
-      } else {
-        setApiKeyModal({
-          isOpen: true,
-          apiKey: result.apiKey,
-          mallName: newMall.mallName,
-          expiresAt: result.expiresAt,
-          isReissue: false
-        })
-      }
+          } else {
+            // API Key 발급 완료 알림 (이메일 발송 실패)
+            alert('API Key가 발급되었지만 이메일 발송에 실패했습니다.')
+            
+            setApiKeyModal({
+              isOpen: true,
+              apiKey: result.apiKey,
+              mallName: newMall.mallName,
+              expiresAt: result.expiresAt,
+              isReissue: false
+            })
+          }
       
       closeDialog()
       loadMalls()
@@ -276,8 +282,11 @@ export default function AdminPage() {
 
   const handleReissueMall = async () => {
     if (!editingMall) return;
-
-    const response = await fetch('/api/reissue-apikey', {
+    if (isProcessing) return; // 이미 처리 중이면 무시
+    
+    setIsProcessing(true);
+    try {
+      const response = await fetch('/api/reissue-apikey', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -295,7 +304,7 @@ export default function AdminPage() {
       const result = await response.json()
       
       // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
+      if (newMall.contactEmail && newMall.contactEmail.trim()) {
         try {
           const emailResponse = await fetch('/api/send-apikey', {
             method: 'POST',
@@ -310,21 +319,12 @@ export default function AdminPage() {
           })
           
           if (emailResponse.ok) {
-            // 이메일 발송 상태 업데이트
-            await fetch('/api/update-email-status', {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'admin_secret_key_12345'
-              },
-              body: JSON.stringify({
-                mallId: editingMall.mallId,
-                emailSent: true
-              })
-            })
             
             // 상태 업데이트 후 쇼핑몰 목록 새로고침
             await loadMalls()
+            
+            // API Key 재발급 완료 알림
+            alert('API Key가 성공적으로 재발급되었습니다!')
             
             setApiKeyModal({
               isOpen: true,
@@ -354,6 +354,9 @@ export default function AdminPage() {
           alert('⚠️ 이메일 발송 중 오류가 발생했습니다.')
         }
       } else if (newMall.contactEmail && newMall.contactEmail.trim()) {
+        // API Key 재발급 완료 알림 (이메일 없음)
+        alert('API Key가 성공적으로 재발급되었습니다!')
+        
         setApiKeyModal({
           isOpen: true,
           apiKey: result.apiKey,
@@ -361,15 +364,18 @@ export default function AdminPage() {
           expiresAt: result.expiresAt,
           isReissue: true
         })
-      } else {
-        setApiKeyModal({
-          isOpen: true,
-          apiKey: result.apiKey,
-          mallName: editingMall.mallName,
-          expiresAt: result.expiresAt,
-          isReissue: true
-        })
-      }
+          } else {
+            // API Key 재발급 완료 알림 (이메일 발송 실패)
+            alert('API Key가 재발급되었지만 이메일 발송에 실패했습니다.')
+            
+            setApiKeyModal({
+              isOpen: true,
+              apiKey: result.apiKey,
+              mallName: editingMall.mallName,
+              expiresAt: result.expiresAt,
+              isReissue: true
+            })
+          }
       
       closeDialog()
       loadMalls()
@@ -377,13 +383,19 @@ export default function AdminPage() {
       const error = await response.json()
       alert(`재발급 실패: ${error.error}`)
     }
+    } catch (error) {
+      console.error('재발급 오류:', error)
+      alert('재발급 중 오류가 발생했습니다.')
+    } finally {
+      setIsProcessing(false);
+    }
   }
 
   const closeDialog = () => {
     setIsDialogOpen(false)
     setDialogMode('create')
     setEditingMall(null)
-    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomain: '', contactEmail: '', description: '' });
     setEmailError("")
   }
 
@@ -396,7 +408,7 @@ export default function AdminPage() {
       mallName: mall.mallName,
       englishId: mall.mallId,  // mallId가 englishId와 동일
       allowedFields: mall.allowedFields,
-      allowedDomains: mall.allowedDomains || [],
+      allowedDomain: mall.allowedDomain || '',
       contactEmail: mall.contactEmail || '',
       description: mall.description || '',
     })
@@ -441,9 +453,6 @@ export default function AdminPage() {
           </div>
           
           <div className="flex items-center space-x-4">
-            <Link href="/delivery-test" className="text-sm text-muted-foreground hover:text-foreground">
-              택배사 테스트
-            </Link>
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               <span>관리자</span>
@@ -474,7 +483,8 @@ export default function AdminPage() {
               <SelectContent>
                 <SelectItem value="all">전체</SelectItem>
                 <SelectItem value="active">활성</SelectItem>
-                <SelectItem value="inactive">비활성</SelectItem>
+                <SelectItem value="expiring">만료예정</SelectItem>
+                <SelectItem value="expired">만료</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -486,7 +496,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setDialogMode('create')
                   setEditingMall(null)
-                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomain: '', contactEmail: '', description: '' })
                   setEmailError("")
                 }}
               >
@@ -540,7 +550,7 @@ export default function AdminPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="contactEmail">담당자 이메일 (선택)</Label>
+                  <Label htmlFor="contactEmail">담당자 이메일</Label>
                   <Input
                     id="contactEmail"
                     type="email"
@@ -568,8 +578,6 @@ export default function AdminPage() {
                   {emailError && (
                     <p className="text-sm text-red-600 mt-1">{emailError}</p>
                   )}
-                    <p className="text-sm text-blue-600 mt-1">이메일을 입력해주세요.</p>
-                  )}
                 </div>
                 
                 <div>
@@ -587,11 +595,9 @@ export default function AdminPage() {
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="sendEmailImmediately"
-                      checked={newMall.sendEmailImmediately}
-                      disabled={!newMall.contactEmail || !newMall.contactEmail.trim()}
-                      onCheckedChange={(checked) => 
-                        setNewMall(prev => ({ ...prev, sendEmailImmediately: !!checked }))
-                      }
+                      checked={true}
+                      disabled={true}
+                      onCheckedChange={() => {}}
                     />
                     <Label 
                       htmlFor="sendEmailImmediately" 
@@ -610,7 +616,9 @@ export default function AdminPage() {
                       : 'text-gray-400'
                   }`}>
                     {newMall.contactEmail && newMall.contactEmail.trim() 
-                      ? '체크 해제 시 나중에 수동으로 발송할 수 있습니다.'
+                      ? (dialogMode === 'create' 
+                          ? 'API Key가 발급되어 담당자 이메일로 즉시 전송됩니다.'
+                          : 'API Key가 재발급되어 담당자 이메일로 즉시 전송됩니다.')
                       : '이메일을 입력하면 자동 발송 옵션이 활성화됩니다.'
                     }
                   </p>
@@ -633,72 +641,29 @@ export default function AdminPage() {
                   </div>
 
                   <div>
-                    <Label>허용 도메인 목록</Label>
-                    <p className="text-xs text-gray-500 mb-2">사용자 리디렉션에 허용할 도메인을 추가하세요</p>
-                    <div className="space-y-2">
-                      {newMall.allowedDomains.map((domain, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <Input
-                            value={domain}
-                            onChange={(e) => {
-                              const newDomains = [...newMall.allowedDomains]
-                              newDomains[index] = e.target.value
-                              setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                            }}
-                            placeholder="예: example.com"
-                            className="flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newDomains = newMall.allowedDomains.filter((_, i) => i !== index)
-                              setNewMall(prev => ({ ...prev, allowedDomains: newDomains }))
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setNewMall(prev => ({ 
-                            ...prev, 
-                            allowedDomains: [...prev.allowedDomains, ''] 
-                          }))
-                        }}
-                        className="w-full"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        도메인 추가
-                      </Button>
-                    </div>
+                    <Label htmlFor="allowedDomain">허용 도메인</Label>
+                    <Input
+                      id="allowedDomain"
+                      value={newMall.allowedDomain}
+                      onChange={(e) => setNewMall(prev => ({ ...prev, allowedDomain: e.target.value }))}
+                      placeholder="예: example.com"
+                    />
                   </div>
 
                 
                 <Button 
                   onClick={handleSubmit}
                   disabled={
-                    isProcessing ||
-                    (!newMall.mallName || !newMall.englishId || newMall.allowedFields.length === 0 || 
-                      newMall.allowedDomains.filter(domain => domain.trim() !== '').length === 0 || 
-                      !newMall.contactEmail || !!emailError)
+                    isProcessing || !newMall.mallName || !newMall.englishId || newMall.allowedFields.length === 0 || 
+                    !newMall.allowedDomain.trim() || 
+                    !newMall.contactEmail || !!emailError
                   }
                   className="w-full"
                 >
-                  {isProcessing ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>API Key 발급 중...</span>
-                    </div>
-                  ) : (
-                    dialogMode === 'create' ? '등록하기' : 
-                    '재발급하기'
-                  )}
+                  {isProcessing 
+                    ? '처리 중...' 
+                    : (dialogMode === 'create' ? '등록하기' : '재발급하기')
+                  }
                 </Button>
               </div>
             </DialogContent>
@@ -707,8 +672,11 @@ export default function AdminPage() {
 
         {/* 통계 섹션 */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">쇼핑몰 현황</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-foreground">쇼핑몰 현황</h3>
+            <p className="text-sm text-gray-500">만료 예정은 30일 이내를 기준으로 표시됩니다.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center">
@@ -726,12 +694,17 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <MailCheck className="h-5 w-5 text-green-600" />
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">이메일 발송완료</p>
-                  <p className="text-2xl font-bold text-gray-900">{malls.filter(m => m.emailSent).length}</p>
+                  <p className="text-sm font-medium text-gray-500">만료 예정</p>
+                  <p className="text-2xl font-bold text-gray-900">{malls.filter(mall => {
+                    const now = new Date();
+                    const expiryDate = new Date(mall.expiresAt);
+                    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                    return daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+                  }).length}</p>
                 </div>
               </div>
             </CardContent>
@@ -740,26 +713,16 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Mail className="h-5 w-5 text-orange-600" />
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <X className="h-5 w-5 text-red-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">이메일 미발송</p>
-                  <p className="text-2xl font-bold text-gray-900">{malls.filter(m => !m.emailSent && m.contactEmail).length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <MailX className="h-5 w-5 text-gray-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">이메일 없음</p>
-                  <p className="text-2xl font-bold text-gray-900">{malls.filter(m => !m.contactEmail).length}</p>
+                  <p className="text-sm font-medium text-gray-500">만료</p>
+                  <p className="text-2xl font-bold text-gray-900">{malls.filter(mall => {
+                    const now = new Date();
+                    const expiryDate = new Date(mall.expiresAt);
+                    return expiryDate <= now;
+                  }).length}</p>
                 </div>
               </div>
             </CardContent>
@@ -781,17 +744,29 @@ export default function AdminPage() {
                       const now = new Date();
                       const expiryDate = new Date(mall.expiresAt);
                       const isExpired = expiryDate <= now;
+                      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                      const isExpiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+                      
+                      let status = '활성';
+                      let variant = "default";
+                      let className = "text-xs bg-blue-100 text-blue-700 border-blue-200";
+                      
+                      if (isExpired) {
+                        status = '만료';
+                        variant = "destructive";
+                        className = "text-xs bg-red-100 text-red-700 border-red-200";
+                      } else if (isExpiringSoon) {
+                        status = '만료예정';
+                        variant = "secondary";
+                        className = "text-xs bg-yellow-100 text-yellow-700 border-yellow-200";
+                      }
                       
                       return (
                         <Badge 
-                          variant={mall.isActive && !isExpired ? "default" : "secondary"} 
-                          className={`text-xs ${
-                            mall.isActive && !isExpired 
-                              ? 'bg-blue-100 text-blue-700 border-blue-200' 
-                              : 'bg-gray-100 text-gray-600 border-gray-200'
-                          }`}
+                          variant={variant as any}
+                          className={className}
                         >
-                          {mall.isActive && !isExpired ? '활성' : '비활성'}
+                          {status}
                         </Badge>
                       );
                     })()}
@@ -910,15 +885,13 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {mall.allowedDomains && mall.allowedDomains.length > 0 && (
+                {mall.allowedDomain && (
                   <div>
                     <Label className="text-xs text-gray-500">허용 도메인</Label>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {mall.allowedDomains.map((domain, index) => (
-                        <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          {domain}
-                        </span>
-                      ))}
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                        {mall.allowedDomain}
+                      </span>
                     </div>
                   </div>
                 )}

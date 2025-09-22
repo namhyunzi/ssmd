@@ -70,13 +70,22 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
         const snapshot = await get(userProfileRef)
         if (snapshot.exists()) {
           const userProfile = snapshot.val()
-          setExistingData({
+          const existingData = {
             name: userProfile.name || '',
             phone: formatPhoneNumber(userProfile.phone || ''),
             address: userProfile.address || '',
             zipCode: userProfile.zipCode || '',
             detailAddress: userProfile.detailAddress || ''
-          })
+          }
+          
+          setExistingData(existingData)
+          
+          // 실제 입력 필드들도 기존 데이터로 업데이트
+          setName(existingData.name)
+          setPhone(existingData.phone)
+          setAddress(existingData.address)
+          setZipCode(existingData.zipCode)
+          setDetailAddress(existingData.detailAddress)
         }
       } catch (error) {
         console.error('개인정보 조회 실패:', error)
@@ -132,182 +141,131 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
         </CardHeader>
         <CardContent className="space-y-6">
           {/* 이름 */}
-          {isFieldMissing('name') && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">
-                이름 <span className="text-red-500">*</span>
-              </Label>
-              <Input 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={`h-12 ${
-                  isFieldMissing('name') && name.trim() === "" 
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              이름 {isFieldMissing('name') && <span className="text-red-500">*</span>}
+            </Label>
+            <Input 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!isFieldMissing('name')}
+              className={`h-12 ${
+                !isFieldMissing('name') 
+                  ? "bg-gray-100 border-gray-300" 
+                  : isFieldMissing('name') && name.trim() === "" 
                     ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                     : "focus:border-primary focus:ring-primary"
-                }`}
-                placeholder="이름을 입력해주세요"
-              />
-              {isFieldMissing('name') && name.trim() === "" && (
-                <p className="text-sm text-red-600">이름을 입력해주세요</p>
-              )}
-            </div>
-          )}
-          
-          {/* 이미 입력된 이름 표시 */}
-          {!isFieldMissing('name') && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-gray-600">이름</Label>
-              <Input 
-                value={getExistingFieldValue('name')}
-                disabled
-                className="h-12 bg-gray-100 border-gray-300"
-              />
-            </div>
-          )}
+              }`}
+              placeholder={isFieldMissing('name') ? "이름을 입력해주세요" : ""}
+            />
+            {isFieldMissing('name') && name.trim() === "" && (
+              <p className="text-sm text-red-600">이름을 입력해주세요</p>
+            )}
+            {!isFieldMissing('name') && (
+              <p className="text-xs text-gray-500">이미 입력된 정보입니다</p>
+            )}
+          </div>
 
           {/* 휴대폰 번호 */}
-          {isFieldMissing('phone') && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">
-                휴대폰 번호 <span className="text-red-500">*</span>
-              </Label>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex space-x-2">
-                  <Select defaultValue="010" disabled>
-                    <SelectTrigger className="w-20 bg-gray-100 border-gray-300">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="010">010</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input 
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="1234-5678"
-                    className={`flex-1 ${
-                      isFieldMissing('phone') && phone.trim() === "" 
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              휴대폰 번호 {isFieldMissing('phone') && <span className="text-red-500">*</span>}
+            </Label>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex space-x-2">
+                <Select defaultValue="010" disabled>
+                  <SelectTrigger className="w-20 bg-gray-100 border-gray-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="010">010</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={!isFieldMissing('phone')}
+                  placeholder={isFieldMissing('phone') ? "1234-5678" : ""}
+                  className={`flex-1 ${
+                    !isFieldMissing('phone') 
+                      ? "bg-gray-100 border-gray-300" 
+                      : isFieldMissing('phone') && phone.trim() === "" 
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                         : "focus:border-primary focus:ring-primary"
-                    }`}
-                  />
-                </div>
-              </div>
-              {isFieldMissing('phone') && phone.trim() === "" && (
-                <p className="text-sm text-red-600">휴대폰 번호를 입력해주세요</p>
-              )}
-            </div>
-          )}
-          
-          {/* 이미 입력된 휴대폰 번호 표시 */}
-          {!isFieldMissing('phone') && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-gray-600">휴대폰 번호</Label>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex space-x-2">
-                  <Select defaultValue="010" disabled>
-                    <SelectTrigger className="w-20 bg-gray-100 border-gray-300">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="010">010</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input 
-                    value={getExistingFieldValue('phone')}
-                    disabled
-                    className="flex-1 bg-gray-100 border-gray-300"
-                  />
-                </div>
+                  }`}
+                />
               </div>
             </div>
-          )}
+            {isFieldMissing('phone') && phone.trim() === "" && (
+              <p className="text-sm text-red-600">휴대폰 번호를 입력해주세요</p>
+            )}
+            {!isFieldMissing('phone') && (
+              <p className="text-xs text-gray-500">이미 입력된 정보입니다</p>
+            )}
+          </div>
 
           {/* 주소 */}
-          {isFieldMissing('address') && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">
-                주소 <span className="text-red-500">*</span>
-              </Label>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <div className="flex space-x-2">
-                  <Input 
-                    value={zipCode}
-                    onChange={(e) => setZipCode(e.target.value)}
-                    className={`w-24 ${
-                      isFieldMissing('address') && zipCode.trim() === "" 
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              주소 {isFieldMissing('address') && <span className="text-red-500">*</span>}
+            </Label>
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <div className="flex space-x-2">
+                <Input 
+                  value={zipCode}
+                  onChange={(e) => setZipCode(e.target.value)}
+                  disabled={!isFieldMissing('address')}
+                  className={`w-24 ${
+                    !isFieldMissing('address') 
+                      ? "bg-gray-100 border-gray-300" 
+                      : isFieldMissing('address') && zipCode.trim() === "" 
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                         : "focus:border-primary focus:ring-primary"
-                    }`}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex-shrink-0"
-                    onClick={() => {
+                  }`}
+                />
+                <Button 
+                  variant="outline" 
+                  className="flex-shrink-0"
+                  disabled={!isFieldMissing('address')}
+                  onClick={() => {
+                    if (isFieldMissing('address')) {
                       // 주소 API 시뮬레이션
                       setZipCode("12345")
                       setAddress("서울특별시 강남구 테헤란로 123")
-                    }}
-                  >
-                    <Search className="h-4 w-4 mr-1" />
-                    주소 찾기
-                  </Button>
-                </div>
-                <Input 
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className={`${
-                    isFieldMissing('address') && address.trim() === "" 
+                    }
+                  }}
+                >
+                  <Search className="h-4 w-4 mr-1" />
+                  주소 찾기
+                </Button>
+              </div>
+              <Input 
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                disabled={!isFieldMissing('address')}
+                className={`${
+                  !isFieldMissing('address') 
+                    ? "bg-gray-100 border-gray-300" 
+                    : isFieldMissing('address') && address.trim() === "" 
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                       : "focus:border-primary focus:ring-primary"
-                  }`}
-                />
-                <Input 
-                  value={detailAddress}
-                  onChange={(e) => setDetailAddress(e.target.value)}
-                  placeholder="상세주소 입력"
-                  className="bg-white"
-                />
-              </div>
-              {isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "") && (
-                <p className="text-sm text-red-600">주소를 입력해주세요</p>
-              )}
+                }`}
+              />
+              <Input 
+                value={detailAddress}
+                onChange={(e) => setDetailAddress(e.target.value)}
+                disabled={!isFieldMissing('address')}
+                placeholder={isFieldMissing('address') ? "상세주소 입력" : ""}
+                className={!isFieldMissing('address') ? "bg-gray-100 border-gray-300" : "bg-white"}
+              />
             </div>
-          )}
-          
-          {/* 이미 입력된 주소 표시 */}
-          {!isFieldMissing('address') && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-gray-600">주소</Label>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <div className="flex space-x-2">
-                  <Input 
-                    value={getExistingFieldValue('zipCode')}
-                    disabled
-                    className="w-24 bg-gray-100 border-gray-300"
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex-shrink-0"
-                    disabled
-                  >
-                    <Search className="h-4 w-4 mr-1" />
-                    주소 찾기
-                  </Button>
-                </div>
-                <Input 
-                  value={getExistingFieldValue('address')}
-                  disabled
-                  className="bg-gray-100 border-gray-300"
-                />
-                <Input 
-                  value={getExistingFieldValue('detailAddress')}
-                  disabled
-                  className="bg-gray-100 border-gray-300"
-                />
-              </div>
-            </div>
-          )}
+            {isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "") && (
+              <p className="text-sm text-red-600">주소를 입력해주세요</p>
+            )}
+            {!isFieldMissing('address') && (
+              <p className="text-xs text-gray-500">이미 입력된 정보입니다</p>
+            )}
+          </div>
 
           <Button 
             className="w-full h-12 bg-primary hover:bg-primary/90"
