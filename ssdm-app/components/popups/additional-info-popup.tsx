@@ -229,16 +229,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-sm text-muted-foreground">데이터를 불러오는 중...</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* 이름 */}
+          {/* 이름 */}
               <div className="space-y-3">
             <Label className="text-sm font-medium">
               이름 {isFieldMissing('name') && <span className="text-red-500">*</span>}
