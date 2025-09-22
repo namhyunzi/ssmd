@@ -1,13 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Eye, Key, Trash2, Mail, MailCheck, MailX, Settings, Users, Shield, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, XCircle, AlertOctagon, Clock, X, Ban, AlertCircle, Skull, Zap } from "lucide-react"
+import { Plus, Eye, Key, Trash2, Mail, Settings, Users, Shield, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, XCircle, AlertOctagon, Clock, X, Ban, AlertCircle, Skull, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   Dialog, 
@@ -57,10 +56,9 @@ export default function AdminPage() {
     expiresAt: '',
     isReissue: false
   })
-  const [dialogMode, setDialogMode] = useState<'create' | 'reissue' | 'email-send'>('create')
+  const [dialogMode, setDialogMode] = useState<'create' | 'reissue'>('create')
   const [editingMall, setEditingMall] = useState<Mall | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [emailFilter, setEmailFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(6)
@@ -70,8 +68,7 @@ export default function AdminPage() {
     allowedFields: [] as string[],
     allowedDomains: [] as string[],
     contactEmail: '',
-    description: '',
-    sendEmailImmediately: true
+    description: ''
   })
   const [emailError, setEmailError] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
@@ -89,7 +86,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     filterMalls()
-  }, [malls, searchTerm, emailFilter, statusFilter])
+  }, [malls, searchTerm, statusFilter])
 
   const loadMalls = async () => {
     try {
@@ -115,16 +112,6 @@ export default function AdminPage() {
       )
     }
 
-    // 이메일 발송 상태 필터
-    if (emailFilter !== "all") {
-      if (emailFilter === "sent") {
-        filtered = filtered.filter(mall => mall.emailSent)
-      } else if (emailFilter === "pending") {
-        filtered = filtered.filter(mall => !mall.emailSent && mall.contactEmail)
-      } else if (emailFilter === "no-email") {
-        filtered = filtered.filter(mall => !mall.contactEmail)
-      }
-    }
 
     // 활성 상태 필터
     if (statusFilter !== "all") {
@@ -169,8 +156,6 @@ export default function AdminPage() {
 
       if (dialogMode === 'create') {
         await handleCreateMall();
-      } else if (dialogMode === 'email-send') {
-        await handleEmailSend();
       } else {
         await handleReissueMall();
       }
@@ -203,7 +188,7 @@ export default function AdminPage() {
       const result = await response.json()
       
       // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
+      if (newMall.contactEmail && newMall.contactEmail.trim()) {
         try {
           const emailResponse = await fetch('/api/send-apikey', {
             method: 'POST',
@@ -308,7 +293,7 @@ export default function AdminPage() {
       const result = await response.json()
       
       // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
+      if (newMall.contactEmail && newMall.contactEmail.trim()) {
         try {
           const emailResponse = await fetch('/api/send-apikey', {
             method: 'POST',
@@ -396,23 +381,11 @@ export default function AdminPage() {
     setIsDialogOpen(false)
     setDialogMode('create')
     setEditingMall(null)
-    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '' })
     setEmailError("")
   }
 
-  const handleSendEmail = async (mall: Mall) => {
-    // API Key가 Firebase에 저장되지 않으므로 수동 이메일 발송 불가능
-    alert('API Key가 환경변수로만 관리되므로 수동 이메일 발송이 불가능합니다.\n등록/재발급 시에만 이메일 발송이 가능합니다.')
-  }
 
-  const handleEmailSend = async () => {
-    // API Key가 Firebase에 저장되지 않으므로 수동 이메일 발송 불가능
-    alert('API Key가 환경변수로만 관리되므로 수동 이메일 발송이 불가능합니다.\n등록/재발급 시에만 이메일 발송이 가능합니다.')
-    setIsDialogOpen(false)
-    setEditingMall(null)
-    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
-    setEmailError("")
-  }
 
   const handleReissueApiKey = (mall: Mall) => {
     setDialogMode('reissue')
@@ -424,7 +397,6 @@ export default function AdminPage() {
       allowedDomains: mall.allowedDomains || [],
       contactEmail: mall.contactEmail || '',
       description: mall.description || '',
-      sendEmailImmediately: true
     })
     setIsDialogOpen(true)
   }
@@ -449,15 +421,6 @@ export default function AdminPage() {
   const endIndex = startIndex + itemsPerPage
   const currentMalls = filteredMalls.slice(startIndex, endIndex)
 
-  const getEmailStatusBadge = (mall: Mall) => {
-    if (!mall.contactEmail) {
-      return <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600 border-gray-200"><MailX className="h-3 w-3 mr-1" />이메일 없음</Badge>
-    }
-    if (mall.emailSent) {
-      return <Badge variant="default" className="text-xs bg-emerald-100 text-emerald-700 border-emerald-200"><MailCheck className="h-3 w-3 mr-1" />발송완료</Badge>
-    }
-    return <Badge variant="destructive" className="text-xs bg-orange-100 text-orange-700 border-orange-200"><Mail className="h-3 w-3 mr-1" />미발송</Badge>
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -501,17 +464,6 @@ export default function AdminPage() {
               />
             </div>
             
-            <Select value={emailFilter} onValueChange={setEmailFilter}>
-              <SelectTrigger className="w-40 bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                <SelectItem value="sent">발송완료</SelectItem>
-                <SelectItem value="pending">미발송</SelectItem>
-                <SelectItem value="no-email">이메일없음</SelectItem>
-              </SelectContent>
-            </Select>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-32 bg-white">
@@ -532,7 +484,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setDialogMode('create')
                   setEditingMall(null)
-                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
+                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '' })
                   setEmailError("")
                 }}
               >
@@ -544,7 +496,6 @@ export default function AdminPage() {
               <DialogHeader>
                 <DialogTitle>
                   {dialogMode === 'create' ? '새 쇼핑몰 등록' : 
-                   dialogMode === 'email-send' ? `이메일 발송 - ${editingMall?.mallName}` :
                    `API Key 재발급 - ${editingMall?.mallName}`}
                 </DialogTitle>
               </DialogHeader>
@@ -556,8 +507,8 @@ export default function AdminPage() {
                     value={newMall.mallName}
                     onChange={(e) => setNewMall(prev => ({ ...prev, mallName: e.target.value }))}
                     placeholder="예: 북스토어"
-                    disabled={dialogMode === 'reissue' || dialogMode === 'email-send'}
-                    className={dialogMode === 'reissue' || dialogMode === 'email-send' ? 'bg-gray-100' : ''}
+                    disabled={dialogMode === 'reissue'}
+                    className={dialogMode === 'reissue' ? 'bg-gray-100' : ''}
                   />
                 </div>
                 
@@ -576,8 +527,8 @@ export default function AdminPage() {
                     }}
                     placeholder="예: bookstore"
                     maxLength={20}
-                    disabled={dialogMode === 'reissue' || dialogMode === 'email-send'}
-                    className={dialogMode === 'reissue' || dialogMode === 'email-send' ? 'bg-gray-100' : ''}
+                    disabled={dialogMode === 'reissue'}
+                    className={dialogMode === 'reissue' ? 'bg-gray-100' : ''}
                   />
                   {dialogMode === 'create' && (
                     <p className="text-xs text-gray-500 mt-1">
@@ -609,14 +560,12 @@ export default function AdminPage() {
                     placeholder="cs@bookstore.com"
                     className={
                       emailError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : 
-                      dialogMode === 'email-send' ? "border-blue-500 focus:border-blue-500 focus:ring-blue-500" :
                       "focus:border-primary focus:ring-primary"
                     }
                   />
                   {emailError && (
                     <p className="text-sm text-red-600 mt-1">{emailError}</p>
                   )}
-                  {dialogMode === 'email-send' && !emailError && !newMall.contactEmail && (
                     <p className="text-sm text-blue-600 mt-1">이메일을 입력해주세요.</p>
                   )}
                 </div>
@@ -628,32 +577,23 @@ export default function AdminPage() {
                     value={newMall.description}
                     onChange={(e) => setNewMall(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="온라인 서점, 도서 판매"
-                    disabled={dialogMode === 'email-send'}
-                    className={dialogMode === 'email-send' ? 'bg-gray-100' : ''}
                   />
                 </div>
 
-                {/* 이메일 발송 옵션 - email-send 모드에서는 숨김 */}
-                {dialogMode !== 'email-send' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                {/* 이메일 발송 옵션 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="sendEmailImmediately"
-                        checked={newMall.sendEmailImmediately}
-                        disabled={!newMall.contactEmail || !newMall.contactEmail.trim()}
-                        onCheckedChange={(checked) => 
-                          setNewMall(prev => ({ ...prev, sendEmailImmediately: !!checked }))
-                        }
+                        checked={true}
+                        disabled={true}
+                        onCheckedChange={() => {}}
                       />
                       <Label 
                         htmlFor="sendEmailImmediately" 
-                        className={`text-sm font-medium ${
-                          newMall.contactEmail && newMall.contactEmail.trim() 
-                            ? 'text-blue-800' 
-                            : 'text-gray-400'
-                        }`}
+                        className="text-sm font-medium text-gray-500"
                       >
-                        {dialogMode === 'create' ? '등록 완료 후 즉시 API Key 이메일 발송' : '재발급 완료 후 즉시 API Key 이메일 발송'}
+                        {dialogMode === 'create' ? '등록 완료 후 즉시 API Key 이메일 발송 (자동)' : '재발급 완료 후 즉시 API Key 이메일 발송 (자동)'}
                       </Label>
                     </div>
                     <p className={`text-xs mt-1 ml-6 ${
@@ -662,14 +602,15 @@ export default function AdminPage() {
                         : 'text-gray-400'
                     }`}>
                       {newMall.contactEmail && newMall.contactEmail.trim() 
-                        ? '체크 해제 시 나중에 수동으로 발송할 수 있습니다.'
+                        ? (dialogMode === 'create' 
+                            ? 'API Key가 발급되어 담당자 이메일로 즉시 전송됩니다.'
+                            : 'API Key가 재발급되어 담당자 이메일로 즉시 전송됩니다.')
                         : '이메일을 입력하면 자동 발송 옵션이 활성화됩니다.'
                       }
                     </p>
                   </div>
                 )}
                 
-                {dialogMode !== 'email-send' && (
                   <div>
                     <Label>제공 가능한 개인정보</Label>
                     <div className="space-y-2 mt-2">
@@ -687,7 +628,6 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {dialogMode !== 'email-send' && (
                   <div>
                     <Label>허용 도메인 목록</Label>
                     <p className="text-xs text-gray-500 mb-2">사용자 리디렉션에 허용할 도메인을 추가하세요</p>
@@ -741,11 +681,9 @@ export default function AdminPage() {
                   onClick={handleSubmit}
                   disabled={
                     isProcessing ||
-                    (dialogMode === 'email-send' 
-                      ? !newMall.contactEmail || !!emailError
-                      : !newMall.mallName || !newMall.englishId || newMall.allowedFields.length === 0 || 
-                        newMall.allowedDomains.filter(domain => domain.trim() !== '').length === 0 || 
-                        !newMall.contactEmail || !!emailError)
+                    (!newMall.mallName || !newMall.englishId || newMall.allowedFields.length === 0 || 
+                      newMall.allowedDomains.filter(domain => domain.trim() !== '').length === 0 || 
+                      !newMall.contactEmail || !!emailError)
                   }
                   className="w-full"
                 >
@@ -756,7 +694,6 @@ export default function AdminPage() {
                     </div>
                   ) : (
                     dialogMode === 'create' ? '등록하기' : 
-                    dialogMode === 'email-send' ? '이메일 발송' : 
                     '재발급하기'
                   )}
                 </Button>
@@ -837,7 +774,6 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{mall.mallName}</CardTitle>
                   <div className="flex items-center space-x-2">
-                    {getEmailStatusBadge(mall)}
                     {(() => {
                       const now = new Date();
                       const expiryDate = new Date(mall.expiresAt);
@@ -992,18 +928,6 @@ export default function AdminPage() {
                 )}
                 
                 <div className="flex space-x-2 pt-2">
-                  {!mall.emailSent && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => handleSendEmail(mall)}
-                    >
-                      <Mail className="h-3 w-3 mr-1" />
-                      이메일 발송
-                    </Button>
-                  )}
-                  
                   <Button 
                     size="sm" 
                     variant="outline" 
