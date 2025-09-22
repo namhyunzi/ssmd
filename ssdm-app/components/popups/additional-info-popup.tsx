@@ -15,9 +15,10 @@ interface AdditionalInfoPopupProps {
   missingFields: string[]
   hasExistingData?: boolean // 기존 데이터 존재 여부
   onComplete?: (data: { [key: string]: string }) => void
+  jwt?: string // JWT 토큰
 }
 
-export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, missingFields, hasExistingData = false, onComplete }: AdditionalInfoPopupProps) {
+export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, missingFields, hasExistingData = false, onComplete, jwt }: AdditionalInfoPopupProps) {
   // 기존 데이터 저장용 state (DB에서 동적으로 가져옴)
   const [existingData, setExistingData] = useState({
     name: '',
@@ -55,8 +56,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     
     const loadExistingData = async () => {
       console.log('=== 추가정보 팝업 데이터 로드 시작 ===')
-      const jwtToken = sessionStorage.getItem('openPopup')
-      if (!jwtToken) {
+      if (!jwt) {
         console.log('JWT 토큰 없음')
         return
       }
@@ -102,7 +102,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     }
     
     loadExistingData()
-  }, [isOpen]) // isOpen이 변경될 때마다 실행
+  }, [isOpen, jwt]) // isOpen과 jwt가 변경될 때마다 실행
 
   // Firebase에서 개인정보 조회하여 표시
   const getExistingFieldValue = (field: string) => {

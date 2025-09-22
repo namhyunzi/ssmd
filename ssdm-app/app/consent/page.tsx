@@ -992,6 +992,7 @@ function ConsentPageContent() {
             serviceName={mallInfo.mallName}
             onComplete={handleAdditionalInfoComplete}
             missingFields={mallInfo.requiredFields}
+            jwt={token}
           />
         )}
       </div>
