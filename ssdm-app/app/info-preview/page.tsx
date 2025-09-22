@@ -205,7 +205,8 @@ function InfoPreviewPageContent() {
           console.log('=== postMessage 이벤트 수신 ===', {
             type: event.data.type,
             hasJwt: !!event.data.jwt,
-            isInitializing
+            isInitializing,
+            isInitializingRef: isInitializingRef.current
           })
           
           // 무효한 이벤트는 무시
