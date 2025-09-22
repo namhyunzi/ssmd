@@ -64,7 +64,7 @@ function ConsentPageContent() {
             const { jwt } = event.data
             if (jwt) {
               sessionStorage.setItem('openPopup', jwt)
-              router.push('/login')
+              router.push('/')
             }
           }
         }
@@ -98,8 +98,6 @@ function ConsentPageContent() {
     // 사용자 매핑 정보 확인 및 생성 함수
   const ensureUserMapping = async (shopId: string, mallId: string) => {
     try {
-      console.log('사용자 매핑 정보 확인 시작:', { shopId, mallId })
-      
       // Firebase에서 기존 매핑 정보 확인
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, get, set } = await import('firebase/database')
@@ -109,13 +107,11 @@ function ConsentPageContent() {
       
       if (mappingSnapshot.exists()) {
         const existingUid = mappingSnapshot.val().uid
-        console.log('기존 UID 발견:', existingUid)
         return existingUid
       }
       
       // 새 UID 생성
       const uid = await generateUid(mallId)
-      console.log('새 UID 생성:', uid)
       
       // 매핑 정보 저장
       await set(mappingRef, {
@@ -192,18 +188,15 @@ function ConsentPageContent() {
     
     try {
       console.log('=== 초기화 함수 시작 ===')
-      
       // 로그인 상태에 따라 JWT 가져오기
       let jwtToken = null
       
       if (user) {
         // 로그인됨 → postMessage에서 받은 JWT 직접 사용
         jwtToken = jwt
-        console.log('로그인된 상태: postMessage에서 받은 JWT 사용')
       } else {
         // 로그인 안됨 → 세션에서 가져오기
         jwtToken = sessionStorage.getItem('openPopup')
-        console.log('로그인 안된 상태: 세션에서 JWT 가져옴')
       }
       
       if (!jwtToken) {
@@ -214,7 +207,6 @@ function ConsentPageContent() {
       
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId;
-      console.log("초기화로직시 currentMallId 확인",currentMallId);
       
       // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
