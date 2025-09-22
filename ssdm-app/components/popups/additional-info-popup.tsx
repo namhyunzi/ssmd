@@ -184,10 +184,12 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     }
   }
 
-  // 필드가 누락된 필드인지 확인
+  // 필드가 누락된 필드인지 확인 (실제로 데이터가 없는 경우만)
   const isFieldMissing = (field: string) => {
-    const isMissing = missingFields.includes(field)
-    console.log(`필드 ${field} 누락 여부:`, isMissing, 'missingFields:', missingFields)
+    const isInMissingList = missingFields.includes(field)
+    const hasData = existingData[field as keyof typeof existingData]?.trim() !== ''
+    const isMissing = isInMissingList && !hasData
+    console.log(`필드 ${field} 누락 여부:`, isMissing, 'missingFields에 포함:', isInMissingList, '데이터 있음:', hasData)
     return isMissing
   }
 

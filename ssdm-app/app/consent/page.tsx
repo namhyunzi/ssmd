@@ -356,12 +356,18 @@ function ConsentPageContent() {
       }
       
       // 2. 누락된 필드 확인
+      console.log('=== 누락된 필드 확인 디버깅 ===')
+      console.log('requiredFields:', requiredFields)
+      console.log('mergedUserData:', mergedUserData)
+      
       const missingFields = requiredFields.filter(field => {
         const value = mergedUserData[field as keyof typeof mergedUserData]
-        return !value || value.trim() === ""
+        const isEmpty = !value || value.trim() === ""
+        console.log(`필드 ${field}: 값="${value}", 비어있음=${isEmpty}`)
+        return isEmpty
       })
       
-      console.log('누락된 필드 확인:', missingFields)
+      console.log('최종 누락된 필드:', missingFields)
       if (missingFields.length > 0) {
         // 요청 정보보다 적게 입력한 사람 → 추가정보 입력
         console.log('누락된 필드 있음 - 추가정보 입력 팝업 표시')
