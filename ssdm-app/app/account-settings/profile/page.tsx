@@ -144,13 +144,11 @@ export default function ProfileEditPage() {
         setIsLoading(true)
         
         try {
-          // 1. Firebase에서 메타데이터 확인
-          const profileMetadata = await getUserProfile(user)
-          console.log('프로필 메타데이터:', profileMetadata)
-          
-          // 2. Firebase에서 개인정보 조회
-          const { getUserProfile } = await import('@/lib/data-storage')
+          // Firebase에서 개인정보 조회
+          console.log('=== 개인정보 조회 시작 ===')
+          console.log('사용자 UID:', user.uid)
           const userProfile = await getUserProfile(user)
+          console.log('조회된 프로필 데이터:', userProfile)
           
           if (userProfile) {
             try {

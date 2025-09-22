@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 import { Users } from '@/lib/user-profile'
 import { getUserServiceConsents, calculateConsentStatus, UserConsents } from '@/lib/service-consent'
 import { getUserProfile, getUserMappings, getMallServiceConsents } from '@/lib/data-storage'
@@ -65,6 +65,7 @@ function ServiceConsentContent() {
         // 연결된 쇼핑몰 계정 및 동의 내역 로드
         try {
           const mappings = await getUserMappings()
+          console.log('로드된 userMappings:', mappings)
           setUserMappings(mappings)
           
           // 각 쇼핑몰별 동의 내역 조회
@@ -79,6 +80,9 @@ function ServiceConsentContent() {
           }
           setMallConsents(allMallConsents)
           console.log('쇼핑몰 동의 내역:', allMallConsents)
+          console.log('mallConsents 필터링 전:', allMallConsents)
+          console.log('mallConsents 필터링 전:', allMallConsents)
+          console.log('mallConsents 필터링 후 (always만):', allMallConsents.filter(consent => consent.consentType === 'always'))
         } catch (error) {
           console.error('Error loading mall consents:', error)
         }
@@ -120,14 +124,27 @@ function ServiceConsentContent() {
     if (selectedConsent) {
       setIsDeleting(true)
       try {
-        // TODO: deleteServiceConsent 함수 구현 필요
-        // const success = await deleteServiceConsent(selectedConsent.id)
-        // if (success) {
-          // 해당 서비스 동의 내역 삭제
-          setConsents(prev => prev.filter(consent => consent.id !== selectedConsent.id))
-          setShowDeleteModal(false)
-          setSelectedConsent(null) // 목록으로 돌아가기
-        // }
+        // Firebase에서 isActive를 false로 업데이트
+        const { realtimeDb } = await import('@/lib/firebase')
+        const { ref, update } = await import('firebase/database')
+        
+        // userMappings에서 해당 매핑의 isActive를 false로 업데이트
+        const { auth } = await import('@/lib/firebase')
+        if (auth.currentUser) {
+          const firebaseUid = auth.currentUser.uid
+          const mappingRef = ref(realtimeDb, `userMappings/${selectedConsent.mallId}/${firebaseUid}/${selectedConsent.shopId}`)
+          await update(mappingRef, { isActive: false })
+          
+          console.log('연결해제 완료:', selectedConsent.mallId, selectedConsent.shopId)
+        }
+        
+        // 로컬 상태에서도 제거
+        setUserMappings(prev => prev.filter(mapping => 
+          !(mapping.mallId === selectedConsent.mallId && mapping.shopId === selectedConsent.shopId)
+        ))
+        
+        setShowDeleteModal(false)
+        setSelectedConsent(null) // 목록으로 돌아가기
       } catch (error) {
         console.error('Error deleting consent:', error)
       } finally {
@@ -136,10 +153,50 @@ function ServiceConsentContent() {
     }
   }
 
-  // 필터링된 동의 내역 (상태를 실시간으로 계산)
+  // 만료일 계산 함수
+  const calculateExpirationStatus = (consent: any) => {
+    const now = new Date()
+    const provisionDate = new Date(consent.timestamp || consent.createdAt || consent.date)
+    const expiresAt = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000)) // 6개월 후
+    const daysUntilExpiry = Math.ceil((expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+    
+    if (daysUntilExpiry <= 0) {
+      return 'expired'
+    } else if (daysUntilExpiry <= 30) {
+      return 'expiring'
+    } else {
+      return 'active'
+    }
+  }
+
+  // 필터링된 동의 내역 (always 타입만 표시)
+  const alwaysConsents = consents.filter(consent => consent.consentType === 'always')
+  
   const filteredConsents = activeFilter === "all" 
-    ? consents 
-    : consents.filter(consent => calculateConsentStatus(consent.expiryDate) === activeFilter)
+    ? alwaysConsents 
+    : alwaysConsents.filter(consent => calculateConsentStatus(consent.expiryDate) === activeFilter)
+
+  // 필터링된 쇼핑몰 동의 내역
+  const getFilteredMallConsents = () => {
+    const alwaysConsents = mallConsents.filter(consent => 
+      consent.consentType === 'always' && 
+      consent.mallId && 
+      consent.shopId && 
+      consent.mallId !== '~' && 
+      consent.shopId !== '~'
+    )
+    
+    if (activeFilter === "all") {
+      return alwaysConsents
+    }
+    
+    return alwaysConsents.filter(consent => {
+      const status = calculateExpirationStatus(consent)
+      return status === activeFilter
+    })
+  }
+
+  const filteredMallConsents = getFilteredMallConsents()
 
   // 페이지네이션 계산
   const totalPages = Math.ceil(filteredConsents.length / itemsPerPage)
@@ -154,8 +211,10 @@ function ServiceConsentContent() {
 
   const getFilterText = (filter: string) => {
     switch (filter) {
+      case "all":
+        return "전체"
       case "active":
-        return "활성화"
+        return "활성"
       case "expiring":
         return "만료예정"
       case "expired":
@@ -238,29 +297,110 @@ function ServiceConsentContent() {
                 </div>
               </div>
 
+              {/* 연결된 쇼핑몰 계정 섹션 - 숨김 처리 */}
+              {false && userMappings.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-4">연결된 쇼핑몰 계정</h3>
+                  <div className="space-y-3">
+                    {userMappings
+                      .filter(mapping => {
+                        console.log('매핑 데이터 확인:', mapping)
+                        return mapping.mallId && mapping.shopId && mapping.mappedUid && mapping.mallId !== '~' && mapping.shopId !== '~' && mapping.isActive !== false
+                      }) // 빈 데이터 필터링 강화 및 비활성 항목 제외
+                      .map((mapping, index) => (
+                      <div key={`${mapping.mallId}-${mapping.shopId}`} className="border rounded-lg p-4 hover:bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0">
+                              <Store className="h-6 w-6 text-primary" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm text-primary">{mapping.mallId}</div>
+                              <div className="text-xs text-muted-foreground">연결된 계정: {mapping.shopId}</div>
+                              <div className="text-xs text-muted-foreground">
+                                연결일: {new Date(mapping.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={mapping.isActive ? "default" : "secondary"} className={mapping.isActive ? "bg-primary text-white" : "bg-gray-500 text-white"}>
+                              {mapping.isActive ? "활성" : "비활성"}
+                            </Badge>
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  // 실제 사용자 프로필 데이터 가져오기
+                                  const { auth } = await import('@/lib/firebase')
+                                  const { getUserProfile } = await import('@/lib/data-storage')
+                                  
+                                  if (auth.currentUser) {
+                                    const userProfile = await getUserProfile(auth.currentUser)
+                                    
+                                    // 쇼핑몰 상세 정보를 위한 consent 객체 생성
+                                    const mockConsent = {
+                                      id: `${mapping.mallId}-${mapping.shopId}`,
+                                      serviceName: mapping.mallId,
+                                      startDate: new Date(mapping.createdAt).toLocaleDateString(),
+                                      expiryDate: mapping.isActive ? '항상 허용' : '비활성',
+                                      consentType: mapping.isActive ? 'always' : 'inactive',
+                                      providedFields: ['name', 'phone', 'address', 'email'],
+                                      mallId: mapping.mallId,
+                                      shopId: mapping.shopId,
+                                      userProfile: userProfile // 실제 사용자 데이터 추가
+                                    }
+                                    setSelectedConsent(mockConsent)
+                                    
+                                    // localProfile도 업데이트
+                                    setLocalProfile(userProfile)
+                                  }
+                                } catch (error) {
+                                  console.error('사용자 프로필 로드 실패:', error)
+                                }
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              <Settings className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 쇼핑몰 동의 내역 섹션 (always 동의만 표시) */}
-              {mallConsents.filter(consent => consent.consentType === 'always').length > 0 && (
+              {filteredMallConsents.length > 0 && (
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold mb-4">쇼핑몰 항상허용 동의 내역</h3>
                   <div className="space-y-3">
-                    {mallConsents
-                      .filter(consent => consent.consentType === 'always')
-                      .map((consent, index) => (
+                    {filteredMallConsents.map((consent, index) => {
+                      const expirationStatus = calculateExpirationStatus(consent)
+                      const provisionDate = new Date(consent.timestamp || consent.createdAt || consent.date)
+                      const expiresAt = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
+                      
+                      return (
                       <div key={`${consent.mallId}-${consent.shopId}-${index}`} className="p-4 border rounded-lg">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium text-sm">쇼핑몰: {consent.mallId}</div>
                             <div className="text-xs text-muted-foreground">상점: {consent.shopId}</div>
                             <div className="text-xs text-muted-foreground">
-                              동의일: {new Date(consent.createdAt).toLocaleDateString()}
+                              동의일: {provisionDate.toLocaleDateString()}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              만료일: {new Date(consent.expiresAt).toLocaleDateString()}
+                              만료일: {expiresAt.toLocaleDateString()}
                             </div>
                           </div>
                           <div className="text-right">
-                            <Badge variant={consent.isActive ? "default" : "secondary"}>
-                              {consent.isActive ? "활성" : "비활성"}
+                            <Badge 
+                              variant={
+                                expirationStatus === 'expired' ? "destructive" :
+                                expirationStatus === 'expiring' ? "secondary" : "default"
+                              }
+                            >
+                              {expirationStatus === 'expired' ? "만료됨" :
+                               expirationStatus === 'expiring' ? "만료예정" : "활성"}
                             </Badge>
                             <div className="text-xs text-muted-foreground mt-1">
                               항상허용 동의
@@ -268,7 +408,8 @@ function ServiceConsentContent() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -396,7 +537,7 @@ function ServiceConsentContent() {
                   </div>
                   <div>
                     <Label className="text-sm">휴대폰 번호</Label>
-                    <p className="text-sm">{localProfile?.phone || '-'}</p>
+                    <p className="text-sm">{formatPhoneNumber(localProfile?.phone || '')}</p>
                   </div>
                   <div>
                     <Label className="text-sm">주소</Label>
@@ -499,6 +640,21 @@ function ServiceConsentContent() {
       </div>
     </div>
   )
+}
+
+// 휴대폰 번호 포맷팅 함수
+const formatPhoneNumber = (phone: string) => {
+  if (!phone) return '-'
+  
+  const numbers = phone.replace(/\D/g, '')
+  
+  if (numbers.length === 11) {
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
+  } else if (numbers.length === 10) {
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`
+  }
+  
+  return phone
 }
 
 export default function ServiceConsentPage() {

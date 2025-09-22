@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { auth } from "@/lib/firebase"
 
 // Daum 우편번호 API 타입 정의
 declare global {
@@ -47,8 +48,12 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     phone: '',
     address: '',
     zipCode: '',
-    detailAddress: ''
+    detailAddress: '',
+    email: ''
   })
+  
+  // 전화번호 지역번호 상태
+  const [phonePrefix, setPhonePrefix] = useState('010')
   
   // 초기 데이터 저장용 state (비활성화 판단용)
   const [initialData, setInitialData] = useState({
@@ -56,15 +61,97 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     phone: '',
     address: '',
     zipCode: '',
-    detailAddress: ''
+    detailAddress: '',
+    email: ''
   })
 
   // 필드별 포커스 상태 (클릭하고 벗어났는지 확인)
   const [fieldTouched, setFieldTouched] = useState({
     name: false,
     phone: false,
-    address: false
+    address: false,
+    email: false
   })
+
+  // 이메일 관련 상태
+  const [emailStep, setEmailStep] = useState<"initial" | "editing" | "verify">("initial")
+  const [verificationCode, setVerificationCode] = useState("")
+  const [timer, setTimer] = useState(180) // 3 minutes
+  const [emailUsername, setEmailUsername] = useState("")
+  const [emailDomain, setEmailDomain] = useState("gmail.com")
+  const [fullEmail, setFullEmail] = useState("")
+  const [newEmail, setNewEmail] = useState("") // 인증 완료된 새 이메일
+  const [isResending, setIsResending] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null)
+  
+  // 필드별 오류 상태
+  const [fieldErrors, setFieldErrors] = useState({
+    email: "",
+    verificationCode: ""
+  })
+
+  // 필드 오류 설정 함수
+  const setFieldError = (field: keyof typeof fieldErrors, message: string) => {
+    setFieldErrors(prev => ({ ...prev, [field]: message }))
+  }
+
+  // 필드 오류 초기화 함수
+  const clearFieldError = (field: keyof typeof fieldErrors) => {
+    setFieldErrors(prev => ({ ...prev, [field]: "" }))
+  }
+
+  // 이메일 유효성 검사
+  const validateEmail = (email: string) => {
+    if (!email) {
+      setFieldError("email", "꼭 입력해야 해요.")
+      return false
+    }
+    
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailRegex.test(email)) {
+      setFieldError("email", "이메일 주소 형식에 맞게 입력해 주세요.")
+      return false
+    }
+    
+    clearFieldError("email")
+    return true
+  }
+
+  const isValidEmail = emailUsername.length > 0 && emailDomain.length > 0 && !fieldErrors.email
+
+  // 타이머 관리
+  useEffect(() => {
+    if (emailStep === "verify" && timer > 0) {
+      const interval = setInterval(() => {
+        setTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(interval)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      setTimerInterval(interval)
+      
+      return () => clearInterval(interval)
+    }
+  }, [emailStep, timer])
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerInterval) {
+        clearInterval(timerInterval)
+      }
+    }
+  }, [timerInterval])
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
 
   // 전화번호 포맷팅 함수
   const formatPhoneNumber = (phone: string) => {
@@ -79,6 +166,117 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     }
     
     return phone
+  }
+
+  const handleEmailChange = () => {
+    if (emailStep === "initial") {
+      setEmailStep("editing")
+      // 현재 표시된 이메일을 fullEmail에 설정
+      const currentEmail = newEmail || auth.currentUser?.email || ""
+      setFullEmail(currentEmail)
+    }
+  }
+
+  const handleEmailVerification = async () => {
+    if (emailStep === "editing") {
+      // 이메일 유효성 검사
+      if (!validateEmail(fullEmail)) {
+        return
+      }
+      
+      try {
+        // 인증코드 전송 API 호출
+        const response = await fetch('/api/send-verification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: fullEmail }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok) {
+          setEmailStep("verify")
+          setTimer(180) // 3분 타이머 시작
+        } else {
+          setFieldError("email", data.error || "인증코드 전송에 실패했습니다.")
+        }
+      } catch (error) {
+        console.error('인증코드 전송 오류:', error)
+        setFieldError("email", "인증코드 전송 중 오류가 발생했습니다.")
+      }
+    } else if (emailStep === "verify") {
+      // 인증코드 확인
+      if (verificationCode.length !== 6) {
+        setFieldError("verificationCode", "인증코드 6자리를 입력해주세요.")
+        return
+      }
+      
+      setIsVerifying(true)
+      
+      try {
+        const response = await fetch('/api/verify-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: fullEmail, 
+            code: verificationCode 
+          }),
+        })
+        
+        const data = await response.json()
+        
+        if (response.ok) {
+          // 인증 성공 - 바뀐 이메일을 상태에 저장
+          setNewEmail(fullEmail)
+          setExistingData(prev => ({...prev, email: fullEmail}))
+          
+          // 초기 상태로 돌아가기 (바뀐 이메일로)
+          setEmailStep("initial")
+          setVerificationCode("")
+          setFullEmail("")
+          clearFieldError("email")
+          clearFieldError("verificationCode")
+        } else {
+          setFieldError("verificationCode", data.error || "인증코드가 올바르지 않습니다.")
+        }
+      } catch (error) {
+        console.error('인증코드 확인 오류:', error)
+        setFieldError("verificationCode", "인증코드 확인 중 오류가 발생했습니다.")
+      } finally {
+        setIsVerifying(false)
+      }
+    }
+  }
+
+  const handleResendCode = async () => {
+    setIsResending(true)
+    
+    try {
+      const response = await fetch('/api/send-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: fullEmail }),
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        setTimer(180) // 타이머 리셋
+      } else {
+        setFieldError("email", data.error || "인증코드 재전송에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error('인증코드 재전송 오류:', error)
+      setFieldError("email", "인증코드 재전송 중 오류가 발생했습니다.")
+    } finally {
+      setIsResending(false)
+    }
   }
 
   // Daum 우편번호 API 주소 찾기 함수
@@ -165,7 +363,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             phone: formatPhoneNumber(userProfile.phone || ''),
             address: userProfile.address || '',
             zipCode: userProfile.zipCode || '',
-            detailAddress: userProfile.detailAddress || ''
+            detailAddress: userProfile.detailAddress || '',
+            email: userProfile.email || ''
           }
           
           console.log('설정할 데이터:', existingData)
@@ -208,6 +407,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     if (isFieldMissing('name') && existingData.name.trim() === "") return false
     if (isFieldMissing('phone') && existingData.phone.trim() === "") return false
     if (isFieldMissing('address') && existingData.address.trim() === "") return false
+    if (isFieldMissing('email') && existingData.email.trim() === "") return false
     return true
   }
 
@@ -274,12 +474,17 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             </Label>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex space-x-2">
-                <Select defaultValue="010" disabled>
+                <Select value={phonePrefix} onValueChange={setPhonePrefix} disabled={!isFieldMissing('phone')}>
                   <SelectTrigger className="w-20 bg-gray-100 border-gray-300">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="010">010</SelectItem>
+                    <SelectItem value="011">011</SelectItem>
+                    <SelectItem value="016">016</SelectItem>
+                    <SelectItem value="017">017</SelectItem>
+                    <SelectItem value="018">018</SelectItem>
+                    <SelectItem value="019">019</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input 
@@ -377,6 +582,151 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             )}
           </div>
 
+          {/* 이메일 필드 (email이 missingFields에 포함된 경우에만 표시) */}
+          {missingFields.includes('email') && (
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">
+                이메일 {isFieldMissing('email') && <span className="text-red-500">*</span>}
+              </Label>
+
+              <div className="space-y-3">
+                {emailStep === "initial" && (
+                  <>
+                    <div className="bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground">
+                      {newEmail || auth.currentUser?.email}
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent border-blue-300 text-blue-600 hover:bg-blue-50"
+                      onClick={handleEmailChange}
+                    >
+                      이메일 변경하기
+                    </Button>
+                  </>
+                )}
+
+                {emailStep === "editing" && (
+                  <div className="space-y-3">
+                    <Input
+                      value={fullEmail}
+                      onChange={(e) => {
+                        const emailValue = e.target.value
+                        setFullEmail(emailValue)
+                        
+                        // 실시간으로 username과 domain 분리하여 유효성 검사용으로 사용
+                        const atIndex = emailValue.lastIndexOf('@')
+                        if (atIndex > -1) {
+                          setEmailUsername(emailValue.substring(0, atIndex))
+                          setEmailDomain(emailValue.substring(atIndex + 1))
+                        } else {
+                          setEmailUsername(emailValue)
+                          setEmailDomain("")
+                        }
+                        
+                        // 실시간 유효성 검사
+                        if (emailValue) {
+                          validateEmail(emailValue)
+                        }
+                      }}
+                      onBlur={() => validateEmail(fullEmail)}
+                      placeholder="이메일을 입력하세요"
+                      className={`w-full ${
+                        fieldErrors.email 
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                          : "focus:border-primary focus:ring-primary"
+                      }`}
+                    />
+                    {fieldErrors.email && (
+                      <p className="text-sm text-red-600">{fieldErrors.email}</p>
+                    )}
+                    <Button
+                      variant="outline"
+                      className={`w-full ${
+                        isValidEmail
+                          ? "bg-primary text-white hover:bg-primary/90" 
+                          : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                      }`}
+                      onClick={handleEmailVerification}
+                      disabled={!isValidEmail}
+                    >
+                      이메일 인증하기
+                    </Button>
+                  </div>
+                )}
+
+                {emailStep === "verify" && (
+                  <div className="space-y-3">
+                    <div className="bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground">
+                      {fullEmail}
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent border-blue-300 text-blue-600 hover:bg-blue-50"
+                      onClick={() => {
+                        setEmailStep("editing")
+                        setVerificationCode("")
+                        clearFieldError("verificationCode")
+                      }}
+                    >
+                      이메일 변경하기
+                    </Button>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <p className="text-sm text-muted-foreground">이메일로 받은 인증코드를 입력해주세요.</p>
+                      <div className="relative">
+                        <Input
+                          placeholder="인증코드 6자리"
+                          value={verificationCode}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '') // 숫자만 허용
+                            if (value.length <= 6) {
+                              setVerificationCode(value)
+                              if (fieldErrors.verificationCode) {
+                                clearFieldError("verificationCode")
+                              }
+                            }
+                          }}
+                          maxLength={6}
+                          className={`pr-24 bg-white ${
+                            fieldErrors.verificationCode 
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                              : "focus:border-primary focus:ring-primary"
+                          }`}
+                        />
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+                          <span className="text-red-500 text-sm font-mono">{formatTime(timer)}</span>
+                          <button
+                            onClick={handleEmailVerification}
+                            disabled={verificationCode.length !== 6 || isVerifying}
+                            className={`text-sm font-medium ${
+                              verificationCode.length === 6 && !isVerifying
+                                ? "text-primary hover:text-primary/80" 
+                                : "text-gray-400 cursor-not-allowed"
+                            }`}
+                          >
+                            확인
+                          </button>
+                        </div>
+                      </div>
+                      {fieldErrors.verificationCode && (
+                        <p className="text-sm text-red-600">{fieldErrors.verificationCode}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        이메일을 받지 못하셨나요? 
+                        <button 
+                          onClick={handleResendCode}
+                          disabled={isResending}
+                          className="text-primary hover:underline ml-1"
+                        >
+                          {isResending ? "재전송 중..." : "이메일 재전송하기"}
+                        </button>
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <Button 
             className="w-full h-12 bg-primary hover:bg-primary/90"
             disabled={!isFormValid()}
@@ -399,13 +749,18 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   
                   const userId = auth.currentUser.uid
                   
+                  // 전화번호에 지역번호 포함하여 저장
+                  const phoneSuffix = existingData.phone.replace(/\D/g, '')
+                  const fullPhone = phoneSuffix ? phonePrefix + phoneSuffix : existingData.phone
+                  
                   // 기존 데이터와 새로 입력받은 데이터를 모두 포함해서 저장
                   const updatedProfileData = {
                     name: existingData.name,
-                    phone: existingData.phone,
+                    phone: fullPhone,
                     address: existingData.address,
                     zipCode: existingData.zipCode,
-                    detailAddress: existingData.detailAddress
+                    detailAddress: existingData.detailAddress,
+                    email: newEmail || auth.currentUser?.email || existingData.email
                   }
                   
                   // Firebase에 사용자 프로필 업데이트 (기존 데이터 + 새 데이터 모두 저장)

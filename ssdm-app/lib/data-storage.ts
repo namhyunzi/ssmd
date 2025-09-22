@@ -78,13 +78,22 @@ export async function saveUserProfile(
  */
 export async function getUserProfile(user: User): Promise<UserProfile | null> {
   try {
+    console.log('=== getUserProfile 함수 시작 ===')
+    console.log('사용자 UID:', user.uid)
+    
     const userRef = ref(realtimeDb, `users/${user.uid}`);
     const snapshot = await get(userRef);
     
+    console.log('스냅샷 존재 여부:', snapshot.exists())
+    
     if (snapshot.exists()) {
       const userData = snapshot.val() as UserData;
+      console.log('전체 사용자 데이터:', userData)
+      console.log('프로필 데이터:', userData.profile)
       return userData.profile || null;
     }
+    
+    console.log('사용자 데이터가 존재하지 않음')
     return null;
   } catch (error) {
     console.error('개인정보 조회 실패:', error);
@@ -377,13 +386,17 @@ export async function getUserMappings() {
       Object.keys(data).forEach(mallId => {
         if (data[mallId][firebaseUid]) {
           Object.keys(data[mallId][firebaseUid]).forEach(shopId => {
-            userMappings.push({
-              mallId,
-              shopId,
-              mappedUid: data[mallId][firebaseUid][shopId].mappedUid,
-              createdAt: data[mallId][firebaseUid][shopId].createdAt,
-              isActive: data[mallId][firebaseUid][shopId].isActive
-            })
+            const mappingData = data[mallId][firebaseUid][shopId]
+            // 유효한 데이터만 추가 (mallId, shopId, mappedUid가 모두 존재해야 함)
+            if (mallId && shopId && mappingData && mappingData.mappedUid) {
+              userMappings.push({
+                mallId,
+                shopId,
+                mappedUid: mappingData.mappedUid,
+                createdAt: mappingData.createdAt,
+                isActive: mappingData.isActive
+              })
+            }
           })
         }
       })
@@ -410,11 +423,14 @@ export async function getMallServiceConsents(mappedUid: string) {
       const data = snapshot.val()
       Object.keys(data).forEach(mallId => {
         Object.keys(data[mallId]).forEach(shopId => {
-          consents.push({
-            mallId,
-            shopId,
-            ...data[mallId][shopId]
-          })
+          // 빈 데이터 필터링 및 once 타입 제외
+          if (mallId && shopId && mallId !== '~' && shopId !== '~' && data[mallId][shopId] && data[mallId][shopId].consentType !== 'once') {
+            consents.push({
+              mallId,
+              shopId,
+              ...data[mallId][shopId]
+            })
+          }
         })
       })
     }

@@ -110,14 +110,17 @@ export function calculateConsentStatus(consentType: string, expiresAt: string, i
  * @returns 통계 객체
  */
 export function calculateConsentStats(consents: UserConsents[]) {
+  // always 타입만 필터링
+  const alwaysConsents = consents.filter(consent => consent.consentType === 'always');
+  
   const stats = {
-    total: consents.length,
+    total: alwaysConsents.length,
     active: 0,
     expiring: 0,
     expired: 0
   };
   
-  consents.forEach(consent => {
+  alwaysConsents.forEach(consent => {
     const status = calculateConsentStatus(consent.consentType, consent.expiresAt, consent.isActive);
     stats[status]++;
   });

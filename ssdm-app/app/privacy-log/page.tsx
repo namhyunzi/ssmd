@@ -21,7 +21,7 @@ interface ProvisionLog {
 function PrivacyLogContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [activeFilter, setActiveFilter] = useState<string>("1month")
+  const [activeFilter, setActiveFilter] = useState<string>("all")
   const [logs, setLogs] = useState<ProvisionLog[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -101,8 +101,28 @@ function PrivacyLogContent() {
 
   // 필터링된 로그
   const getFilteredLogs = () => {
-    // 이미 최신순으로 정렬되어 있으므로 그대로 반환
-    return logs
+    const now = new Date()
+    const filterDate = new Date()
+    
+    // 필터에 따른 날짜 계산
+    switch (activeFilter) {
+      case "1month":
+        filterDate.setMonth(now.getMonth() - 1)
+        break
+      case "2month":
+        filterDate.setMonth(now.getMonth() - 2)
+        break
+      case "3month":
+        filterDate.setMonth(now.getMonth() - 3)
+        break
+      default:
+        filterDate.setMonth(now.getMonth() - 1)
+    }
+    
+    return logs.filter(log => {
+      const logDate = new Date(log.timestamp || log.createdAt || log.date)
+      return logDate >= filterDate
+    })
   }
 
   const filteredLogs = getFilteredLogs()
@@ -131,8 +151,31 @@ function PrivacyLogContent() {
     }
   }
 
-  const formatDateTime = (dateTimeString: string) => {
-    const date = new Date(dateTimeString)
+  const formatDateTime = (dateTimeString: string | number) => {
+    let date: Date
+    if (typeof dateTimeString === 'number') {
+      date = new Date(dateTimeString)
+    } else if (typeof dateTimeString === 'string') {
+      // ISO 8601 형식인지 확인 (Z로 끝나는 경우)
+      if (dateTimeString.includes('T') && dateTimeString.includes('Z')) {
+        date = new Date(dateTimeString)
+      } else {
+        // 문자열이 숫자인지 확인
+        const timestamp = parseInt(dateTimeString)
+        if (!isNaN(timestamp)) {
+          date = new Date(timestamp)
+        } else {
+          date = new Date(dateTimeString)
+        }
+      }
+    } else {
+      date = new Date(dateTimeString)
+    }
+    
+    // 유효한 날짜인지 확인
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date'
+    }
     
     const year = date.getFullYear()
     const month = date.getMonth() + 1
@@ -168,6 +211,7 @@ function PrivacyLogContent() {
       'name': '이름',
       'phone': '휴대폰번호',
       'address': '주소',
+      'zipCode': '우편번호',
       'email': '이메일'
     }
     return fieldNames[field] || field
@@ -238,21 +282,37 @@ function PrivacyLogContent() {
                   {mallProvisionLogs.map((log, index) => (
                     <div key={`${log.mallId}-${log.shopId}-${log.logId}-${index}`} className="p-4 border rounded-lg">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-sm">쇼핑몰: {log.mallId}</div>
-                          <div className="text-xs text-muted-foreground">상점: {log.shopId}</div>
-                          <div className="text-xs text-muted-foreground">
-                            제공일: {new Date(log.createdAt).toLocaleDateString()}
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className="flex-shrink-0">
+                            <Store className="h-6 w-6 text-primary" />
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            제공 필드: {log.providedFields?.join(', ') || 'N/A'}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            동의 유형: {log.consentType === 'once' ? '일회성 동의' : '항상허용 동의'}
+                          <div className="flex-1">
+                            <div className="font-medium text-sm text-primary">{log.mallId}</div>
+                            <div className="text-xs text-muted-foreground">연결된 계정: {log.shopId}</div>
+                            <div className="text-xs text-muted-foreground">
+                              제공일: {formatDateTime(log.timestamp || log.createdAt || log.date)}
+                            </div>
+                            {log.consentType === 'always' && (
+                              <div className="text-xs text-muted-foreground">
+                                만료일: {(() => {
+                                  const provisionDate = new Date(log.timestamp || log.createdAt || log.date)
+                                  const expiryDate = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
+                                  return formatDateTime(expiryDate.toISOString())
+                                })()}
+                              </div>
+                            )}
+                            <div className="flex items-center space-x-1 mt-2">
+                              <span className="text-xs text-muted-foreground">제공 필드:</span>
+                              {log.providedFields?.map((field, fieldIndex) => (
+                                <Badge key={fieldIndex} variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                                  {getFieldName(field)}
+                                </Badge>
+                              )) || <span className="text-xs text-muted-foreground">N/A</span>}
+                            </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <Badge variant={log.consentType === 'once' ? "secondary" : "outline"}>
+                          <Badge className={log.consentType === 'once' ? "bg-gray-500 text-white" : "bg-primary text-white"}>
                             {log.consentType === 'once' ? '일회성' : '항상허용'}
                           </Badge>
                         </div>
@@ -269,40 +329,42 @@ function PrivacyLogContent() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                   <p className="text-sm text-muted-foreground">개인정보 제공내역을 불러오는 중...</p>
                 </div>
-              ) : filteredLogs.length > 0 ? (
-                paginatedLogs.map((log) => (
-                <div
-                  key={log.logId}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Store className="h-6 w-6 text-primary" />
-                    <div>
-                      <p className="font-medium">{mallNames[log.mallId] || log.mallId}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {formatDateTime(log.timestamp)}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1 mt-1">
-                        <span className="text-xs text-muted-foreground">제공정보:</span>
-                        {log.providedFields.map((field, index) => (
-                          <Badge key={index} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
-                            {getFieldName(field)}
+              ) : (filteredLogs.length > 0 || mallProvisionLogs.length > 0) ? (
+                <>
+                  {paginatedLogs.map((log) => (
+                  <div
+                    key={log.logId}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Store className="h-6 w-6 text-primary" />
+                      <div>
+                        <p className="font-medium">{mallNames[log.mallId] || log.mallId}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            {formatDateTime(log.timestamp)}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1 mt-1">
+                          <span className="text-xs text-muted-foreground">제공정보:</span>
+                          {log.providedFields.map((field, index) => (
+                            <Badge key={index} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
+                              {getFieldName(field)}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex items-center space-x-1 mt-1">
+                          <span className="text-xs text-muted-foreground">동의방식:</span>
+                          <Badge className={log.consentType === 'always' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
+                            {log.consentType === 'always' ? '항상 허용' : '한 번만'}
                           </Badge>
-                        ))}
-                      </div>
-                      <div className="flex items-center space-x-1 mt-1">
-                        <span className="text-xs text-muted-foreground">동의방식:</span>
-                        <Badge className={log.consentType === 'always' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
-                          {log.consentType === 'always' ? '항상 허용' : '한 번만'}
-                        </Badge>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                ))
+                  ))}
+                </>
               ) : (
                 <div className="text-center py-12 space-y-4">
                   <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
