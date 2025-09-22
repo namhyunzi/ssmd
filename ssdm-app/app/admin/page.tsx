@@ -69,7 +69,8 @@ export default function AdminPage() {
     allowedFields: [] as string[],
     allowedDomains: [] as string[],
     contactEmail: '',
-    description: ''
+    description: '',
+    sendEmailImmediately: true
   })
   const [emailError, setEmailError] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
@@ -146,7 +147,7 @@ export default function AdminPage() {
   const handleSubmit = async () => {
     try {
       // 이메일 유효성 검사
-      if (newMall.contactEmail && newMall.contactEmail.trim()) {
+      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
         if (!validateEmail(newMall.contactEmail)) {
           return;
         }
@@ -189,7 +190,7 @@ export default function AdminPage() {
       const result = await response.json()
       
       // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim()) {
+      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
         try {
           const emailResponse = await fetch('/api/send-apikey', {
             method: 'POST',
@@ -294,7 +295,7 @@ export default function AdminPage() {
       const result = await response.json()
       
       // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim()) {
+      if (newMall.contactEmail && newMall.contactEmail.trim() && newMall.sendEmailImmediately) {
         try {
           const emailResponse = await fetch('/api/send-apikey', {
             method: 'POST',
@@ -382,7 +383,7 @@ export default function AdminPage() {
     setIsDialogOpen(false)
     setDialogMode('create')
     setEditingMall(null)
-    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '' })
+    setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
     setEmailError("")
   }
 
@@ -485,7 +486,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setDialogMode('create')
                   setEditingMall(null)
-                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '' })
+                  setNewMall({ mallName: '', englishId: '', allowedFields: [], allowedDomains: [], contactEmail: '', description: '', sendEmailImmediately: true })
                   setEmailError("")
                 }}
               >
@@ -583,36 +584,39 @@ export default function AdminPage() {
 
                 {/* 이메일 발송 옵션 */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="sendEmailImmediately"
-                        checked={true}
-                        disabled={true}
-                        onCheckedChange={() => {}}
-                      />
-                      <Label 
-                        htmlFor="sendEmailImmediately" 
-                        className="text-sm font-medium text-gray-500"
-                      >
-                        {dialogMode === 'create' ? '등록 완료 후 즉시 API Key 이메일 발송 (자동)' : '재발급 완료 후 즉시 API Key 이메일 발송 (자동)'}
-                      </Label>
-                    </div>
-                    <p className={`text-xs mt-1 ml-6 ${
-                      newMall.contactEmail && newMall.contactEmail.trim() 
-                        ? 'text-blue-600' 
-                        : 'text-gray-400'
-                    }`}>
-                      {newMall.contactEmail && newMall.contactEmail.trim() 
-                        ? (dialogMode === 'create' 
-                            ? 'API Key가 발급되어 담당자 이메일로 즉시 전송됩니다.'
-                            : 'API Key가 재발급되어 담당자 이메일로 즉시 전송됩니다.')
-                        : '이메일을 입력하면 자동 발송 옵션이 활성화됩니다.'
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="sendEmailImmediately"
+                      checked={newMall.sendEmailImmediately}
+                      disabled={!newMall.contactEmail || !newMall.contactEmail.trim()}
+                      onCheckedChange={(checked) => 
+                        setNewMall(prev => ({ ...prev, sendEmailImmediately: !!checked }))
                       }
-                    </p>
+                    />
+                    <Label 
+                      htmlFor="sendEmailImmediately" 
+                      className={`text-sm font-medium ${
+                        newMall.contactEmail && newMall.contactEmail.trim() 
+                          ? 'text-blue-800' 
+                          : 'text-gray-400'
+                      }`}
+                    >
+                      {dialogMode === 'create' ? '등록 완료 후 즉시 API Key 이메일 발송' : '재발급 완료 후 즉시 API Key 이메일 발송'}
+                    </Label>
                   </div>
-                )}
+                  <p className={`text-xs mt-1 ml-6 ${
+                    newMall.contactEmail && newMall.contactEmail.trim() 
+                      ? 'text-blue-600' 
+                      : 'text-gray-400'
+                  }`}>
+                    {newMall.contactEmail && newMall.contactEmail.trim() 
+                      ? '체크 해제 시 나중에 수동으로 발송할 수 있습니다.'
+                      : '이메일을 입력하면 자동 발송 옵션이 활성화됩니다.'
+                    }
+                  </p>
+                </div>
                 
-                  <div>
+                <div>
                     <Label>제공 가능한 개인정보</Label>
                     <div className="space-y-2 mt-2">
                       {fieldOptions.map(field => (
@@ -627,7 +631,6 @@ export default function AdminPage() {
                       ))}
                     </div>
                   </div>
-                )}
 
                   <div>
                     <Label>허용 도메인 목록</Label>
@@ -675,7 +678,6 @@ export default function AdminPage() {
                       </Button>
                     </div>
                   </div>
-                )}
 
                 
                 <Button 
@@ -996,7 +998,6 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         )}
-
 
       </div>
 
