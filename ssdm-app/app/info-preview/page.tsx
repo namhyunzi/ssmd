@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { auth } from '@/lib/firebase'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +42,7 @@ function InfoPreviewPageContent() {
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(false)
+  const isInitializingRef = useRef(false)
 
   // JWT 검증 함수 추가
   const verifyToken = async (jwtToken: string) => {
@@ -176,8 +177,9 @@ function InfoPreviewPageContent() {
           isInitializing
         })
         
-        if (jwtToken && !isInitializing) {
+        if (jwtToken && !isInitializingRef.current) {
           console.log('=== 세션에서 JWT 처리 시작 ===')
+          isInitializingRef.current = true
           setIsInitializing(true)
           setToken(jwtToken)
           try {
@@ -190,6 +192,7 @@ function InfoPreviewPageContent() {
             console.error('JWT 처리 실패:', error)
             setError("JWT 토큰 처리 중 오류가 발생했습니다.")
           } finally {
+            isInitializingRef.current = false
             setIsInitializing(false)
           }
           console.log('=== 세션에서 JWT 처리 완료, return ===')
@@ -205,10 +208,17 @@ function InfoPreviewPageContent() {
             isInitializing
           })
           
+          // 무효한 이벤트는 무시
+          if (!event.data.type || event.data.type !== 'init_preview') {
+            console.log('무효한 postMessage 이벤트 무시')
+            return
+          }
+          
           if (event.data.type === 'init_preview') {
             const { jwt } = event.data
-            if (jwt && !isInitializing) {
+            if (jwt && !isInitializingRef.current) {
               console.log('=== postMessage에서 JWT 처리 시작 ===')
+              isInitializingRef.current = true
               setIsInitializing(true)
               setToken(jwt)
               try {
@@ -221,12 +231,15 @@ function InfoPreviewPageContent() {
                 console.error('JWT 처리 실패:', error)
                 setError("JWT 토큰 처리 중 오류가 발생했습니다.")
               } finally {
+                isInitializingRef.current = false
                 setIsInitializing(false)
               }
             }
           }
         }
         
+        // 기존 리스너 제거 후 새로 설정
+        window.removeEventListener('message', handleMessage)
         window.addEventListener('message', handleMessage)
         return () => window.removeEventListener('message', handleMessage)
       } else {
