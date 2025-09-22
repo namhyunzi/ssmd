@@ -49,6 +49,15 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     zipCode: '',
     detailAddress: ''
   })
+  
+  // 초기 데이터 저장용 state (비활성화 판단용)
+  const [initialData, setInitialData] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    zipCode: '',
+    detailAddress: ''
+  })
 
   // 필드별 포커스 상태 (클릭하고 벗어났는지 확인)
   const [fieldTouched, setFieldTouched] = useState({
@@ -161,6 +170,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           
           console.log('설정할 데이터:', existingData)
           setExistingData(existingData)
+          setInitialData(existingData) // 초기 데이터도 설정
         } else {
           console.log('사용자 프로필 데이터 없음')
         }
@@ -184,11 +194,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     }
   }
 
-  // 필드가 누락된 필드인지 확인 (실제로 데이터가 없는 경우만)
+  // 필드가 누락된 필드인지 확인 (초기 데이터 기준으로 판단)
   const isFieldMissing = (field: string) => {
     const isInMissingList = missingFields.includes(field)
-    const hasData = existingData[field as keyof typeof existingData]?.trim() !== ''
-    return isInMissingList && !hasData
+    const hasInitialData = initialData[field as keyof typeof initialData]?.trim() !== ''
+    return isInMissingList && !hasInitialData
   }
 
   if (!isOpen) return null
