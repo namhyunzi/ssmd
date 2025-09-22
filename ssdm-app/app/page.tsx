@@ -34,7 +34,6 @@ export default function LoginPage() {
         const { jwt } = event.data
         if (jwt) {
           sessionStorage.setItem('openPopup', jwt)
-          router.push('/consent')
         }
       } else {
         console.log('다른 타입의 postMessage:', event.data.type)
