@@ -29,36 +29,7 @@ function ConsentPageContent() {
   const [personalData, setPersonalData] = useState<any>({})
   
 
-  // 페이지 로드 즉시 postMessage 리스너 설정
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data.type === 'init_consent') {
-        const { jwt } = event.data
-        if (jwt && !isInitializing && !token) {
-          setIsInitializing(true)
-          setToken(jwt)
-          try {
-            const verifyResult = await verifyToken(jwt)
-            if (verifyResult.success) {
-              // 현재 로그인된 사용자 확인
-              const { auth } = require('@/lib/firebase')
-              if (auth.currentUser) {
-                await initializeUserConnection(verifyResult.mallId, auth.currentUser, jwt)
-              }
-            }
-          } catch (error) {
-            console.error('JWT 처리 실패:', error)
-            setError("JWT 토큰 처리 중 오류가 발생했습니다.")
-          } finally {
-            setIsInitializing(false)
-          }
-        }
-      }
-    }
-    
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [isInitializing])
+
 
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth')
@@ -90,6 +61,7 @@ function ConsentPageContent() {
             if (jwt && !isInitializing) {
               setIsInitializing(true)
               setToken(jwt)
+              sessionStorage.setItem('openPopup', jwt) // JWT를 sessionStorage에 저장
               try {
                 const verifyResult = await verifyToken(jwt)
                 if (verifyResult.success) {
