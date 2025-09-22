@@ -188,9 +188,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
   const isFieldMissing = (field: string) => {
     const isInMissingList = missingFields.includes(field)
     const hasData = existingData[field as keyof typeof existingData]?.trim() !== ''
-    const isMissing = isInMissingList && !hasData
-    console.log(`필드 ${field} 누락 여부:`, isMissing, 'missingFields에 포함:', isInMissingList, '데이터 있음:', hasData)
-    return isMissing
+    return isInMissingList && !hasData
   }
 
   if (!isOpen) return null
@@ -231,8 +229,17 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* 이름 */}
-          <div className="space-y-3">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-sm text-muted-foreground">데이터를 불러오는 중...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* 이름 */}
+              <div className="space-y-3">
             <Label className="text-sm font-medium">
               이름 {isFieldMissing('name') && <span className="text-red-500">*</span>}
             </Label>
@@ -256,9 +263,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             />
             {isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name && (
               <p className="text-sm text-red-600">이름을 입력해주세요</p>
-            )}
-            {!isFieldMissing('name') && (
-              <p className="text-xs text-gray-500">이미 입력된 정보입니다</p>
             )}
           </div>
 
@@ -299,9 +303,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             </div>
             {isFieldMissing('phone') && existingData.phone.trim() === "" && fieldTouched.phone && (
               <p className="text-sm text-red-600">휴대폰 번호를 입력해주세요</p>
-            )}
-            {!isFieldMissing('phone') && (
-              <p className="text-xs text-gray-500">이미 입력된 정보입니다</p>
             )}
           </div>
 
@@ -371,9 +372,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             </div>
             {isFieldMissing('address') && (existingData.address.trim() === "" || existingData.zipCode.trim() === "") && fieldTouched.address && (
               <p className="text-sm text-red-600">주소를 입력해주세요</p>
-            )}
-            {!isFieldMissing('address') && (
-              <p className="text-xs text-gray-500">이미 입력된 정보입니다</p>
             )}
           </div>
 
