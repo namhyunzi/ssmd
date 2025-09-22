@@ -173,7 +173,7 @@ function InfoPreviewPageContent() {
         
         // postMessage 리스너 설정 (새로운 JWT 받을 때)
         const handleMessage = async (event: MessageEvent) => {
-          if (event.data.type === 'init_info_preview') {
+          if (event.data.type === 'init_preview') {
             const { jwt } = event.data
             if (jwt && !isInitializing) {
               setIsInitializing(true)
@@ -198,7 +198,7 @@ function InfoPreviewPageContent() {
       } else {
         // 로그인 안 됨 → postMessage에서 JWT 받아서 세션에 저장 후 로그인 페이지로 리다이렉트
         const handleMessage = (event: MessageEvent) => {
-          if (event.data.type === 'init_info_preview') {
+          if (event.data.type === 'init_preview') {
             const { jwt } = event.data
             if (jwt) {
               sessionStorage.setItem('openPopup_preview', jwt)
