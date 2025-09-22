@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Eye, Key, Trash2, Mail, MailCheck, Settings, Users, Shield, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, XCircle, AlertOctagon, Clock, X, Ban, AlertCircle, Skull, Zap } from "lucide-react"
+import { Plus, Eye, Key, Trash2, Mail, MailCheck, MailX, Settings, Users, Shield, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, XCircle, AlertOctagon, Clock, X, Ban, AlertCircle, Skull, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
