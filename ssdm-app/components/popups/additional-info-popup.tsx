@@ -185,7 +185,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
   }
 
   // 필드가 누락된 필드인지 확인
-  const isFieldMissing = (field: string) => missingFields.includes(field)
+  const isFieldMissing = (field: string) => {
+    const isMissing = missingFields.includes(field)
+    console.log(`필드 ${field} 누락 여부:`, isMissing, 'missingFields:', missingFields)
+    return isMissing
+  }
 
   if (!isOpen) return null
 
@@ -232,7 +236,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             </Label>
             <Input 
               value={existingData.name}
-              onChange={(e) => setExistingData(prev => ({...prev, name: e.target.value}))}
+              onChange={(e) => {
+                if (isFieldMissing('name')) {
+                  setExistingData(prev => ({...prev, name: e.target.value}))
+                }
+              }}
               onBlur={() => setFieldTouched(prev => ({...prev, name: true}))}
               disabled={!isFieldMissing('name')}
               className={`h-12 ${
@@ -269,7 +277,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                 </Select>
                 <Input 
                   value={existingData.phone}
-                  onChange={(e) => setExistingData(prev => ({...prev, phone: e.target.value}))}
+                  onChange={(e) => {
+                    if (isFieldMissing('phone')) {
+                      setExistingData(prev => ({...prev, phone: e.target.value}))
+                    }
+                  }}
                   onBlur={() => setFieldTouched(prev => ({...prev, phone: true}))}
                   disabled={!isFieldMissing('phone')}
                   placeholder={isFieldMissing('phone') ? "1234-5678" : ""}
@@ -300,7 +312,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               <div className="flex space-x-2">
                 <Input 
                   value={existingData.zipCode}
-                  onChange={(e) => setExistingData(prev => ({...prev, zipCode: e.target.value}))}
+                  onChange={(e) => {
+                    if (isFieldMissing('address')) {
+                      setExistingData(prev => ({...prev, zipCode: e.target.value}))
+                    }
+                  }}
                   onBlur={() => setFieldTouched(prev => ({...prev, address: true}))}
                   disabled={!isFieldMissing('address')}
                   className={`w-24 ${
@@ -323,7 +339,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               </div>
               <Input 
                 value={existingData.address}
-                onChange={(e) => setExistingData(prev => ({...prev, address: e.target.value}))}
+                onChange={(e) => {
+                  if (isFieldMissing('address')) {
+                    setExistingData(prev => ({...prev, address: e.target.value}))
+                  }
+                }}
                 onBlur={() => setFieldTouched(prev => ({...prev, address: true}))}
                 disabled={!isFieldMissing('address')}
                 className={`${
@@ -336,7 +356,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               />
               <Input 
                 value={existingData.detailAddress}
-                onChange={(e) => setExistingData(prev => ({...prev, detailAddress: e.target.value}))}
+                onChange={(e) => {
+                  if (isFieldMissing('address')) {
+                    setExistingData(prev => ({...prev, detailAddress: e.target.value}))
+                  }
+                }}
                 onBlur={() => setFieldTouched(prev => ({...prev, address: true}))}
                 disabled={!isFieldMissing('address')}
                 placeholder={isFieldMissing('address') ? "상세주소 입력" : ""}
@@ -363,28 +387,28 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               if (isFormValid()) {
                 try {
                   // 1. Firebase에 사용자 프로필 업데이트
-                  const { getDatabase, ref, set } = require('firebase/database')
-                  const { auth } = require('@/lib/firebase')
+                  const { ref, set } = require('firebase/database')
+                  const { auth, realtimeDb } = require('@/lib/firebase')
                   
                   if (!auth.currentUser) {
                     alert('로그인이 필요합니다.')
                     return
                   }
                   
-                  const db = getDatabase()
                   const userId = auth.currentUser.uid
                   
-                  // 누락된 필드의 데이터만 수집
-                  const additionalData = {
-                    name: isFieldMissing('name') ? existingData.name : getExistingFieldValue('name'),
-                    phone: isFieldMissing('phone') ? existingData.phone : getExistingFieldValue('phone'),
-                    address: isFieldMissing('address') ? `${existingData.address} ${existingData.detailAddress}`.trim() : getExistingFieldValue('address'),
-                    zipCode: isFieldMissing('address') ? existingData.zipCode : getExistingFieldValue('zipCode')
+                  // 기존 데이터와 새로 입력받은 데이터를 모두 포함해서 저장
+                  const updatedProfileData = {
+                    name: existingData.name,
+                    phone: existingData.phone,
+                    address: existingData.address,
+                    zipCode: existingData.zipCode,
+                    detailAddress: existingData.detailAddress
                   }
                   
-                  // Firebase에 사용자 프로필 업데이트
-                  const userProfileRef = ref(db, `userProfiles/${userId}`)
-                  await set(userProfileRef, additionalData)
+                  // Firebase에 사용자 프로필 업데이트 (기존 데이터 + 새 데이터 모두 저장)
+                  const userProfileRef = ref(realtimeDb, `users/${userId}/profile`)
+                  await set(userProfileRef, updatedProfileData)
                   
                   console.log('Firebase 업데이트 완료')
                   
