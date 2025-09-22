@@ -1,12 +1,34 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Script from "next/script"
 import { AlertTriangle, X, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+// Daum 우편번호 API 타입 정의
+declare global {
+  interface Window {
+    daum: {
+      Postcode: new (options: {
+        oncomplete: (data: {
+          zonecode: string;
+          roadAddress: string;
+          jibunAddress: string;
+          userSelectedType: 'R' | 'J';
+          bname: string;
+          buildingName: string;
+          apartment: string;
+        }) => void;
+      }) => {
+        open: () => void;
+      };
+    };
+  }
+}
 
 interface AdditionalInfoPopupProps {
   isOpen: boolean
@@ -177,6 +199,14 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      {/* Daum 우편번호 API 스크립트 로드 */}
+      <Script
+        src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
+        strategy="lazyOnload"
+        onLoad={() => {
+          console.log('Daum 우편번호 API 로드 완료');
+        }}
+      />
       <Card className="w-full max-w-lg">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
