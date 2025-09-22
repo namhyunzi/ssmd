@@ -28,12 +28,12 @@ export default function LoginPage() {
 
   // 외부 팝업에서 JWT 받을 때
   useEffect(() => {    
-    // postMessage로 JWT 받아서 세션에 저장
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'init_consent') {
         const { jwt } = event.data
         if (jwt) {
-          sessionStorage.setItem('openPopup', jwt)
+          // JWT를 바로 사용 (세션 저장 제거)
+          router.push('/consent')
         }
       } else {
         console.log('다른 타입의 postMessage:', event.data.type)
@@ -112,10 +112,14 @@ export default function LoginPage() {
     } else {
       // 팝업인지 확인 후 적절한 페이지로 이동
       if (window.opener && window.opener !== window) {
-        // JWT가 있을 때만 consent로 이동
+        // JWT 키에 따라 분기 처리
         const jwtToken = sessionStorage.getItem('openPopup')
+        const jwtTokenPreview = sessionStorage.getItem('openPopup_preview')
+        
         if (jwtToken) {
           router.push('/consent')
+        } else if (jwtTokenPreview) {
+          router.push('/info-preview')
         } else {
           router.push('/dashboard')
         }

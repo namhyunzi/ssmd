@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
+import { auth } from '@/lib/firebase'
 import { Shield, X, User, Phone, MapPin, Info, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,7 @@ interface ConsentPageProps {}
 
 function ConsentPageContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [consentType, setConsentType] = useState<string>("once")
   const [loading, setLoading] = useState(false)
   // userInfo 상태 제거 - 실시간 복호화로 변경
@@ -27,59 +29,47 @@ function ConsentPageContent() {
   
 
   useEffect(() => {
-    // 1. sessionStorage에서 JWT 확인 (로그인 후 /consent로 이동한 경우)
-    const jwtToken = sessionStorage.getItem('openPopup')
-    if (jwtToken) {
-      console.log('🔵 [로그인 후 /consent로 이동한 경우] JWT 세션에서 발견')
-      setToken(jwtToken)
-      verifyToken(jwtToken).then(() => {
-        console.log('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 완료')
-        // 초기화 로직 제거 - 이미 JWT 받을 때 실행됨
-      }).catch(error => {
-        console.error('🔵 [로그인 후 /consent로 이동한 경우] JWT 검증 실패:', error)
-        setError("JWT 토큰 검증에 실패했습니다.")
-      })
-      return
-    }
-    console.log('🔵 [팝업에서 직접 이동한 경우] postMessage 리스너 설정')
-    
-    // 2. postMessage 리스너 추가 (팝업에서 직접 이동한 경우)
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data.type === 'init_consent') {
-        const { jwt: jwtToken } = event.data
-        console.log('받은 JWT:', jwtToken ? '존재함' : '없음')
-        
-        if (jwtToken) {
-          try {
-            setToken(jwtToken)
-            
-            // JWT 검증 먼저 시도
-            await verifyToken(jwtToken)
-            
-            // 검증 성공 시에만 세션에 저장
-            sessionStorage.setItem('openPopup', jwtToken)
-            
-            // 초기화 로직 제거 - 이미 JWT 받을 때 실행됨
-            
-          } catch (error) {
-            // 검증 실패 시 세션에 저장하지 않음
-            console.error('JWT 처리 실패:', error)
-            setError("JWT 토큰 처리 중 오류가 발생했습니다.")
+    const { onAuthStateChanged } = require('firebase/auth')
+    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
+      if (user) {
+        // 로그인 됨 → postMessage에서 JWT 받아서 바로 사용
+        const handleMessage = async (event: MessageEvent) => {
+          if (event.data.type === 'init_consent') {
+            const { jwt } = event.data
+            if (jwt) {
+              setToken(jwt)
+              try {
+                await verifyToken(jwt)
+                initializeUserConnection()
+              } catch (error) {
+                console.error('JWT 처리 실패:', error)
+                setError("JWT 토큰 처리 중 오류가 발생했습니다.")
+              }
+            }
           }
-        } else {
-          setError("JWT 토큰이 누락되었습니다.")
         }
+        
+        window.addEventListener('message', handleMessage)
+        return () => window.removeEventListener('message', handleMessage)
+      } else {
+        // 로그인 안 됨 → postMessage에서 JWT 받아서 세션에 저장 후 로그인 페이지로 리다이렉트
+        const handleMessage = (event: MessageEvent) => {
+          if (event.data.type === 'init_consent') {
+            const { jwt } = event.data
+            if (jwt) {
+              sessionStorage.setItem('openPopup', jwt)
+              router.push('/login')
+            }
+          }
+        }
+        
+        window.addEventListener('message', handleMessage)
+        return () => window.removeEventListener('message', handleMessage)
       }
-    }
-
-    // 메시지 리스너 등록
-    window.addEventListener('message', handleMessage)
-
-    // 컴포넌트 언마운트 시 리스너 제거
-    return () => {
-      window.removeEventListener('message', handleMessage)
-    }
-    }, [])
+    })
+    
+    return () => unsubscribe()
+  }, [])
 
   // JWT가 없을 때는 사용자 연결 초기화를 하지 않음
   useEffect(() => {
@@ -193,7 +183,6 @@ function ConsentPageContent() {
           
           // JWT 검증 성공 후 바로 사용자 연결 초기화
           await initializeUserConnection(payload.mallId)
-          console.log("payload.mallId 확인 검증로직시 ",payload.mallId)
         } else {
           console.error('JWT 토큰 검증 실패: 유효하지 않은 토큰')
           setError('JWT 토큰이 유효하지 않습니다.')
@@ -212,7 +201,7 @@ function ConsentPageContent() {
     setLoading(true)
     
     try {
-      console.log('=== initializeUserConnection 함수 시작 ===')
+      console.log('=== 초기화 함수 시작 ===')
       
       // 세션에서 JWT 직접 확인
       const jwtToken = sessionStorage.getItem('openPopup')
@@ -222,13 +211,9 @@ function ConsentPageContent() {
         return
       }
       
-      console.log('세션에서 JWT 확인됨:', jwtToken)
-      
       // 파라미터로 전달된 값 우선 사용, 없으면 상태값 사용
       const currentMallId = mallIdParam || mallId;
-      console.log("currentMallId 확인 초기화로직시 ",currentMallId);
-      
-      console.log('현재 mallId 초기화 할때있음? :', currentMallId)
+      console.log("초기화로직시 currentMallId 확인",currentMallId);
       
       // 1. 쇼핑몰의 등록된 허용 필드 조회
       const { getMallAllowedFields } = await import('@/lib/data-storage')
@@ -255,7 +240,6 @@ function ConsentPageContent() {
       console.log('사용자 UID:', userId)
       
       // 3. 사용자 데이터 로드
-      console.log('loadUserData 호출 예정')
       await loadUserData(userId, allowedFields, currentMallId || undefined)
       
     } catch (error) {
@@ -269,12 +253,10 @@ function ConsentPageContent() {
 
   const loadUserData = async (uid: string, requiredFields: string[], mallIdParam?: string) => {
     try {
-      console.log('=== loadUserData 함수 시작 ===')
       // Firebase Auth UID를 그대로 사용 (별도 파싱 불필요)
       const userId = uid
       
       console.log('=== 사용자 데이터 로드 시작 ===')
-      console.log('Firebase Auth UID:', uid)
       
       // Firebase에서 사용자 데이터 로드
       const { realtimeDb } = await import('@/lib/firebase')
@@ -284,14 +266,8 @@ function ConsentPageContent() {
       const userRef = ref(realtimeDb, `users/${userId}`)
       const userSnapshot = await get(userRef)
       
-      console.log('사용자 데이터 존재 여부:', userSnapshot.exists())
       
       if (!userSnapshot.exists()) {
-        console.log('사용자 정보를 찾을 수 없습니다 - 로그인 페이지로 리디렉션')
-        
-        // 리다이렉트 경로 설정하지 않음 (무한 루프 방지)
-        console.log('리다이렉트 경로 설정 안함')
-        
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
         window.location.href = '/'
@@ -349,8 +325,6 @@ function ConsentPageContent() {
       // 1. 프로필 완료 여부 확인 (profile 객체에서 확인)
       console.log('프로필 완료 여부 확인:', userProfile?.profileCompleted)
       if (!userProfile || !userProfile.profileCompleted) {
-        // 개인정보 입력 아예 안한 사람 → 개인정보 설정페이지로 리디렉션
-        console.log('프로필 미완성 - 개인정보 설정페이지로 리디렉션')
         // JWT 토큰을 sessionStorage에 저장
         const jwtToken = sessionStorage.getItem('openPopup')
         if (jwtToken) {
@@ -359,7 +333,6 @@ function ConsentPageContent() {
         sessionStorage.setItem('redirect_after_profile', '/storage-setup')
         // 외부 팝업에서 온 경우를 표시
         sessionStorage.setItem('from_external_popup', 'true')
-        console.log('개인정보 설정페이지로 리디렉션 실행')
         window.location.href = '/profile-setup'
         return
       }
