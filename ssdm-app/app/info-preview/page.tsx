@@ -236,6 +236,7 @@ function InfoPreviewPageContent() {
               } finally {
                 isInitializingRef.current = false
                 setIsInitializing(false)
+              }
             }
           }
         }
