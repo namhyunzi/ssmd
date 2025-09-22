@@ -27,21 +27,28 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
     const { getUserMappings } = await import('@/lib/data-storage');
     const mappings = await getUserMappings();
     
+    console.log('🔍 getUserServiceConsents - mappings:', mappings);
+    
     const consents: UserConsents[] = [];
     
     // 각 매핑에 대해 mallServiceConsents 조회
     for (const mapping of mappings) {
+      console.log('🔍 조회 중인 mappedUid:', mapping.mappedUid);
       const consentsRef = ref(realtimeDb, `mallServiceConsents/${mapping.mappedUid}`);
       const snapshot = await get(consentsRef);
       
+      console.log('🔍 mallServiceConsents 스냅샷 존재:', snapshot.exists());
+      
       if (snapshot.exists()) {
         const data = snapshot.val();
+        console.log('🔍 mallServiceConsents 데이터:', data);
         
         // mallServiceConsents/{mappedUid}/{mallId}/{shopId} 구조를 평면화
         Object.keys(data).forEach((mallId) => {
           const mallData = data[mallId];
           Object.keys(mallData).forEach((shopId) => {
             const consentData = mallData[shopId];
+            console.log('🔍 동의 데이터:', consentData);
             consents.push({
               id: `${mallId}_${shopId}`,
               userId: user.uid,
@@ -57,6 +64,7 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
       }
     }
     
+    console.log('🔍 최종 consents:', consents);
     return consents;
   } catch (error) {
     console.error('Error getting mall service consents:', error);
