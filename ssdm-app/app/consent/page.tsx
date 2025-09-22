@@ -39,8 +39,10 @@ function ConsentPageContent() {
             if (jwt) {
               setToken(jwt)
               try {
-                await verifyToken(jwt)
-                initializeUserConnection()
+                const verifyResult = await verifyToken(jwt)
+                if (verifyResult.success) {
+                  initializeUserConnection(verifyResult.mallId, user)
+                }
               } catch (error) {
                 console.error('JWT 처리 실패:', error)
                 setError("JWT 토큰 처리 중 오류가 발생했습니다.")
@@ -70,25 +72,6 @@ function ConsentPageContent() {
     
     return () => unsubscribe()
   }, [])
-
-  // JWT가 없을 때는 사용자 연결 초기화를 하지 않음
-  useEffect(() => {
-    console.log('🟡 [에러 체크] useEffect 시작, token:', token)
-    
-    // JWT가 세션에 있으면 에러 체크하지 않음
-    const jwtToken = sessionStorage.getItem('openPopup')
-    if (jwtToken) {
-      console.log('🟡 [에러 체크] JWT 세션에 있음, 에러 체크하지 않음')
-      return
-    }
-    
-    if (!token) {
-      console.log('🟡 [에러 체크] JWT 토큰 없음, 에러 발생')
-      setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
-      return
-    }
-    console.log('🟡 [에러 체크] JWT 토큰 있음, 정상 처리')
-  }, [token])
 
   useEffect(() => {
     // 팝업이 닫힐 때만 세션 정리 (X 버튼으로 닫기 감지)
@@ -181,32 +164,46 @@ function ConsentPageContent() {
           setShopId(payload.shopId)
           setMallId(payload.mallId)
           
-          // JWT 검증 성공 후 바로 사용자 연결 초기화
-          await initializeUserConnection(payload.mallId)
+          // JWT 검증만 하고 초기화는 useEffect에서 처리
+          return { success: true, mallId: payload.mallId }
         } else {
           console.error('JWT 토큰 검증 실패: 유효하지 않은 토큰')
           setError('JWT 토큰이 유효하지 않습니다.')
+          return { success: false }
         }
       } else {
         console.error('JWT 토큰 검증 실패')
         setError('JWT 토큰 검증에 실패했습니다.')
+        return { success: false }
       }
     } catch (error) {
       console.error('JWT 토큰 검증 중 오류:', error)
       setError('JWT 토큰 검증 중 오류가 발생했습니다.')
+      return { success: false }
     }
   }
 
-  const initializeUserConnection = async (mallIdParam?: string) => {
+  const initializeUserConnection = async (mallIdParam?: string, user?: any) => {
     setLoading(true)
     
     try {
       console.log('=== 초기화 함수 시작 ===')
       
-      // 세션에서 JWT 직접 확인
-      const jwtToken = sessionStorage.getItem('openPopup')
+      // 로그인 상태에 따라 JWT 가져오기
+      let jwtToken = null
+      
+      if (user) {
+        // 로그인됨 → state에서 가져오기
+        jwtToken = token
+        console.log('로그인된 상태: state에서 JWT 가져옴')
+      } else {
+        // 로그인 안됨 → 세션에서 가져오기
+        jwtToken = sessionStorage.getItem('openPopup')
+        console.log('로그인 안된 상태: 세션에서 JWT 가져옴')
+      }
+      
       if (!jwtToken) {
-        console.log('세션에 JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
+        console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
         setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
         return
       }
