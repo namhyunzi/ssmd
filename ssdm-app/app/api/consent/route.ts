@@ -78,8 +78,17 @@ export async function POST(request: NextRequest) {
 
     const { mallId, userId } = parsed;
 
-    // userMappings에서 shopId로 실제 uid 찾기
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    // userMappings에서 shopId로 실제 uid 찾기 (새로운 구조)
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`);
     const mappingSnapshot = await get(mappingRef);
     
     if (!mappingSnapshot.exists()) {
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const mappedUid = mappingSnapshot.val().uid;
+    const mappedUid = mappingSnapshot.val().mappedUid;
 
     // "이번만 허용"인 경우 저장하지 않고 성공 응답만 반환
     if (consentType === 'once') {
@@ -168,8 +177,17 @@ export async function GET(request: NextRequest) {
 
     const { mallId, userId } = parsed;
 
-    // userMappings에서 shopId로 실제 uid 찾기
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    // userMappings에서 shopId로 실제 uid 찾기 (새로운 구조)
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`);
     const mappingSnapshot = await get(mappingRef);
     
     if (!mappingSnapshot.exists()) {
@@ -179,7 +197,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const mappedUid = mappingSnapshot.val().uid;
+    const mappedUid = mappingSnapshot.val().mappedUid;
 
     // 동의 데이터 조회 (mappedUid 사용)
     const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId}`);
@@ -268,8 +286,17 @@ export async function DELETE(request: NextRequest) {
 
     const { mallId, userId } = parsed;
 
-    // userMappings에서 shopId로 실제 uid 찾기
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    // userMappings에서 shopId로 실제 uid 찾기 (새로운 구조)
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`);
     const mappingSnapshot = await get(mappingRef);
     
     if (!mappingSnapshot.exists()) {
@@ -279,7 +306,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    const mappedUid = mappingSnapshot.val().uid;
+    const mappedUid = mappingSnapshot.val().mappedUid;
 
     // 동의 해제 (삭제) - mappedUid 사용
     const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId || 'default'}`);

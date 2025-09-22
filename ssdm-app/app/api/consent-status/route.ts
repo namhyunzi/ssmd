@@ -23,8 +23,14 @@ interface ConsentStatusResponse {
  */
 async function checkConsentStatus(shopId: string, mallId: string): Promise<ConsentStatusResponse> {
   try {
-    // 1. userMappings에서 shopId로 uid 찾기
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    // 1. userMappings에서 shopId로 uid 찾기 (새로운 구조)
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`);
     const mappingSnapshot = await get(mappingRef);
     
     if (!mappingSnapshot.exists()) {
@@ -35,7 +41,7 @@ async function checkConsentStatus(shopId: string, mallId: string): Promise<Conse
       };
     }
     
-    const uid = mappingSnapshot.val().uid;
+    const uid = mappingSnapshot.val().mappedUid;
     
     // 2. mallServiceConsents에서 해당 사용자의 쇼핑몰 동의 상태 확인 (올바른 구조: uid/mallId/shopId)
     const consentRef = ref(realtimeDb, `mallServiceConsents/${uid}/${mallId}/${shopId}`);

@@ -121,20 +121,26 @@ function ConsentPageContent() {
       const { realtimeDb } = await import('@/lib/firebase')
       const { ref, get, set } = await import('firebase/database')
       
-      const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
+      const { auth } = await import('@/lib/firebase')
+      if (!auth.currentUser) {
+        throw new Error('로그인이 필요합니다.')
+      }
+      
+      const firebaseUid = auth.currentUser.uid
+      const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`)
       const mappingSnapshot = await get(mappingRef)
       
       if (mappingSnapshot.exists()) {
-        const existingUid = mappingSnapshot.val().uid
+        const existingUid = mappingSnapshot.val().mappedUid
         return existingUid
       }
       
       // 새 UID 생성
       const uid = await generateUid(mallId)
       
-      // 매핑 정보 저장
+      // 매핑 정보 저장 (새로운 구조)
       await set(mappingRef, {
-        uid: uid,
+        mappedUid: uid,
         createdAt: new Date().toISOString(),
         isActive: true
       })

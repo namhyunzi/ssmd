@@ -11,6 +11,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import { getUserProfile, createDefaultProfile, Users } from "@/lib/user-profile"
 import { getUserServiceConsents, calculateConsentStats, UserConsents } from "@/lib/service-consent"
+import { getUserMappings } from "@/lib/data-storage"
 
 export default function DashboardPage() {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false)
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const [isSocialLogin, setIsSocialLogin] = useState(false)
   const [serviceConsents, setServiceConsents] = useState<UserConsents[]>([])
   const [consentStats, setConsentStats] = useState({ total: 0, active: 0, expiring: 0, expired: 0 })
+  const [userMappings, setUserMappings] = useState<any[]>([])
   const router = useRouter()
   
   // 커스텀 토스트 상태
@@ -32,7 +34,7 @@ export default function DashboardPage() {
   
   // Firebase Auth 상태 확인 및 사용자 정보 가져오기
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
       if (user && user.email) {
         setCurrentUser(user)
         setUserEmail(user.email)
@@ -76,6 +78,15 @@ export default function DashboardPage() {
           console.log('동의 현황 업데이트:', { consents, stats })
         } catch (error) {
           console.error('Error loading service consents:', error)
+        }
+        
+        // 연결된 쇼핑몰 계정 로드
+        try {
+          const mappings = await getUserMappings()
+          setUserMappings(mappings)
+          console.log('연결된 쇼핑몰 계정:', mappings)
+        } catch (error) {
+          console.error('Error loading user mappings:', error)
         }
         
         setIsLoadingProfile(false)
@@ -285,6 +296,44 @@ export default function DashboardPage() {
                   </div>
                 </Card>
               </Link>
+            </CardContent>
+          </Card>
+
+          {/* Connected Shopping Malls */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center text-lg">
+                <Database className="h-5 w-5 mr-2 text-primary" />
+                연결된 쇼핑몰 계정
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {userMappings.length > 0 ? (
+                <div className="space-y-3">
+                  {userMappings.map((mapping, index) => (
+                    <div key={`${mapping.mallId}-${mapping.shopId}`} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-sm">쇼핑몰: {mapping.mallId}</div>
+                          <div className="text-xs text-muted-foreground">상점: {mapping.shopId}</div>
+                          <div className="text-xs text-muted-foreground">
+                            연결일: {new Date(mapping.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <Badge variant={mapping.isActive ? "default" : "secondary"}>
+                          {mapping.isActive ? "활성" : "비활성"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-sm">연결된 쇼핑몰 계정이 없습니다</p>
+                  <p className="text-xs mt-1">쇼핑몰에서 서비스를 이용하면 여기에 표시됩니다</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

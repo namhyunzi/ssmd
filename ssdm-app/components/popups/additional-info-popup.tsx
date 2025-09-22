@@ -33,20 +33,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     detailAddress: ''
   })
 
-  // 검증 오류 상태
-  const [validationErrors, setValidationErrors] = useState({
-    name: '',
-    phone: '',
-    address: ''
-  })
-
-  // 사용자가 입력을 시작했는지 확인하는 상태
-  const [hasUserInteracted, setHasUserInteracted] = useState({
-    name: false,
-    phone: false,
-    address: false
-  })
-
   // 전화번호 포맷팅 함수
   const formatPhoneNumber = (phone: string) => {
     if (!phone) return ''
@@ -64,56 +50,40 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
   // useEffect에서 데이터 로드
   useEffect(() => {
-    const loadUserData = async () => {
+    const loadExistingData = async () => {
       const jwtToken = sessionStorage.getItem('openPopup')
       if (!jwtToken) return
       
       try {
-        // JWT 검증 및 shopId, mallId 추출
-        const response = await fetch('/api/popup/consent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jwt: jwtToken })
-        })
+        // 현재 로그인한 사용자의 Firebase UID 가져오기
+        const { auth } = await import('@/lib/firebase')
+        if (!auth.currentUser) {
+          throw new Error('로그인이 필요합니다.')
+        }
         
-        if (response.ok) {
-          const { payload } = await response.json()
-          const { shopId, mallId } = payload
-          
-          // 사용자 기존 개인정보 조회 (userMappings에서 uid 조회 후 사용자 프로필 조회)
-          const { realtimeDb } = await import('@/lib/firebase')
-          const { ref, get } = await import('firebase/database')
-          
-          // 1. userMappings에서 uid 조회
-          const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
-          const mappingSnapshot = await get(mappingRef)
-          
-          if (mappingSnapshot.exists()) {
-            const mappingData = mappingSnapshot.val()
-            const ssdmUid = mappingData.ssdmUid
-            
-            // 2. 조회된 ssdmUid로 사용자 프로필 조회
-            const userProfileRef = ref(realtimeDb, `users/${ssdmUid}/profile`)
-            const userSnapshot = await get(userProfileRef)
-            
-            if (userSnapshot.exists()) {
-              const userProfile = userSnapshot.val()
-              setExistingData({
-                name: userProfile.name || '',
-                phone: formatPhoneNumber(userProfile.phone || ''),
-                address: userProfile.address || '',
-                zipCode: userProfile.zipCode || '',
-                detailAddress: userProfile.detailAddress || ''
-              })
-            }
-          }
+        const firebaseUid = auth.currentUser.uid
+        
+        const { getDatabase, ref, get } = require('firebase/database')
+        const db = getDatabase()
+        const userProfileRef = ref(db, `users/${firebaseUid}/profile`)
+        
+        const snapshot = await get(userProfileRef)
+        if (snapshot.exists()) {
+          const userProfile = snapshot.val()
+          setExistingData({
+            name: userProfile.name || '',
+            phone: formatPhoneNumber(userProfile.phone || ''),
+            address: userProfile.address || '',
+            zipCode: userProfile.zipCode || '',
+            detailAddress: userProfile.detailAddress || ''
+          })
         }
       } catch (error) {
-        console.error('JWT 및 사용자 데이터 조회 실패:', error)
+        console.error('개인정보 조회 실패:', error)
       }
     }
     
-    loadUserData()
+    loadExistingData()
   }, [])
 
   // Firebase에서 개인정보 조회하여 표시
@@ -137,7 +107,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
   const isFormValid = () => {
     if (isFieldMissing('name') && name.trim() === "") return false
     if (isFieldMissing('phone') && phone.trim() === "") return false
-    if (isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "")) return false
+    if (isFieldMissing('address') && address.trim() === "") return false
     return true
   }
 
@@ -169,28 +139,16 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               </Label>
               <Input 
                 value={name}
-                onChange={(e) => {
-                  setName(e.target.value)
-                  setHasUserInteracted(prev => ({ ...prev, name: true }))
-                  
-                  // 입력 시작 후에만 실시간 검증
-                  if (hasUserInteracted.name) {
-                    if (isFieldMissing('name') && e.target.value.trim() === "") {
-                      setValidationErrors(prev => ({ ...prev, name: '이름을 입력해주세요' }))
-                    } else {
-                      setValidationErrors(prev => ({ ...prev, name: '' }))
-                    }
-                  }
-                }}
+                onChange={(e) => setName(e.target.value)}
                 className={`h-12 ${
-                  hasUserInteracted.name && validationErrors.name
+                  isFieldMissing('name') && name.trim() === "" 
                     ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                     : "focus:border-primary focus:ring-primary"
                 }`}
                 placeholder="이름을 입력해주세요"
               />
-              {hasUserInteracted.name && validationErrors.name && (
-                <p className="text-sm text-red-600">{validationErrors.name}</p>
+              {isFieldMissing('name') && name.trim() === "" && (
+                <p className="text-sm text-red-600">이름을 입력해주세요</p>
               )}
             </div>
           )}
@@ -225,30 +183,18 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   </Select>
                   <Input 
                     value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value)
-                      setHasUserInteracted(prev => ({ ...prev, phone: true }))
-                      
-                      // 입력 시작 후에만 실시간 검증
-                      if (hasUserInteracted.phone) {
-                        if (isFieldMissing('phone') && e.target.value.trim() === "") {
-                          setValidationErrors(prev => ({ ...prev, phone: '휴대폰 번호를 입력해주세요' }))
-                        } else {
-                          setValidationErrors(prev => ({ ...prev, phone: '' }))
-                        }
-                      }
-                    }}
+                    onChange={(e) => setPhone(e.target.value)}
                     placeholder="1234-5678"
                     className={`flex-1 ${
-                      hasUserInteracted.phone && validationErrors.phone
+                      isFieldMissing('phone') && phone.trim() === "" 
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                         : "focus:border-primary focus:ring-primary"
                     }`}
                   />
                 </div>
               </div>
-              {hasUserInteracted.phone && validationErrors.phone && (
-                <p className="text-sm text-red-600">{validationErrors.phone}</p>
+              {isFieldMissing('phone') && phone.trim() === "" && (
+                <p className="text-sm text-red-600">휴대폰 번호를 입력해주세요</p>
               )}
             </div>
           )}
@@ -289,9 +235,9 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                     value={zipCode}
                     onChange={(e) => setZipCode(e.target.value)}
                     className={`w-24 ${
-                      hasUserInteracted.address && validationErrors.address
+                      isFieldMissing('address') && zipCode.trim() === "" 
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                        : "border-gray-300 focus:border-primary focus:ring-primary"
+                        : "focus:border-primary focus:ring-primary"
                     }`}
                   />
                   <Button 
@@ -309,23 +255,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                 </div>
                 <Input 
                   value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value)
-                    setHasUserInteracted(prev => ({ ...prev, address: true }))
-                    
-                    // 입력 시작 후에만 실시간 검증
-                    if (hasUserInteracted.address) {
-                      if (isFieldMissing('address') && (e.target.value.trim() === "" || zipCode.trim() === "")) {
-                        setValidationErrors(prev => ({ ...prev, address: '주소를 입력해주세요' }))
-                      } else {
-                        setValidationErrors(prev => ({ ...prev, address: '' }))
-                      }
-                    }
-                  }}
+                  onChange={(e) => setAddress(e.target.value)}
                   className={`${
-                    hasUserInteracted.address && validationErrors.address
+                    isFieldMissing('address') && address.trim() === "" 
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                      : "border-gray-300 focus:border-primary focus:ring-primary"
+                      : "focus:border-primary focus:ring-primary"
                   }`}
                 />
                 <Input 
@@ -335,8 +269,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   className="bg-white"
                 />
               </div>
-              {hasUserInteracted.address && validationErrors.address && (
-                <p className="text-sm text-red-600">{validationErrors.address}</p>
+              {isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "") && (
+                <p className="text-sm text-red-600">주소를 입력해주세요</p>
               )}
             </div>
           )}
@@ -379,32 +313,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             className="w-full h-12 bg-primary hover:bg-primary/90"
             disabled={!isFormValid()}
             onClick={async () => {
-              // 모든 필드에 대해 사용자 상호작용 상태를 true로 설정
-              setHasUserInteracted({
-                name: true,
-                phone: true,
-                address: true
-              })
-              
-              // 검증 오류 초기화
-              setValidationErrors({ name: '', phone: '', address: '' })
-              
-              // 검증 수행
-              const errors = { name: '', phone: '', address: '' }
-              
-              if (isFieldMissing('name') && name.trim() === "") {
-                errors.name = '이름을 입력해주세요'
-              }
-              if (isFieldMissing('phone') && phone.trim() === "") {
-                errors.phone = '휴대폰 번호를 입력해주세요'
-              }
-              if (isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "")) {
-                errors.address = '주소를 입력해주세요'
-              }
-              
-              // 오류가 있으면 표시하고 중단
-              if (errors.name || errors.phone || errors.address) {
-                setValidationErrors(errors)
+              if (!isFormValid()) {
+                // 오류 메시지 표시 (각 필드별로 이미 위에서 처리됨)
                 return
               }
               

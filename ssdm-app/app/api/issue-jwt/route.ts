@@ -22,9 +22,18 @@ export async function POST(request: NextRequest) {
     console.log('Firebase 연결 시작')
     console.log('Firebase DB 연결 완료')
     
-    // shopId로 매핑된 uid 찾기
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`)
-    console.log('매핑 참조 경로:', `userMappings/${mallId}/${shopId}`)
+    // shopId로 매핑된 uid 찾기 (새로운 구조)
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`)
+    console.log('매핑 참조 경로:', `userMappings/${mallId}/${firebaseUid}/${shopId}`)
     let mappingSnapshot
     try {
       mappingSnapshot = await get(mappingRef)
@@ -42,7 +51,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const uid = mappingSnapshot.val().uid
+    const uid = mappingSnapshot.val().mappedUid
     console.log('찾은 UID:', uid)
     
     // 사용자 동의 상태 확인 (올바른 구조: uid/mallId/shopId)

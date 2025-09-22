@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { getUserProvisionLogs, getMallName } from "@/lib/data-storage"
+import { getUserProvisionLogs, getMallName, getUserMappings, getProvisionLogs } from "@/lib/data-storage"
 
 interface ProvisionLog {
   logId: string
@@ -25,6 +25,8 @@ function PrivacyLogContent() {
   const [logs, setLogs] = useState<ProvisionLog[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [userMappings, setUserMappings] = useState<any[]>([])
+  const [mallProvisionLogs, setMallProvisionLogs] = useState<any[]>([])
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
@@ -32,7 +34,7 @@ function PrivacyLogContent() {
 
   // Firebase Auth 상태 확인 및 개인정보 제공내역 로드
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
       if (user) {
         setCurrentUser(user)
         await loadProvisionLogs(user.uid)
@@ -59,6 +61,27 @@ function PrivacyLogContent() {
       const uniqueMallIds = [...new Set(logsList.map(log => log.mallId))]
       const mallNamePromises = uniqueMallIds.map(mallId => fetchMallName(mallId))
       await Promise.all(mallNamePromises)
+      
+      // 연결된 쇼핑몰 계정 및 개인정보 제공 내역 로드
+      try {
+        const mappings = await getUserMappings()
+        setUserMappings(mappings)
+        
+        // 각 쇼핑몰별 개인정보 제공 내역 조회
+        const allMallLogs = []
+        for (const mapping of mappings) {
+          const mallLogs = await getProvisionLogs(mapping.mappedUid)
+          allMallLogs.push(...mallLogs.map(log => ({
+            ...log,
+            mallId: mapping.mallId,
+            shopId: mapping.shopId
+          })))
+        }
+        setMallProvisionLogs(allMallLogs)
+        console.log('쇼핑몰 개인정보 제공 내역:', allMallLogs)
+      } catch (error) {
+        console.error('Error loading mall provision logs:', error)
+      }
       
     } catch (error) {
       console.error('개인정보 제공내역 로드 오류:', error)
@@ -206,6 +229,39 @@ function PrivacyLogContent() {
                 ))}
               </div>
             </div>
+
+            {/* 쇼핑몰 개인정보 제공 내역 섹션 (모든 동의 유형 포함) */}
+            {mallProvisionLogs.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-4">쇼핑몰 개인정보 제공 내역</h3>
+                <div className="space-y-3">
+                  {mallProvisionLogs.map((log, index) => (
+                    <div key={`${log.mallId}-${log.shopId}-${log.logId}-${index}`} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-sm">쇼핑몰: {log.mallId}</div>
+                          <div className="text-xs text-muted-foreground">상점: {log.shopId}</div>
+                          <div className="text-xs text-muted-foreground">
+                            제공일: {new Date(log.createdAt).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            제공 필드: {log.providedFields?.join(', ') || 'N/A'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            동의 유형: {log.consentType === 'once' ? '일회성 동의' : '항상허용 동의'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={log.consentType === 'once' ? "secondary" : "outline"}>
+                            {log.consentType === 'once' ? '일회성' : '항상허용'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               {isLoading ? (

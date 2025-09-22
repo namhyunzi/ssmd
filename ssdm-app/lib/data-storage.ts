@@ -326,3 +326,129 @@ export async function cleanupTestData(): Promise<boolean> {
     return false;
   }
 }
+
+
+/**
+ * 사용자의 특정 쇼핑몰 매핑 조회
+ */
+export async function getUserMapping(mallId: string, shopId: string) {
+  try {
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`)
+    const snapshot = await get(mappingRef)
+    
+    if (snapshot.exists()) {
+      return {
+        mallId,
+        shopId,
+        ...snapshot.val()
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('사용자 매핑 조회 실패:', error)
+    throw error
+  }
+}
+
+/**
+ * 사용자의 모든 쇼핑몰 매핑 조회
+ */
+export async function getUserMappings() {
+  try {
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingsRef = ref(realtimeDb, `userMappings`)
+    const snapshot = await get(mappingsRef)
+    
+    const userMappings: any[] = []
+    if (snapshot.exists()) {
+      const data = snapshot.val()
+      Object.keys(data).forEach(mallId => {
+        if (data[mallId][firebaseUid]) {
+          Object.keys(data[mallId][firebaseUid]).forEach(shopId => {
+            userMappings.push({
+              mallId,
+              shopId,
+              mappedUid: data[mallId][firebaseUid][shopId].mappedUid,
+              createdAt: data[mallId][firebaseUid][shopId].createdAt,
+              isActive: data[mallId][firebaseUid][shopId].isActive
+            })
+          })
+        }
+      })
+    }
+    
+    return userMappings
+  } catch (error) {
+    console.error('사용자 매핑 목록 조회 실패:', error)
+    throw error
+  }
+}
+
+// 쇼핑몰 서비스 동의 내역 조회
+export async function getMallServiceConsents(mappedUid: string) {
+  try {
+    const { realtimeDb } = await import('@/lib/firebase')
+    const { ref, get } = await import('firebase/database')
+    
+    const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}`)
+    const snapshot = await get(consentRef)
+    
+    const consents: any[] = []
+    if (snapshot.exists()) {
+      const data = snapshot.val()
+      Object.keys(data).forEach(mallId => {
+        Object.keys(data[mallId]).forEach(shopId => {
+          consents.push({
+            mallId,
+            shopId,
+            ...data[mallId][shopId]
+          })
+        })
+      })
+    }
+    
+    return consents
+  } catch (error) {
+    console.error('쇼핑몰 서비스 동의 내역 조회 실패:', error)
+    throw error
+  }
+}
+
+// 개인정보 제공 내역 조회
+export async function getProvisionLogs(mappedUid: string) {
+  try {
+    const { realtimeDb } = await import('@/lib/firebase')
+    const { ref, get } = await import('firebase/database')
+    
+    const logsRef = ref(realtimeDb, `provisionLogs/${mappedUid}`)
+    const snapshot = await get(logsRef)
+    
+    const logs: any[] = []
+    if (snapshot.exists()) {
+      const data = snapshot.val()
+      Object.keys(data).forEach(logId => {
+        logs.push({
+          logId,
+          ...data[logId]
+        })
+      })
+    }
+    
+    return logs
+  } catch (error) {
+    console.error('개인정보 제공 내역 조회 실패:', error)
+    throw error
+  }
+}

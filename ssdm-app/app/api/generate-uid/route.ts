@@ -54,7 +54,13 @@ async function validateMall(mallId: string): Promise<boolean> {
  */
 async function getExistingUid(mallId: string, shopId: string): Promise<string | null> {
   try {
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      return null;
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`);
     const snapshot = await get(mappingRef);
     
     if (!snapshot.exists()) {
@@ -66,7 +72,7 @@ async function getExistingUid(mallId: string, shopId: string): Promise<string | 
       return null;
     }
     
-    return mappingData.uid;
+    return mappingData.mappedUid;  // uid를 mappedUid로 변경
   } catch (error) {
     console.error('기존 UID 조회 오류:', error);
     return null;
@@ -78,14 +84,20 @@ async function getExistingUid(mallId: string, shopId: string): Promise<string | 
  */
 async function saveMapping(mallId: string, shopId: string, uid: string): Promise<void> {
   try {
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${shopId}`);
+    const { auth } = await import('@/lib/firebase')
+    if (!auth.currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+    
+    const firebaseUid = auth.currentUser.uid
+    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`);
     await set(mappingRef, {
-      uid: uid,
+      mappedUid: uid,  
       createdAt: new Date().toISOString(),
       isActive: true
     });
     
-    console.log(`사용자 매핑 저장 완료: ${shopId} → ${uid}`);
+    console.log(`사용자 매핑 저장 완료: ${shopId} → ${uid} (Firebase UID: ${firebaseUid})`);
   } catch (error) {
     console.error('사용자 매핑 저장 오류:', error);
     throw error;

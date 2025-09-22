@@ -12,7 +12,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { Users } from '@/lib/user-profile'
 import { getUserServiceConsents, calculateConsentStatus, deleteServiceConsent, UserConsents } from '@/lib/service-consent'
-import { getUserProfile } from '@/lib/data-storage'
+import { getUserProfile, getUserMappings, getMallServiceConsents } from '@/lib/data-storage'
 
 // ServiceConsent 타입을 lib에서 import하므로 중복 제거
 
@@ -27,6 +27,8 @@ function ServiceConsentContent() {
   const [consents, setConsents] = useState<UserConsents[]>([])
   const [userProfile, setUserProfile] = useState<Users | null>(null)
   const [localProfile, setLocalProfile] = useState<any>(null)
+  const [userMappings, setUserMappings] = useState<any[]>([])
+  const [mallConsents, setMallConsents] = useState<any[]>([])
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
@@ -34,11 +36,19 @@ function ServiceConsentContent() {
 
   // Firebase Auth 상태 확인 및 사용자 프로필 로딩
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
       if (user) {
         try {
           const profile = await getUserProfile(user)
-          setUserProfile(profile)
+          if (profile) {
+            setUserProfile({
+              uid: user.uid,
+              email: user.email || '',
+              createdAt: user.metadata.creationTime || new Date().toISOString(),
+              updatedAt: user.metadata.lastSignInTime || new Date().toISOString(),
+              profile: profile
+            })
+          }
           
           // SSDM 중개 원칙: 개인정보를 상태에 저장하지 않음
           // Firebase에 개인정보가 있는지만 확인
@@ -50,6 +60,27 @@ function ServiceConsentContent() {
           setConsents(userConsents)
         } catch (error) {
           console.error('Error loading user data:', error)
+        }
+        
+        // 연결된 쇼핑몰 계정 및 동의 내역 로드
+        try {
+          const mappings = await getUserMappings()
+          setUserMappings(mappings)
+          
+          // 각 쇼핑몰별 동의 내역 조회
+          const allMallConsents = []
+          for (const mapping of mappings) {
+            const mallConsents = await getMallServiceConsents(mapping.mappedUid)
+            allMallConsents.push(...mallConsents.map(consent => ({
+              ...consent,
+              mallId: mapping.mallId,
+              shopId: mapping.shopId
+            })))
+          }
+          setMallConsents(allMallConsents)
+          console.log('쇼핑몰 동의 내역:', allMallConsents)
+        } catch (error) {
+          console.error('Error loading mall consents:', error)
         }
       } else {
         router.push('/')
@@ -205,6 +236,41 @@ function ServiceConsentContent() {
                   ))}
                 </div>
               </div>
+
+              {/* 쇼핑몰 동의 내역 섹션 (always 동의만 표시) */}
+              {mallConsents.filter(consent => consent.consentType === 'always').length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-4">쇼핑몰 항상허용 동의 내역</h3>
+                  <div className="space-y-3">
+                    {mallConsents
+                      .filter(consent => consent.consentType === 'always')
+                      .map((consent, index) => (
+                      <div key={`${consent.mallId}-${consent.shopId}-${index}`} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-sm">쇼핑몰: {consent.mallId}</div>
+                            <div className="text-xs text-muted-foreground">상점: {consent.shopId}</div>
+                            <div className="text-xs text-muted-foreground">
+                              동의일: {new Date(consent.createdAt).toLocaleDateString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              만료일: {new Date(consent.expiresAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant={consent.isActive ? "default" : "secondary"}>
+                              {consent.isActive ? "활성" : "비활성"}
+                            </Badge>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              항상허용 동의
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 {filteredConsents.length > 0 ? (
