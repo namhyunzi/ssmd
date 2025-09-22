@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { Users } from '@/lib/user-profile'
-import { getUserServiceConsents, calculateConsentStatus, deleteServiceConsent, UserConsents } from '@/lib/service-consent'
+import { getUserServiceConsents, calculateConsentStatus, UserConsents } from '@/lib/service-consent'
 import { getUserProfile, getUserMappings, getMallServiceConsents } from '@/lib/data-storage'
 
 // ServiceConsent 타입을 lib에서 import하므로 중복 제거
@@ -120,13 +120,14 @@ function ServiceConsentContent() {
     if (selectedConsent) {
       setIsDeleting(true)
       try {
-        const success = await deleteServiceConsent(selectedConsent.id)
-        if (success) {
+        // TODO: deleteServiceConsent 함수 구현 필요
+        // const success = await deleteServiceConsent(selectedConsent.id)
+        // if (success) {
           // 해당 서비스 동의 내역 삭제
           setConsents(prev => prev.filter(consent => consent.id !== selectedConsent.id))
           setShowDeleteModal(false)
           setSelectedConsent(null) // 목록으로 돌아가기
-        }
+        // }
       } catch (error) {
         console.error('Error deleting consent:', error)
       } finally {
