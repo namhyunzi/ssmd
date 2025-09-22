@@ -286,7 +286,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   value={existingData.phone}
                   onChange={(e) => {
                     if (isFieldMissing('phone')) {
-                      setExistingData(prev => ({...prev, phone: e.target.value}))
+                      const formattedPhone = formatPhoneNumber(e.target.value)
+                      setExistingData(prev => ({...prev, phone: formattedPhone}))
                     }
                   }}
                   onBlur={() => setFieldTouched(prev => ({...prev, phone: true}))}

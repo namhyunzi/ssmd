@@ -22,28 +22,20 @@ export async function POST(request: NextRequest) {
     console.log('Firebase 연결 시작')
     console.log('Firebase DB 연결 완료')
     
-    // shopId로 매핑된 uid 찾기 (새로운 구조)
-    const { auth } = await import('@/lib/firebase')
-    if (!auth.currentUser) {
-      return NextResponse.json(
-        { error: '로그인이 필요합니다.' },
-        { status: 401 }
-      )
-    }
+    // userMappings 전체 조회로 shopId로 매핑 찾기
+    const mappingsRef = ref(realtimeDb, `userMappings/${mallId}`)
+    console.log('매핑 참조 경로:', `userMappings/${mallId}`)
     
-    const firebaseUid = auth.currentUser.uid
-    const mappingRef = ref(realtimeDb, `userMappings/${mallId}/${firebaseUid}/${shopId}`)
-    console.log('매핑 참조 경로:', `userMappings/${mallId}/${firebaseUid}/${shopId}`)
-    let mappingSnapshot
+    let mappingsSnapshot
     try {
-      mappingSnapshot = await get(mappingRef)
-      console.log('매핑 스냅샷 존재 여부:', mappingSnapshot.exists())
+      mappingsSnapshot = await get(mappingsRef)
+      console.log('매핑 스냅샷 존재 여부:', mappingsSnapshot.exists())
     } catch (mappingError) {
       console.error('매핑 정보 조회 오류:', mappingError)
       throw mappingError
     }
     
-    if (!mappingSnapshot.exists()) {
+    if (!mappingsSnapshot.exists()) {
       console.log('사용자 매핑 정보 없음')
       return NextResponse.json(
         { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
@@ -51,7 +43,26 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const uid = mappingSnapshot.val().mappedUid
+    const mappings = mappingsSnapshot.val()
+    let targetMapping = null
+    
+    // shopId로 매핑 찾기
+    for (const [firebaseUid, userMappings] of Object.entries(mappings)) {
+      if (userMappings[shopId]) {
+        targetMapping = userMappings[shopId]
+        break
+      }
+    }
+    
+    if (!targetMapping) {
+      console.log('사용자 매핑 정보 없음')
+      return NextResponse.json(
+        { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+    
+    const uid = targetMapping.mappedUid
     console.log('찾은 UID:', uid)
     
     // 사용자 동의 상태 확인 (올바른 구조: uid/mallId/shopId)
