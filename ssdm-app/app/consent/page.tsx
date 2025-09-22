@@ -25,6 +25,7 @@ function ConsentPageContent() {
   const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
+  const [isInitializing, setIsInitializing] = useState(false)
   const [personalData, setPersonalData] = useState<any>({})
   
 
@@ -36,16 +37,19 @@ function ConsentPageContent() {
         const handleMessage = async (event: MessageEvent) => {
           if (event.data.type === 'init_consent') {
             const { jwt } = event.data
-            if (jwt) {
+            if (jwt && !isInitializing) {
+              setIsInitializing(true)
               setToken(jwt)
               try {
                 const verifyResult = await verifyToken(jwt)
                 if (verifyResult.success) {
-                  initializeUserConnection(verifyResult.mallId, user)
+                  initializeUserConnection(verifyResult.mallId, user, jwt)
                 }
               } catch (error) {
                 console.error('JWT 처리 실패:', error)
                 setError("JWT 토큰 처리 중 오류가 발생했습니다.")
+              } finally {
+                setIsInitializing(false)
               }
             }
           }
@@ -183,7 +187,7 @@ function ConsentPageContent() {
     }
   }
 
-  const initializeUserConnection = async (mallIdParam?: string, user?: any) => {
+  const initializeUserConnection = async (mallIdParam?: string, user?: any, jwt?: string) => {
     setLoading(true)
     
     try {
@@ -193,9 +197,9 @@ function ConsentPageContent() {
       let jwtToken = null
       
       if (user) {
-        // 로그인됨 → state에서 가져오기
-        jwtToken = token
-        console.log('로그인된 상태: state에서 JWT 가져옴')
+        // 로그인됨 → postMessage에서 받은 JWT 직접 사용
+        jwtToken = jwt
+        console.log('로그인된 상태: postMessage에서 받은 JWT 사용')
       } else {
         // 로그인 안됨 → 세션에서 가져오기
         jwtToken = sessionStorage.getItem('openPopup')

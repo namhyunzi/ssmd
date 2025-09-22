@@ -41,6 +41,7 @@ function InfoPreviewPageContent() {
   const [token, setToken] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
   const [mallId, setMallId] = useState<string | null>(null)
+  const [isInitializing, setIsInitializing] = useState(false)
 
   // JWT 검증 함수 추가
   const verifyToken = async (jwtToken: string) => {
@@ -58,33 +59,47 @@ function InfoPreviewPageContent() {
           setShopId(payload.shopId)
           setMallId(payload.mallId)
           
-          // JWT 검증 성공 후 초기화
-          await initializeUserConnection(payload.mallId)
+          // JWT 검증만 하고 초기화는 useEffect에서 처리
+          return { success: true, mallId: payload.mallId }
         } else {
           console.error('JWT 토큰 검증 실패: 유효하지 않은 토큰')
           setError('JWT 토큰이 유효하지 않습니다.')
+          return { success: false }
         }
       } else {
         console.error('JWT 토큰 검증 실패')
         setError('JWT 토큰 검증에 실패했습니다.')
+        return { success: false }
       }
     } catch (error) {
       console.error('JWT 토큰 검증 중 오류:', error)
       setError('JWT 토큰 검증 중 오류가 발생했습니다.')
+      return { success: false }
     }
   }
 
   // 초기화 함수 추가
-  const initializeUserConnection = async (mallIdParam?: string) => {
+  const initializeUserConnection = async (mallIdParam?: string, user?: any, jwt?: string) => {
     setLoading(true)
     
     try {
       console.log('=== 초기화 함수 시작 ===')
       
-      // 세션에서 JWT 직접 확인
-      const jwtToken = sessionStorage.getItem('openPopup_preview')
+      // 로그인 상태에 따라 JWT 가져오기
+      let jwtToken = null
+      
+      if (user) {
+        // 로그인됨 → postMessage에서 받은 JWT 직접 사용
+        jwtToken = jwt
+        console.log('로그인된 상태: postMessage에서 받은 JWT 사용')
+      } else {
+        // 로그인 안됨 → 세션에서 가져오기
+        jwtToken = sessionStorage.getItem('openPopup_preview')
+        console.log('로그인 안된 상태: 세션에서 JWT 가져옴')
+      }
+      
       if (!jwtToken) {
-        console.log('세션에 JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
+        console.log('JWT 토큰이 없어서 사용자 연결 초기화를 건너뜀')
         setError('JWT 토큰이 필요합니다. 다시 시도해주세요.')
         return
       }
@@ -106,8 +121,8 @@ function InfoPreviewPageContent() {
       
       // 2. 로그인된 사용자의 실제 Firebase UID 사용
       const { auth } = await import('@/lib/firebase')
-      const user = auth.currentUser
-      if (!user) {
+      const currentUser = auth.currentUser
+      if (!currentUser) {
         console.log('사용자가 로그인되지 않음')
         setError('로그인이 필요합니다.')
         return
@@ -115,7 +130,7 @@ function InfoPreviewPageContent() {
       
       // 3. 사용자 개인정보 조회
       const { getUserProfile } = await import('@/lib/data-storage')
-      const profileData = await getUserProfile(user)
+      const profileData = await getUserProfile(currentUser)
       
       if (!profileData) {
         console.log('사용자 프로필이 없음')
@@ -141,13 +156,19 @@ function InfoPreviewPageContent() {
         const handleMessage = async (event: MessageEvent) => {
           if (event.data.type === 'init_info_preview') {
             const { jwt } = event.data
-            if (jwt) {
+            if (jwt && !isInitializing) {
+              setIsInitializing(true)
               setToken(jwt)
               try {
-                await verifyToken(jwt)
+                const verifyResult = await verifyToken(jwt)
+                if (verifyResult.success) {
+                  initializeUserConnection(verifyResult.mallId, user, jwt)
+                }
               } catch (error) {
                 console.error('JWT 처리 실패:', error)
                 setError("JWT 토큰 처리 중 오류가 발생했습니다.")
+              } finally {
+                setIsInitializing(false)
               }
             }
           }
