@@ -26,24 +26,6 @@ export default function LoginPage() {
   const [jwtReceived, setJwtReceived] = useState(false)
   const router = useRouter()
 
-  // 외부 팝업에서 JWT 받을 때
-  useEffect(() => {    
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'init_consent') {
-        const { jwt } = event.data
-        if (jwt) {
-          // JWT를 바로 사용 (세션 저장 제거)
-          router.push('/consent')
-        }
-      } else {
-        console.log('다른 타입의 postMessage:', event.data.type)
-      }
-    }
-    
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [router])
-
   // 로그인 후 JWT 확인할 때
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth')
