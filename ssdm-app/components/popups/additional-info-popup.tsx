@@ -72,9 +72,9 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
         const firebaseUid = auth.currentUser.uid
         console.log('사용자 UID:', firebaseUid)
         
-        const { getDatabase, ref, get } = require('firebase/database')
-        const db = getDatabase()
-        const userProfileRef = ref(db, `users/${firebaseUid}/profile`)
+        const { realtimeDb } = await import('@/lib/firebase')
+        const { ref, get } = await import('firebase/database')
+        const userProfileRef = ref(realtimeDb, `users/${firebaseUid}/profile`)
         
         const snapshot = await get(userProfileRef)
         console.log('Firebase 데이터 존재 여부:', snapshot.exists())
