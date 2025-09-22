@@ -49,28 +49,40 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     return phone
   }
 
-  // useEffect에서 데이터 로드
+  // useEffect에서 데이터 로드 (팝업이 열릴 때마다)
   useEffect(() => {
+    if (!isOpen) return // 팝업이 닫혀있으면 실행하지 않음
+    
     const loadExistingData = async () => {
+      console.log('=== 추가정보 팝업 데이터 로드 시작 ===')
       const jwtToken = sessionStorage.getItem('openPopup')
-      if (!jwtToken) return
+      if (!jwtToken) {
+        console.log('JWT 토큰 없음')
+        return
+      }
       
       try {
         // 현재 로그인한 사용자의 Firebase UID 가져오기
         const { auth } = await import('@/lib/firebase')
         if (!auth.currentUser) {
+          console.log('로그인된 사용자 없음')
           throw new Error('로그인이 필요합니다.')
         }
         
         const firebaseUid = auth.currentUser.uid
+        console.log('사용자 UID:', firebaseUid)
         
         const { getDatabase, ref, get } = require('firebase/database')
         const db = getDatabase()
         const userProfileRef = ref(db, `users/${firebaseUid}/profile`)
         
         const snapshot = await get(userProfileRef)
+        console.log('Firebase 데이터 존재 여부:', snapshot.exists())
+        
         if (snapshot.exists()) {
           const userProfile = snapshot.val()
+          console.log('가져온 사용자 데이터:', userProfile)
+          
           const existingData = {
             name: userProfile.name || '',
             phone: formatPhoneNumber(userProfile.phone || ''),
@@ -79,7 +91,10 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             detailAddress: userProfile.detailAddress || ''
           }
           
+          console.log('설정할 데이터:', existingData)
           setExistingData(existingData)
+        } else {
+          console.log('사용자 프로필 데이터 없음')
         }
       } catch (error) {
         console.error('개인정보 조회 실패:', error)
@@ -87,7 +102,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     }
     
     loadExistingData()
-  }, [])
+  }, [isOpen]) // isOpen이 변경될 때마다 실행
 
   // Firebase에서 개인정보 조회하여 표시
   const getExistingFieldValue = (field: string) => {
