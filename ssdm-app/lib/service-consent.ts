@@ -23,30 +23,38 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
   if (!user) return [];
   
   try {
-    const consentsRef = ref(realtimeDb, `mallServiceConsents/${user.uid}`);
-    const snapshot = await get(consentsRef);
+    // 새로운 구조: userMappings에서 mappedUid 조회 후 mallServiceConsents 조회
+    const { getUserMappings } = await import('@/lib/data-storage');
+    const mappings = await getUserMappings();
     
     const consents: UserConsents[] = [];
-    if (snapshot.exists()) {
-      const data = snapshot.val();
+    
+    // 각 매핑에 대해 mallServiceConsents 조회
+    for (const mapping of mappings) {
+      const consentsRef = ref(realtimeDb, `mallServiceConsents/${mapping.mappedUid}`);
+      const snapshot = await get(consentsRef);
       
-      // mallServiceConsents/{uid}/{mallId}/{shopId} 구조를 평면화
-      Object.keys(data).forEach((mallId) => {
-        const mallData = data[mallId];
-        Object.keys(mallData).forEach((shopId) => {
-          const consentData = mallData[shopId];
-          consents.push({
-            id: `${mallId}_${shopId}`,
-            userId: user.uid,
-            mallId,
-            shopId,
-            consentType: consentData.consentType,
-            createdAt: consentData.createdAt,
-            expiresAt: consentData.expiresAt,
-            isActive: consentData.isActive || undefined
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        
+        // mallServiceConsents/{mappedUid}/{mallId}/{shopId} 구조를 평면화
+        Object.keys(data).forEach((mallId) => {
+          const mallData = data[mallId];
+          Object.keys(mallData).forEach((shopId) => {
+            const consentData = mallData[shopId];
+            consents.push({
+              id: `${mallId}_${shopId}`,
+              userId: user.uid,
+              mallId,
+              shopId,
+              consentType: consentData.consentType,
+              createdAt: consentData.createdAt,
+              expiresAt: consentData.expiresAt,
+              isActive: consentData.isActive || undefined
+            });
           });
         });
-      });
+      }
     }
     
     return consents;
