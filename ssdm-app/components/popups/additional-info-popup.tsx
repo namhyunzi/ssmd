@@ -18,19 +18,20 @@ interface AdditionalInfoPopupProps {
 }
 
 export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, missingFields, hasExistingData = false, onComplete }: AdditionalInfoPopupProps) {
-  const [name, setName] = useState("")
-  const [phone, setPhone] = useState("")
-  const [zipCode, setZipCode] = useState("")
-  const [address, setAddress] = useState("")
-  const [detailAddress, setDetailAddress] = useState("")
-  
-  // 기존 데이터 저장용 state
+  // 기존 데이터 저장용 state (DB에서 동적으로 가져옴)
   const [existingData, setExistingData] = useState({
     name: '',
     phone: '',
     address: '',
     zipCode: '',
     detailAddress: ''
+  })
+
+  // 필드별 포커스 상태 (클릭하고 벗어났는지 확인)
+  const [fieldTouched, setFieldTouched] = useState({
+    name: false,
+    phone: false,
+    address: false
   })
 
   // 전화번호 포맷팅 함수
@@ -79,13 +80,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           }
           
           setExistingData(existingData)
-          
-          // 실제 입력 필드들도 기존 데이터로 업데이트
-          setName(existingData.name)
-          setPhone(existingData.phone)
-          setAddress(existingData.address)
-          setZipCode(existingData.zipCode)
-          setDetailAddress(existingData.detailAddress)
         }
       } catch (error) {
         console.error('개인정보 조회 실패:', error)
@@ -114,9 +108,9 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
   // 누락된 필드만 검증
   const isFormValid = () => {
-    if (isFieldMissing('name') && name.trim() === "") return false
-    if (isFieldMissing('phone') && phone.trim() === "") return false
-    if (isFieldMissing('address') && address.trim() === "") return false
+    if (isFieldMissing('name') && existingData.name.trim() === "") return false
+    if (isFieldMissing('phone') && existingData.phone.trim() === "") return false
+    if (isFieldMissing('address') && existingData.address.trim() === "") return false
     return true
   }
 
@@ -146,19 +140,20 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               이름 {isFieldMissing('name') && <span className="text-red-500">*</span>}
             </Label>
             <Input 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={existingData.name}
+              onChange={(e) => setExistingData(prev => ({...prev, name: e.target.value}))}
+              onBlur={() => setFieldTouched(prev => ({...prev, name: true}))}
               disabled={!isFieldMissing('name')}
               className={`h-12 ${
                 !isFieldMissing('name') 
                   ? "bg-gray-100 border-gray-300" 
-                  : isFieldMissing('name') && name.trim() === "" 
+                  : isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name
                     ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                     : "focus:border-primary focus:ring-primary"
               }`}
               placeholder={isFieldMissing('name') ? "이름을 입력해주세요" : ""}
             />
-            {isFieldMissing('name') && name.trim() === "" && (
+            {isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name && (
               <p className="text-sm text-red-600">이름을 입력해주세요</p>
             )}
             {!isFieldMissing('name') && (
@@ -182,21 +177,22 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   </SelectContent>
                 </Select>
                 <Input 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={existingData.phone}
+                  onChange={(e) => setExistingData(prev => ({...prev, phone: e.target.value}))}
+                  onBlur={() => setFieldTouched(prev => ({...prev, phone: true}))}
                   disabled={!isFieldMissing('phone')}
                   placeholder={isFieldMissing('phone') ? "1234-5678" : ""}
                   className={`flex-1 ${
                     !isFieldMissing('phone') 
                       ? "bg-gray-100 border-gray-300" 
-                      : isFieldMissing('phone') && phone.trim() === "" 
+                      : isFieldMissing('phone') && existingData.phone.trim() === "" && fieldTouched.phone
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                         : "focus:border-primary focus:ring-primary"
                   }`}
                 />
               </div>
             </div>
-            {isFieldMissing('phone') && phone.trim() === "" && (
+            {isFieldMissing('phone') && existingData.phone.trim() === "" && fieldTouched.phone && (
               <p className="text-sm text-red-600">휴대폰 번호를 입력해주세요</p>
             )}
             {!isFieldMissing('phone') && (
@@ -212,13 +208,14 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div className="flex space-x-2">
                 <Input 
-                  value={zipCode}
-                  onChange={(e) => setZipCode(e.target.value)}
+                  value={existingData.zipCode}
+                  onChange={(e) => setExistingData(prev => ({...prev, zipCode: e.target.value}))}
+                  onBlur={() => setFieldTouched(prev => ({...prev, address: true}))}
                   disabled={!isFieldMissing('address')}
                   className={`w-24 ${
                     !isFieldMissing('address') 
                       ? "bg-gray-100 border-gray-300" 
-                      : isFieldMissing('address') && zipCode.trim() === "" 
+                      : isFieldMissing('address') && existingData.zipCode.trim() === "" && fieldTouched.address
                         ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                         : "focus:border-primary focus:ring-primary"
                   }`}
@@ -230,8 +227,11 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   onClick={() => {
                     if (isFieldMissing('address')) {
                       // 주소 API 시뮬레이션
-                      setZipCode("12345")
-                      setAddress("서울특별시 강남구 테헤란로 123")
+                      setExistingData(prev => ({
+                        ...prev,
+                        zipCode: "12345",
+                        address: "서울특별시 강남구 테헤란로 123"
+                      }))
                     }
                   }}
                 >
@@ -240,26 +240,28 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                 </Button>
               </div>
               <Input 
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                value={existingData.address}
+                onChange={(e) => setExistingData(prev => ({...prev, address: e.target.value}))}
+                onBlur={() => setFieldTouched(prev => ({...prev, address: true}))}
                 disabled={!isFieldMissing('address')}
                 className={`${
                   !isFieldMissing('address') 
                     ? "bg-gray-100 border-gray-300" 
-                    : isFieldMissing('address') && address.trim() === "" 
+                    : isFieldMissing('address') && existingData.address.trim() === "" && fieldTouched.address
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
                       : "focus:border-primary focus:ring-primary"
                 }`}
               />
               <Input 
-                value={detailAddress}
-                onChange={(e) => setDetailAddress(e.target.value)}
+                value={existingData.detailAddress}
+                onChange={(e) => setExistingData(prev => ({...prev, detailAddress: e.target.value}))}
+                onBlur={() => setFieldTouched(prev => ({...prev, address: true}))}
                 disabled={!isFieldMissing('address')}
                 placeholder={isFieldMissing('address') ? "상세주소 입력" : ""}
                 className={!isFieldMissing('address') ? "bg-gray-100 border-gray-300" : "bg-white"}
               />
             </div>
-            {isFieldMissing('address') && (address.trim() === "" || zipCode.trim() === "") && (
+            {isFieldMissing('address') && (existingData.address.trim() === "" || existingData.zipCode.trim() === "") && fieldTouched.address && (
               <p className="text-sm text-red-600">주소를 입력해주세요</p>
             )}
             {!isFieldMissing('address') && (
@@ -292,10 +294,10 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   
                   // 누락된 필드의 데이터만 수집
                   const additionalData = {
-                    name: isFieldMissing('name') ? name : getExistingFieldValue('name'),
-                    phone: isFieldMissing('phone') ? phone : getExistingFieldValue('phone'),
-                    address: isFieldMissing('address') ? `${address} ${detailAddress}`.trim() : getExistingFieldValue('address'),
-                    zipCode: isFieldMissing('address') ? zipCode : getExistingFieldValue('zipCode')
+                    name: isFieldMissing('name') ? existingData.name : getExistingFieldValue('name'),
+                    phone: isFieldMissing('phone') ? existingData.phone : getExistingFieldValue('phone'),
+                    address: isFieldMissing('address') ? `${existingData.address} ${existingData.detailAddress}`.trim() : getExistingFieldValue('address'),
+                    zipCode: isFieldMissing('address') ? existingData.zipCode : getExistingFieldValue('zipCode')
                   }
                   
                   // Firebase에 사용자 프로필 업데이트
