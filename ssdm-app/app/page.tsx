@@ -26,7 +26,7 @@ export default function LoginPage() {
   const [jwtReceived, setJwtReceived] = useState(false)
   const router = useRouter()
 
-  // URL 파라미터 확인 및 JWT 상태 확인
+  // 외부 팝업에서 JWT 받을 때
   useEffect(() => {    
     // postMessage로 JWT 받아서 세션에 저장
     const handleMessage = (event: MessageEvent) => {
@@ -34,7 +34,6 @@ export default function LoginPage() {
         const { jwt } = event.data
         if (jwt) {
           sessionStorage.setItem('openPopup', jwt)
-          console.log('JWT 토큰을 세션에 저장했습니다:', jwt)
           router.push('/consent')
         }
       } else {
@@ -46,7 +45,7 @@ export default function LoginPage() {
     return () => window.removeEventListener('message', handleMessage)
   }, [router])
 
-  // 로그인 상태 변경 감지 (자동 리다이렉션 제거)
+  // 로그인 후 JWT 확인할 때
   useEffect(() => {
     const { onAuthStateChanged } = require('firebase/auth')
     const unsubscribe = onAuthStateChanged(auth, (user: any) => {
@@ -55,16 +54,7 @@ export default function LoginPage() {
         const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime
         const fromExternalPopup = localStorage.getItem('from_external_popup')
         const isNewUserProcessing = localStorage.getItem('is_new_user_processing')
-        
-        console.log('useEffect에서 사용자 감지:', {
-          uid: user.uid,
-          isNewUser: isNewUser,
-          showTermsPopup: showTermsPopup,
-          pendingGoogleUser: !!pendingGoogleUser,
-          fromExternalPopup: fromExternalPopup,
-          isNewUserProcessing: isNewUserProcessing
-        })
-        
+                
         // 신규 사용자 처리 중이면 리다이렉션하지 않음
         if (isNewUserProcessing === 'true') {
           console.log('신규 사용자 처리 중 - 리다이렉션 건너뜀')
@@ -78,22 +68,6 @@ export default function LoginPage() {
           setPendingGoogleUser(user)
           setShowTermsPopup(true)
           return
-        }
-        
-        // JWT를 받지 못했다면 기다림 (로그인이 이미 되어 있어도)
-        if (!jwtReceived) {
-          console.log('로그인은 되었지만 JWT를 아직 받지 못함 - 대기 중')
-          return
-        }
-        
-        // JWT를 받았다면 consent로 이동
-        const jwtToken = sessionStorage.getItem('openPopup')
-        if (jwtToken) {
-          console.log('로그인 + JWT 확인 - /consent로 리다이렉트')
-          router.push('/consent')
-        } else {
-          console.log('로그인 + JWT 없음 - /dashboard로 리다이렉트')
-          router.push('/dashboard')
         }
       }
     })
@@ -233,29 +207,12 @@ export default function LoginPage() {
       // 신규 사용자 감지 (creationTime과 lastSignInTime이 같으면 신규 사용자)
       const isNewUser = result.user.metadata.creationTime === result.user.metadata.lastSignInTime
       
-      console.log('=== Google 로그인 성공 ===')
-      console.log('사용자 정보:', {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        isNewUser: isNewUser,
-        creationTime: result.user.metadata.creationTime,
-        lastSignInTime: result.user.metadata.lastSignInTime
-      })
-      console.log('신규 사용자 여부:', isNewUser)
-      console.log('creationTime === lastSignInTime:', result.user.metadata.creationTime === result.user.metadata.lastSignInTime)
-      
       if (isNewUser) {
         // 신규 사용자의 경우 약관 동의 팝업 표시
-        console.log('=== 신규 사용자 감지 - 약관동의 팝업 표시 ===')
-        console.log('setPendingGoogleUser 호출 전')
         setPendingGoogleUser(result.user)
-        console.log('setShowTermsPopup(true) 호출 전')
         setShowTermsPopup(true)
-        console.log('is_new_user_processing 플래그 설정')
         // 신규 사용자는 useEffect에서 리다이렉션하지 않도록 플래그 설정
         localStorage.setItem('is_new_user_processing', 'true')
-        console.log('신규 사용자 처리 완료')
       } else {
         // 기존 사용자의 경우 리다이렉션 함수 호출
         handleRedirectAfterLogin()
