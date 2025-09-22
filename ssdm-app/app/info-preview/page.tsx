@@ -80,6 +80,13 @@ function InfoPreviewPageContent() {
 
   // 초기화 함수 추가
   const initializeUserConnection = async (mallIdParam?: string, user?: any, jwt?: string) => {
+    console.log('=== initializeUserConnection 시작 ===', {
+      mallIdParam,
+      user: user?.uid,
+      jwt: jwt?.substring(0, 20) + '...',
+      timestamp: new Date().toISOString()
+    })
+    
     setLoading(true)
     
     try {
@@ -149,17 +156,34 @@ function InfoPreviewPageContent() {
   }
 
   useEffect(() => {
+    console.log('=== useEffect 시작 ===', new Date().toISOString())
+    
     const { onAuthStateChanged } = require('firebase/auth')
     const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
+      console.log('=== onAuthStateChanged 콜백 실행 ===', {
+        user: user?.uid,
+        isInitializing,
+        timestamp: new Date().toISOString()
+      })
+      
       if (user) {
+        console.log('=== 로그인된 상태 처리 시작 ===')
+        
         // 로그인 완료 후 돌아온 경우 세션에서 JWT 확인
         const jwtToken = sessionStorage.getItem('openPopup_preview')
+        console.log('세션에서 JWT 확인:', {
+          jwtToken: jwtToken ? '존재함' : '없음',
+          isInitializing
+        })
+        
         if (jwtToken && !isInitializing) {
+          console.log('=== 세션에서 JWT 처리 시작 ===')
           setIsInitializing(true)
           setToken(jwtToken)
           try {
             const verifyResult = await verifyToken(jwtToken)
             if (verifyResult.success) {
+              console.log('=== initializeUserConnection 호출 (세션) ===')
               initializeUserConnection(verifyResult.mallId, user, jwtToken)
             }
           } catch (error) {
@@ -168,19 +192,29 @@ function InfoPreviewPageContent() {
           } finally {
             setIsInitializing(false)
           }
+          console.log('=== 세션에서 JWT 처리 완료, return ===')
           return
         }
         
+        console.log('=== postMessage 리스너 설정 ===')
         // postMessage 리스너 설정 (새로운 JWT 받을 때)
         const handleMessage = async (event: MessageEvent) => {
+          console.log('=== postMessage 이벤트 수신 ===', {
+            type: event.data.type,
+            hasJwt: !!event.data.jwt,
+            isInitializing
+          })
+          
           if (event.data.type === 'init_preview') {
             const { jwt } = event.data
             if (jwt && !isInitializing) {
+              console.log('=== postMessage에서 JWT 처리 시작 ===')
               setIsInitializing(true)
               setToken(jwt)
               try {
                 const verifyResult = await verifyToken(jwt)
                 if (verifyResult.success) {
+                  console.log('=== initializeUserConnection 호출 (postMessage) ===')
                   initializeUserConnection(verifyResult.mallId, user, jwt)
                 }
               } catch (error) {
