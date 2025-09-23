@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
       console.log('항상 허용 - connected 반환')
       return NextResponse.json({
         status: 'connected',
-        consentType: 'always'
+        consentType: 'always',
+        isActive: consentData.isActive
       }, { headers: corsHeaders })
     } else if (consentData.consentType === 'once') {
       // 2번: 일회성 동의 + 유효함
