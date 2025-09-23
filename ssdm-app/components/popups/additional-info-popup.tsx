@@ -643,6 +643,13 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   // 전화번호에 지역번호 포함하여 저장
                   const fullPhone = phonePrefix + existingData.phone.replace(/\D/g, '') // 드롭박스 선택값 + 입력값
                   
+                  // 요청된 필드이므로 완전한 번호여야 함
+                  if (fullPhone.length < 10) {
+                    alert('휴대폰 번호를 올바르게 입력해주세요.')
+                    setIsSaving(false)
+                    return
+                  }
+                  
                   // 기존 데이터와 새로 입력받은 데이터를 모두 포함해서 저장
                   const updatedProfileData = {
                     name: existingData.name,

@@ -839,13 +839,14 @@ export default function ProfileSetupPage() {
                   try {
                     // 개인정보를 Firebase에 직접 저장
                     const fullPhone = phonePrefix + phone.replace(/\D/g, '') // 드롭박스 선택값 + 입력값
+                    const validPhone = fullPhone.length >= 10 ? fullPhone : '' // 10자리 미만이면 빈 문자열로 저장
                     const email = emailOption === "same" ? currentUser?.email : 
                                  (emailOption === "different" && emailVerificationStep === "verified") ? 
                                  `${emailUsername}@${isDomainInputMode ? customDomain : emailDomain}` : currentUser?.email
                     
                     const profileData = {
                       name: name,
-                      phone: fullPhone,
+                      phone: validPhone,
                       address: address,
                       detailAddress: detailAddress,
                       zipCode: zipCode,
