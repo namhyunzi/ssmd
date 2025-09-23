@@ -50,11 +50,18 @@ export default function LoginPage() {
           setShowTermsPopup(true)
           return
         }
+        
+        // 기존 사용자의 경우 적절한 페이지로 리다이렉션
+        if (!isNewUser) {
+          console.log('기존 사용자 로그인 - 리다이렉션 처리')
+          handleRedirectAfterLogin()
+          return
+        }
       }
     })
 
     return () => unsubscribe()
-  }, [router, showTermsPopup, pendingGoogleUser, jwtReceived])
+  }, [router, showTermsPopup, pendingGoogleUser])
 
   // 컴포넌트 마운트 시 로컬 스토리지에서 실패 횟수와 제한 시간 확인
   useEffect(() => {
@@ -92,20 +99,18 @@ export default function LoginPage() {
       sessionStorage.removeItem('from_external_popup')
       router.push(redirectUrl)
     } else {
-      // 팝업인지 확인 후 적절한 페이지로 이동
-      if (window.opener && window.opener !== window) {
-        // JWT 키에 따라 분기 처리
-        const jwtToken = sessionStorage.getItem('openPopup')
-        const jwtTokenPreview = sessionStorage.getItem('openPopup_preview')
-        
-        if (jwtToken) {
-          router.push('/consent')
-        } else if (jwtTokenPreview) {
-          router.push('/info-preview')
-        } else {
-          router.push('/dashboard')
-        }
+      // JWT 토큰으로 팝업 여부 확인
+      const jwtToken = sessionStorage.getItem('openPopup')
+      const jwtTokenPreview = sessionStorage.getItem('openPopup_preview')
+      
+      if (jwtToken) {
+        // 동의 요청 팝업
+        router.push('/consent')
+      } else if (jwtTokenPreview) {
+        // 정보 미리보기 팝업
+        router.push('/info-preview')
       } else {
+        // 일반 브라우저 접근 - 대시보드로 이동
         router.push('/dashboard')
       }
     }
@@ -226,11 +231,7 @@ export default function LoginPage() {
     }
   }
 
-  const handleTermsConsent = async (consentValues: {
-    termsAgreed: boolean
-    privacyAgreed: boolean
-    marketingAgreed: boolean
-  }) => {
+  const handleTermsConsent = async () => {
     setShowTermsPopup(false)
     
     try {
@@ -246,9 +247,9 @@ export default function LoginPage() {
         
         // 2. 동의 정보 저장
         const consentData = {
-          termsAgreed: consentValues.termsAgreed,
-          privacyAgreed: consentValues.privacyAgreed,
-          marketingAgreed: consentValues.marketingAgreed,
+          termsAgreed: true,
+          privacyAgreed: true,
+          marketingAgreed: false, // 기본값
           agreedAt: new Date().toISOString(),
           createdAt: new Date().toISOString()
         }
