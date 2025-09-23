@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
+import { formatPhoneNumber } from "@/lib/utils"
 
 // Daum 우편번호 API 타입 정의
 declare global {
@@ -156,20 +157,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  // 전화번호 포맷팅 함수
-  const formatPhoneNumber = (phone: string) => {
-    if (!phone) return ''
-    
-    const numbers = phone.replace(/\D/g, '')
-    
-    if (numbers.length === 11) {
-      return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
-    } else if (numbers.length === 10) {
-      return `${numbers.slice(0, 2)}-${numbers.slice(2, 5)}-${numbers.slice(5)}`
-    }
-    
-    return phone
-  }
 
   const handleEmailChange = () => {
     if (emailStep === "initial") {

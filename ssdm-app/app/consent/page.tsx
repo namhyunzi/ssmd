@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { auth } from '@/lib/firebase'
 import { Shield, X, User, Phone, MapPin, Info, AlertTriangle, ArrowLeft } from "lucide-react"
+import { formatFullPhoneNumber } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -468,19 +469,6 @@ function ConsentPageContent() {
     }
   }
 
-  // 휴대폰 번호 포맷팅 함수
-  const formatPhoneNumber = (phone: string) => {
-    if (!phone) return ''
-    // 숫자만 추출
-    const numbers = phone.replace(/\D/g, '')
-    // 010-1234-5678 형식으로 포맷팅
-    if (numbers.length === 11) {
-      return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
-    } else if (numbers.length === 10) {
-      return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`
-    }
-    return phone
-  }
 
   const getFieldValue = (field: string) => {
     // personalData 상태에서 값 가져오기
@@ -488,7 +476,7 @@ function ConsentPageContent() {
     
     switch (field) {
       case 'name': return personalData.name || ''
-      case 'phone': return formatPhoneNumber(personalData.phone || '')
+      case 'phone': return formatFullPhoneNumber(personalData.phone || '')
       case 'address': 
         const address = personalData.address || ''
         const detailAddress = personalData.detailAddress || ''

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
+import { formatPhoneNumber } from "@/lib/utils"
 import { onAuthStateChanged } from "firebase/auth"
 import { saveUserProfile } from "@/lib/data-storage"
 import { useToast } from "@/hooks/use-toast"
@@ -363,20 +364,6 @@ export default function ProfileSetupPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  // 핸드폰 번호 포맷팅 함수 (8자리 뒷자리만 입력)
-  const formatPhoneNumber = (value: string) => {
-    // 숫자만 추출
-    const numbers = value.replace(/\D/g, '');
-    
-    // 길이에 따라 포맷팅 (8자리 뒷자리만)
-    if (numbers.length <= 4) {
-      return numbers;
-    } else if (numbers.length <= 8) {
-      return `${numbers.slice(0, 4)}-${numbers.slice(4)}`;
-    } else {
-      return `${numbers.slice(0, 4)}-${numbers.slice(4, 8)}`;
-    }
-  };
 
   // 핸드폰 번호 입력 핸들러
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {

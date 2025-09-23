@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { auth } from "@/lib/firebase"
+import { formatFullPhoneNumber } from "@/lib/utils"
 import { onAuthStateChanged, updateProfile } from "firebase/auth"
 import { Users } from "@/lib/user-profile"
 import { getUserProfile, saveUserProfile } from "@/lib/data-storage"
@@ -591,21 +592,8 @@ export default function ProfileEditPage() {
                 type="tel" 
                 value={phone}
                 onChange={(e) => {
-                  const value = e.target.value
-                  // 숫자만 추출
-                  const numbers = value.replace(/\D/g, '')
-                  
-                  // 포맷팅 적용
-                  if (numbers.length <= 3) {
-                    setPhone(numbers)
-                  } else if (numbers.length <= 7) {
-                    setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3)}`)
-                  } else if (numbers.length <= 11) {
-                    setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`)
-                  } else {
-                    // 11자리 초과 시 자르기
-                    setPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`)
-                  }
+                  const formattedPhone = formatFullPhoneNumber(e.target.value)
+                  setPhone(formattedPhone)
                 }}
                 placeholder="010-1234-5678"
                 maxLength={13}

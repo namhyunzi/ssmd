@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { auth } from '@/lib/firebase'
+import { formatFullPhoneNumber } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -362,24 +363,13 @@ function InfoPreviewPageContent() {
     }
   }
 
-  // 휴대폰 번호 포맷팅 함수
-  const formatPhoneNumber = (phone: string) => {
-    if (!phone) return ''
-    const numbers = phone.replace(/\D/g, '')
-    if (numbers.length === 11) {
-      return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
-    } else if (numbers.length === 10) {
-      return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`
-    }
-    return phone
-  }
 
   const getFieldValue = (field: string, userProfile: any) => {
     if (!userProfile) return '정보 확인 중...'
     
     switch (field) {
       case 'name': return userProfile.name || ''
-      case 'phone': return formatPhoneNumber(userProfile.phone || '')
+      case 'phone': return formatFullPhoneNumber(userProfile.phone || '')
       case 'address': 
         const address = userProfile.address || ''
         const detailAddress = userProfile.detailAddress || ''

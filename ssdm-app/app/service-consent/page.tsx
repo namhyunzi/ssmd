@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { auth } from '@/lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+import { formatFullPhoneNumber } from "@/lib/utils"
 import { Users } from '@/lib/user-profile'
 import { getUserServiceConsents, calculateConsentStatus, UserConsents } from '@/lib/service-consent'
 import { getUserProfile, getUserMappings, getMallServiceConsents } from '@/lib/data-storage'
@@ -537,7 +538,7 @@ function ServiceConsentContent() {
                   </div>
                   <div>
                     <Label className="text-sm">휴대폰 번호</Label>
-                    <p className="text-sm">{formatPhoneNumber(localProfile?.phone || '')}</p>
+                    <p className="text-sm">{formatFullPhoneNumber(localProfile?.phone || '')}</p>
                   </div>
                   <div>
                     <Label className="text-sm">주소</Label>
@@ -642,20 +643,6 @@ function ServiceConsentContent() {
   )
 }
 
-// 휴대폰 번호 포맷팅 함수
-const formatPhoneNumber = (phone: string) => {
-  if (!phone) return '-'
-  
-  const numbers = phone.replace(/\D/g, '')
-  
-  if (numbers.length === 11) {
-    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
-  } else if (numbers.length === 10) {
-    return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`
-  }
-  
-  return phone
-}
 
 export default function ServiceConsentPage() {
   return (
