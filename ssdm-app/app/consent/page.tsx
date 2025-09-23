@@ -655,10 +655,7 @@ function ConsentPageContent() {
           return
         }
         
-        // 4. 동의 내역 저장 (팝업에서도 저장)
-        await saveConsentData(consentId, mallId, shopId, consentType)
-        
-        // 5. 팝업 닫기
+        // 4. 팝업 닫기
         setTimeout(() => {
           // JWT 세션 및 리다이렉트 세션 정리
           sessionStorage.removeItem('openPopup')
@@ -667,10 +664,10 @@ function ConsentPageContent() {
           sessionStorage.removeItem('from_external_popup')
           window.close()
         }, 100)
-      } else {
-        // 일반 페이지인 경우 동의 내역 저장
-        await saveConsentData(consentId, mallId, shopId, consentType)
       }
+      
+      // 동의 내역 저장 (팝업과 일반 페이지 모두)
+      await saveConsentData(consentId, mallId, shopId, consentType)
 
       console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}`)
 

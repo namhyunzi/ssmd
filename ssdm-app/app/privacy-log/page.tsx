@@ -353,16 +353,20 @@ function PrivacyLogContent() {
                         </div>
                         <div className="flex items-center space-x-1 mt-1">
                           <span className="text-xs text-muted-foreground">제공정보:</span>
-                          {Object.entries(log).map(([key, value]) => {
-                            if (['name', 'phone', 'address', 'email', 'zipCode'].includes(key) && value) {
-                              return (
-                                <Badge key={key} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
-                                  {getFieldName(key)}
-                                </Badge>
-                              )
-                            }
-                            return null
-                          })}
+                          {(() => {
+                            // 실제 제공된 개인정보 필드만 추출
+                            const providedFields = ['name', 'phone', 'address', 'email', 'zipCode']
+                            const actualProvidedFields = providedFields.filter(field => {
+                              const value = (log as any)[field]
+                              return value && value.trim() !== ''
+                            })
+                            
+                            return actualProvidedFields.map(field => (
+                              <Badge key={field} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
+                                {getFieldName(field)}
+                              </Badge>
+                            ))
+                          })()}
                         </div>
                         <div className="flex items-center space-x-1 mt-1">
                           <span className="text-xs text-muted-foreground">동의방식:</span>
