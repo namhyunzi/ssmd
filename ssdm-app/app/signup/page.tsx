@@ -398,23 +398,20 @@ export default function SignupPage() {
       
       // 신규 사용자 감지 (creationTime과 lastSignInTime이 같으면 신규 사용자)
       const isNewUser = result.user.metadata.creationTime === result.user.metadata.lastSignInTime
-      
-      console.log('Google 회원가입/로그인 성공:', {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        isNewUser: isNewUser,
-        creationTime: result.user.metadata.creationTime,
-        lastSignInTime: result.user.metadata.lastSignInTime
-      })
+      console.log('isNewUser 확인', isNewUser)
       
       if (isNewUser) {
         // 신규 사용자의 경우 약관 동의 팝업 표시
         setPendingGoogleUser(result.user)
         setShowTermsPopup(true)
       } else {
-        // 기존 사용자의 경우 대시보드로 이동
-        router.push("/dashboard")
+        // 기존 사용자의 경우 - 이미 가입된 계정
+        setToastMessage("이미 가입된 계정입니다. 로그인 페이지로 이동합니다.")
+        setShowToast(true)
+        
+        setTimeout(() => {
+          router.push('/')
+        }, 2000)
       }
     } catch (error: any) {
       console.error('Google 회원가입/로그인 오류:', error)
@@ -484,9 +481,17 @@ export default function SignupPage() {
       // 회원가입 완료 화면 표시
       setSignupStep("complete")
       
-      // 2초 후 프로필 설정 페이지로 이동
+      // 2초 후 JWT 토큰 확인하여 적절한 페이지로 이동
       setTimeout(() => {
-        router.push("/profile-setup")
+        const jwtToken = sessionStorage.getItem('openPopup')
+        
+        if (jwtToken) {
+          // 팝업에서 온 경우 - 동의 페이지로 이동
+          router.push('/consent')
+        } else {
+          // 일반 브라우저에서 온 경우 - 개인정보 입력 화면으로 이동
+          router.push("/profile-setup")
+        }
       }, 2000)
       
     } catch (error) {
@@ -990,8 +995,10 @@ export default function SignupPage() {
                     displayName: user.displayName
                   })
                   
-                  // 회원가입 성공 후 대시보드로 이동
-                  router.push('/dashboard')
+                  // 회원가입 성공 후 개인정보 입력 화면으로 이동
+                  setTimeout(() => {
+                    router.push("/profile-setup")
+                  }, 2000)
                   
                 } catch (error: any) {
                   console.error("회원가입 오류:", error)
