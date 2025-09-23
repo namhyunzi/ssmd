@@ -231,7 +231,11 @@ export default function LoginPage() {
     }
   }
 
-  const handleTermsConsent = async () => {
+  const handleTermsConsent = async (consentValues: {
+    termsAgreed: boolean
+    privacyAgreed: boolean
+    marketingAgreed: boolean
+  }) => {
     setShowTermsPopup(false)
     
     try {
@@ -247,9 +251,9 @@ export default function LoginPage() {
         
         // 2. 동의 정보 저장
         const consentData = {
-          termsAgreed: true,
-          privacyAgreed: true,
-          marketingAgreed: false, // 기본값
+          termsAgreed: consentValues.termsAgreed,
+          privacyAgreed: consentValues.privacyAgreed,
+          marketingAgreed: consentValues.marketingAgreed, // 실제 동의 값 사용
           agreedAt: new Date().toISOString(),
           createdAt: new Date().toISOString()
         }
