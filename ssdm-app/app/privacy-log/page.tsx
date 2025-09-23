@@ -302,7 +302,7 @@ function PrivacyLogContent() {
                               </div>
                             )}
                             <div className="flex items-center space-x-1 mt-2">
-                              <span className="text-xs text-muted-foreground">제공 필드:</span>
+                              <span className="text-xs text-muted-foreground">제공 내역:</span>
                               {log.providedFields?.map((field, fieldIndex) => (
                                 <Badge key={fieldIndex} variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
                                   {getFieldName(field)}
