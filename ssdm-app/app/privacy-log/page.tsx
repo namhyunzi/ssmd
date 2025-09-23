@@ -122,6 +122,11 @@ function PrivacyLogContent() {
     return logs.filter(log => {
       const logDate = new Date(log.timestamp || log.createdAt || log.date)
       return logDate >= filterDate
+    }).sort((a, b) => {
+      // 최신순으로 정렬 (최근 것이 상단)
+      const dateA = new Date(a.timestamp || a.createdAt || a.date)
+      const dateB = new Date(b.timestamp || b.createdAt || b.date)
+      return dateB.getTime() - dateA.getTime()
     })
   }
 
@@ -348,11 +353,16 @@ function PrivacyLogContent() {
                         </div>
                         <div className="flex items-center space-x-1 mt-1">
                           <span className="text-xs text-muted-foreground">제공정보:</span>
-                          {log.providedFields.map((field, index) => (
-                            <Badge key={index} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
-                              {getFieldName(field)}
-                            </Badge>
-                          ))}
+                          {Object.entries(log).map(([key, value]) => {
+                            if (['name', 'phone', 'address', 'email', 'zipCode'].includes(key) && value) {
+                              return (
+                                <Badge key={key} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
+                                  {getFieldName(key)}
+                                </Badge>
+                              )
+                            }
+                            return null
+                          })}
                         </div>
                         <div className="flex items-center space-x-1 mt-1">
                           <span className="text-xs text-muted-foreground">동의방식:</span>

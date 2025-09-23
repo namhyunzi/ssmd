@@ -13,7 +13,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { formatFullPhoneNumber } from "@/lib/utils"
 import { Users } from '@/lib/user-profile'
 import { getUserServiceConsents, calculateConsentStatus, UserConsents } from '@/lib/service-consent'
-import { getUserProfile, getUserMappings, getMallServiceConsents } from '@/lib/data-storage'
+import { getUserProfile, getUserMappings, getMallServiceConsents, getUserProvisionLogs } from '@/lib/data-storage'
 
 // ServiceConsent 타입을 lib에서 import하므로 중복 제거
 
@@ -25,11 +25,11 @@ function ServiceConsentContent() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedConsentType, setSelectedConsentType] = useState<string>("")
-  const [consents, setConsents] = useState<UserConsents[]>([])
   const [userProfile, setUserProfile] = useState<Users | null>(null)
   const [localProfile, setLocalProfile] = useState<any>(null)
   const [userMappings, setUserMappings] = useState<any[]>([])
   const [mallConsents, setMallConsents] = useState<any[]>([])
+  const [provisionLogs, setProvisionLogs] = useState<any[]>([])
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
@@ -58,7 +58,7 @@ function ServiceConsentContent() {
           
           // 서비스 동의 데이터 로드
           const userConsents = await getUserServiceConsents(user)
-          setConsents(userConsents)
+          // setConsents 제거 - mallConsents만 사용
         } catch (error) {
           console.error('Error loading user data:', error)
         }
@@ -84,6 +84,11 @@ function ServiceConsentContent() {
           console.log('mallConsents 필터링 전:', allMallConsents)
           console.log('mallConsents 필터링 전:', allMallConsents)
           console.log('mallConsents 필터링 후 (always만):', allMallConsents.filter(consent => consent.consentType === 'always'))
+          
+          // 개인정보 제공 내역 로드
+          const provisionLogsData = await getUserProvisionLogs(user.uid)
+          setProvisionLogs(provisionLogsData)
+          console.log('로드된 provisionLogs:', provisionLogsData)
         } catch (error) {
           console.error('Error loading mall consents:', error)
         }
@@ -170,34 +175,17 @@ function ServiceConsentContent() {
     }
   }
 
-  // 필터링된 동의 내역 (always 타입만 표시)
-  const alwaysConsents = consents.filter(consent => consent.consentType === 'always')
+  // 필터링된 동의 내역 (mallConsents에서 always 타입이고 isActive true인 것만 표시)
+  const alwaysConsents = mallConsents.filter(consent => 
+    consent.consentType === 'always' && 
+    consent.isActive !== false
+  )
   
   const filteredConsents = activeFilter === "all" 
     ? alwaysConsents 
-    : alwaysConsents.filter(consent => calculateConsentStatus(consent.expiryDate) === activeFilter)
+    : alwaysConsents.filter(consent => calculateExpirationStatus(consent) === activeFilter)
 
-  // 필터링된 쇼핑몰 동의 내역
-  const getFilteredMallConsents = () => {
-    const alwaysConsents = mallConsents.filter(consent => 
-      consent.consentType === 'always' && 
-      consent.mallId && 
-      consent.shopId && 
-      consent.mallId !== '~' && 
-      consent.shopId !== '~'
-    )
-    
-    if (activeFilter === "all") {
-      return alwaysConsents
-    }
-    
-    return alwaysConsents.filter(consent => {
-      const status = calculateExpirationStatus(consent)
-      return status === activeFilter
-    })
-  }
-
-  const filteredMallConsents = getFilteredMallConsents()
+  // 필터링된 쇼핑몰 동의 내역 (이제 사용하지 않음 - filteredConsents로 통합)
 
   // 페이지네이션 계산
   const totalPages = Math.ceil(filteredConsents.length / itemsPerPage)
@@ -370,76 +358,49 @@ function ServiceConsentContent() {
                 </div>
               )}
 
-              {/* 쇼핑몰 동의 내역 섹션 (always 동의만 표시) */}
-              {filteredMallConsents.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-4">쇼핑몰 항상허용 동의 내역</h3>
-                  <div className="space-y-3">
-                    {filteredMallConsents.map((consent, index) => {
-                      const expirationStatus = calculateExpirationStatus(consent)
-                      const provisionDate = new Date(consent.timestamp || consent.createdAt || consent.date)
-                      const expiresAt = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
-                      
-                      return (
-                      <div key={`${consent.mallId}-${consent.shopId}-${index}`} className="p-4 border rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-sm">쇼핑몰: {consent.mallId}</div>
-                            <div className="text-xs text-muted-foreground">상점: {consent.shopId}</div>
-                            <div className="text-xs text-muted-foreground">
-                              동의일: {provisionDate.toLocaleDateString()}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              만료일: {expiresAt.toLocaleDateString()}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <Badge 
-                              variant={
-                                expirationStatus === 'expired' ? "destructive" :
-                                expirationStatus === 'expiring' ? "secondary" : "default"
-                              }
-                            >
-                              {expirationStatus === 'expired' ? "만료됨" :
-                               expirationStatus === 'expiring' ? "만료예정" : "활성"}
-                            </Badge>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              항상허용 동의
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
 
               <div className="space-y-3">
                 {filteredConsents.length > 0 ? (
-                  paginatedConsents.map((consent) => (
-                  <div
-                    key={consent.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 cursor-pointer"
-                    onClick={() => setSelectedConsent(consent)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Store className="h-6 w-6 text-primary" />
-                      <div>
-                        <p className="font-medium">{consent.serviceName}</p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className="text-sm text-muted-foreground">
-                            {consent.startDate} ~ {consent.expiryDate}
-                          </span>
+                  paginatedConsents.map((consent, index) => {
+                    const expirationStatus = calculateExpirationStatus(consent)
+                    const provisionDate = new Date(consent.timestamp || consent.createdAt || consent.date)
+                    const expiresAt = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
+                    
+                    return (
+                    <div
+                      key={`${consent.mallId}-${consent.shopId}-${index}`}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 cursor-pointer"
+                      onClick={() => setSelectedConsent(consent)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Store className="h-6 w-6 text-primary" />
+                        <div>
+                          <p className="font-medium">{consent.mallId}</p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <span className="text-sm text-muted-foreground">
+                              상점: {consent.shopId}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            동의일: {provisionDate.toLocaleDateString()} ~ 만료일: {expiresAt.toLocaleDateString()}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          variant={
+                            expirationStatus === 'expired' ? "destructive" :
+                            expirationStatus === 'expiring' ? "secondary" : "default"
+                          }
+                        >
+                          {expirationStatus === 'expired' ? "만료됨" :
+                           expirationStatus === 'expiring' ? "만료예정" : "활성"}
+                        </Badge>
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      {getStatusBadge(calculateConsentStatus(consent.expiryDate))}
-                      <Settings className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-center py-12 space-y-4">
                     <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
@@ -499,8 +460,8 @@ function ServiceConsentContent() {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Store className="h-5 w-5 mr-2 text-primary" />
-                {selectedConsent.serviceName}
-                <div className="ml-3">{getStatusBadge(calculateConsentStatus(selectedConsent.expiryDate))}</div>
+                {selectedConsent.mallId}
+                <div className="ml-3">{getStatusBadge(calculateExpirationStatus(selectedConsent))}</div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -509,7 +470,7 @@ function ServiceConsentContent() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">동의 시작일</Label>
                   <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm">{selectedConsent.startDate}</p>
+                    <p className="text-sm">{new Date((selectedConsent as any).timestamp || (selectedConsent as any).createdAt || (selectedConsent as any).date).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -523,7 +484,11 @@ function ServiceConsentContent() {
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm">{selectedConsent.expiryDate}</p>
+                    <p className="text-sm">{(() => {
+                      const provisionDate = new Date((selectedConsent as any).timestamp || (selectedConsent as any).createdAt || (selectedConsent as any).date)
+                      const expiresAt = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
+                      return expiresAt.toLocaleDateString()
+                    })()}</p>
                   </div>
                 </div>
               </div>
@@ -532,22 +497,34 @@ function ServiceConsentContent() {
               <div className="space-y-3">
                 <Label className="text-base font-medium">제공 정보</Label>
                 <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
-                  <div>
-                    <Label className="text-sm">이름</Label>
-                    <p className="text-sm">{localProfile?.name || '-'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm">휴대폰 번호</Label>
-                    <p className="text-sm">{formatFullPhoneNumber(localProfile?.phone || '')}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm">주소</Label>
-                    <p className="text-sm">{localProfile?.address || '-'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm">이메일</Label>
-                    <p className="text-sm">{localProfile?.email || '-'}</p>
-                  </div>
+                  {(() => {
+                    // 선택된 동의에 해당하는 provisionLogs 찾기
+                    const selectedLog = provisionLogs.find(log => 
+                      log.mallId === (selectedConsent as any)?.mallId && 
+                      log.consentType === 'always'
+                    )
+                    
+                    return (
+                      <>
+                        <div>
+                          <Label className="text-sm">이름</Label>
+                          <p className="text-sm">{selectedLog?.name || '-'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-sm">휴대폰 번호</Label>
+                          <p className="text-sm">{formatFullPhoneNumber(selectedLog?.phone || '')}</p>
+                        </div>
+                        <div>
+                          <Label className="text-sm">주소</Label>
+                          <p className="text-sm">{selectedLog?.address || '-'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-sm">이메일</Label>
+                          <p className="text-sm">{selectedLog?.email || '-'}</p>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -577,7 +554,7 @@ function ServiceConsentContent() {
 
         {/* 연결해제 확인 모달 */}
         {showDeleteModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg max-w-md w-full p-6 space-y-6">
               <div className="flex justify-between items-start">
                 <div></div>
@@ -601,7 +578,7 @@ function ServiceConsentContent() {
                     정말로 연결을 해제하시겠습니까?
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {selectedConsent?.serviceName}과의 개인정보 제공 동의가 해제되며,<br />
+                    {(selectedConsent as any)?.mallId}과의 개인정보 제공 동의가 해제되며,<br />
                     이 작업은 되돌릴 수 없습니다.
                   </p>
                 </div>

@@ -546,11 +546,22 @@ function ConsentPageContent() {
       
       // 개인정보 제공 로그 저장
       const { saveProvisionLog } = await import('@/lib/data-storage')
-      const providedFields = Object.keys(personalData).filter(key => personalData[key])
+      
+      // address와 detailAddress를 합쳐서 하나의 address로 저장
+      const processedPersonalData = {
+        ...personalData,
+        address: personalData.detailAddress 
+          ? `${personalData.address || ''} ${personalData.detailAddress}`.trim()
+          : personalData.address || ''
+      }
+      
+      // detailAddress 제거
+      delete processedPersonalData.detailAddress
+      
       await saveProvisionLog(uid, {
         mallId,
-        providedFields,
-        consentType
+        consentType,
+        personalData: processedPersonalData
       })
       
       console.log(`쇼핑몰 서비스 동의 및 로그 저장 완료: ${uid}/${mallId}`)
@@ -644,7 +655,10 @@ function ConsentPageContent() {
           return
         }
         
-        // 4. 팝업 닫기
+        // 4. 동의 내역 저장 (팝업에서도 저장)
+        await saveConsentData(consentId, mallId, shopId, consentType)
+        
+        // 5. 팝업 닫기
         setTimeout(() => {
           // JWT 세션 및 리다이렉트 세션 정리
           sessionStorage.removeItem('openPopup')

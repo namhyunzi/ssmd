@@ -227,8 +227,8 @@ export async function saveProvisionLog(
   userId: string,
   logData: {
     mallId: string;
-    providedFields: string[];
     consentType: string;
+    personalData: any;
   }
 ): Promise<boolean> {
   try {
@@ -237,9 +237,9 @@ export async function saveProvisionLog(
     
     const logEntry = {
       mallId: logData.mallId,
-      providedFields: logData.providedFields,
       consentType: logData.consentType,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...logData.personalData // 개인정보를 직접 펼쳐서 저장
     };
     
     await set(logRef, logEntry);
@@ -266,8 +266,12 @@ export async function getUserProvisionLogs(userId: string): Promise<any[]> {
         ...logsData[logId]
       }));
       
-      // 최신순으로 정렬
-      return logsList.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // 최신순으로 정렬 (최근 것이 상단)
+      return logsList.sort((a, b) => {
+        const dateA = new Date(a.timestamp || a.createdAt || a.date || 0)
+        const dateB = new Date(b.timestamp || b.createdAt || b.date || 0)
+        return dateB.getTime() - dateA.getTime()
+      });
     }
     
     return [];
