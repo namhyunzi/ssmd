@@ -435,7 +435,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
             </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-2 text-center">
-            <span className="text-primary font-medium">{serviceName}</span>에서 요청한 정보 중 일부가 아직 입력되지 않았습니다. 추가 정보를<br/>입력해주세요.
+            <span className="text-primary font-medium">{serviceName}</span>에서 요청한 정보 중 일부가 아직 입력되지 않았습니다.<br/>추가 정보를 입력해주세요.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
