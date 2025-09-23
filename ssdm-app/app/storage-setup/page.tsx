@@ -175,7 +175,7 @@ export default function StorageSetupPage() {
         sessionStorage.removeItem('temp_additional_data')
         
         // 성공 토스트 표시 후 이동
-        showToastMessage("개인정보 및 분산저장소 설정이 완료되었습니다.", "success")
+        showToastMessage("개인정보 및 분산저장소 설정이\n완료되었습니다.", "success")
         
         // 토스트 표시 후 1초 뒤 이동
         setTimeout(() => {

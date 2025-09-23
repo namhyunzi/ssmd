@@ -439,33 +439,63 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* 이름 */}
-              <div className="space-y-3">
-            <Label className="text-sm font-medium">
-              이름 {isFieldMissing('name') && <span className="text-red-500">*</span>}
-            </Label>
-            <Input 
-              value={existingData.name}
-              onChange={(e) => {
-                if (isFieldMissing('name')) {
-                  setExistingData(prev => ({...prev, name: e.target.value}))
-                }
-              }}
-              onBlur={() => setFieldTouched(prev => ({...prev, name: true}))}
-              disabled={!isFieldMissing('name')}
-              className={`h-12 ${
-                !isFieldMissing('name') 
-                  ? "bg-gray-100 border-gray-300" 
-                  : isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name
-                    ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                    : "focus:border-primary focus:ring-primary"
-              }`}
-              placeholder={isFieldMissing('name') ? "이름을 입력해주세요" : ""}
-            />
-            {isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name && (
-              <p className="text-sm text-red-600">이름을 입력해주세요</p>
-            )}
-          </div>
+           {/* 이름 */}
+           <div className="space-y-3">
+             <Label className="text-sm font-medium">
+               이름 {isFieldMissing('name') && <span className="text-red-500">*</span>}
+             </Label>
+             <Input 
+               value={existingData.name}
+               onChange={(e) => {
+                 if (isFieldMissing('name')) {
+                   setExistingData(prev => ({...prev, name: e.target.value}))
+                 }
+               }}
+               onBlur={() => setFieldTouched(prev => ({...prev, name: true}))}
+               disabled={!isFieldMissing('name')}
+               className={`h-12 ${
+                 !isFieldMissing('name') 
+                   ? "bg-gray-100 border-gray-300" 
+                   : isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name
+                     ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                     : "focus:border-primary focus:ring-primary"
+               }`}
+               placeholder={isFieldMissing('name') ? "이름을 입력해주세요" : ""}
+             />
+             {isFieldMissing('name') && existingData.name.trim() === "" && fieldTouched.name && (
+               <p className="text-sm text-red-600">이름을 입력해주세요</p>
+             )}
+           </div>
+
+           {/* 이메일 필드 (email이 missingFields에 포함된 경우에만 표시) */}
+           {missingFields.includes('email') && (
+             <div className="space-y-3">
+               <Label className="text-sm font-medium">
+                 이메일 {isFieldMissing('email') && <span className="text-red-500">*</span>}
+               </Label>
+               <Input 
+                 value={existingData.email}
+                 onChange={(e) => {
+                   if (isFieldMissing('email')) {
+                     setExistingData(prev => ({...prev, email: e.target.value}))
+                   }
+                 }}
+                 onBlur={() => setFieldTouched(prev => ({...prev, email: true}))}
+                 disabled={!isFieldMissing('email')}
+                 className={`h-12 ${
+                   !isFieldMissing('email') 
+                     ? "bg-gray-100 border-gray-300" 
+                     : isFieldMissing('email') && existingData.email.trim() === "" && fieldTouched.email
+                       ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+                       : "focus:border-primary focus:ring-primary"
+                 }`}
+                 placeholder={isFieldMissing('email') ? "이메일을 입력해주세요" : ""}
+               />
+               {isFieldMissing('email') && existingData.email.trim() === "" && fieldTouched.email && (
+                 <p className="text-sm text-red-600">이메일을 입력해주세요</p>
+               )}
+             </div>
+           )}
 
           {/* 휴대폰 번호 */}
           <div className="space-y-3">
@@ -581,151 +611,6 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               <p className="text-sm text-red-600">주소를 입력해주세요</p>
             )}
           </div>
-
-          {/* 이메일 필드 (email이 missingFields에 포함된 경우에만 표시) */}
-          {missingFields.includes('email') && (
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                이메일 {isFieldMissing('email') && <span className="text-red-500">*</span>}
-              </Label>
-
-              <div className="space-y-3">
-                {emailStep === "initial" && (
-                  <>
-                    <div className="bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground">
-                      {newEmail || auth.currentUser?.email}
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent border-blue-300 text-blue-600 hover:bg-blue-50"
-                      onClick={handleEmailChange}
-                    >
-                      이메일 변경하기
-                    </Button>
-                  </>
-                )}
-
-                {emailStep === "editing" && (
-                  <div className="space-y-3">
-                    <Input
-                      value={fullEmail}
-                      onChange={(e) => {
-                        const emailValue = e.target.value
-                        setFullEmail(emailValue)
-                        
-                        // 실시간으로 username과 domain 분리하여 유효성 검사용으로 사용
-                        const atIndex = emailValue.lastIndexOf('@')
-                        if (atIndex > -1) {
-                          setEmailUsername(emailValue.substring(0, atIndex))
-                          setEmailDomain(emailValue.substring(atIndex + 1))
-                        } else {
-                          setEmailUsername(emailValue)
-                          setEmailDomain("")
-                        }
-                        
-                        // 실시간 유효성 검사
-                        if (emailValue) {
-                          validateEmail(emailValue)
-                        }
-                      }}
-                      onBlur={() => validateEmail(fullEmail)}
-                      placeholder="이메일을 입력하세요"
-                      className={`w-full ${
-                        fieldErrors.email 
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                          : "focus:border-primary focus:ring-primary"
-                      }`}
-                    />
-                    {fieldErrors.email && (
-                      <p className="text-sm text-red-600">{fieldErrors.email}</p>
-                    )}
-                    <Button
-                      variant="outline"
-                      className={`w-full ${
-                        isValidEmail
-                          ? "bg-primary text-white hover:bg-primary/90" 
-                          : "bg-gray-200 text-gray-500 cursor-not-allowed"
-                      }`}
-                      onClick={handleEmailVerification}
-                      disabled={!isValidEmail}
-                    >
-                      이메일 인증하기
-                    </Button>
-                  </div>
-                )}
-
-                {emailStep === "verify" && (
-                  <div className="space-y-3">
-                    <div className="bg-muted rounded-md px-3 py-2 text-sm text-muted-foreground">
-                      {fullEmail}
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent border-blue-300 text-blue-600 hover:bg-blue-50"
-                      onClick={() => {
-                        setEmailStep("editing")
-                        setVerificationCode("")
-                        clearFieldError("verificationCode")
-                      }}
-                    >
-                      이메일 변경하기
-                    </Button>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <p className="text-sm text-muted-foreground">이메일로 받은 인증코드를 입력해주세요.</p>
-                      <div className="relative">
-                        <Input
-                          placeholder="인증코드 6자리"
-                          value={verificationCode}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '') // 숫자만 허용
-                            if (value.length <= 6) {
-                              setVerificationCode(value)
-                              if (fieldErrors.verificationCode) {
-                                clearFieldError("verificationCode")
-                              }
-                            }
-                          }}
-                          maxLength={6}
-                          className={`pr-24 bg-white ${
-                            fieldErrors.verificationCode 
-                              ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
-                              : "focus:border-primary focus:ring-primary"
-                          }`}
-                        />
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
-                          <span className="text-red-500 text-sm font-mono">{formatTime(timer)}</span>
-                          <button
-                            onClick={handleEmailVerification}
-                            disabled={verificationCode.length !== 6 || isVerifying}
-                            className={`text-sm font-medium ${
-                              verificationCode.length === 6 && !isVerifying
-                                ? "text-primary hover:text-primary/80" 
-                                : "text-gray-400 cursor-not-allowed"
-                            }`}
-                          >
-                            확인
-                          </button>
-                        </div>
-                      </div>
-                      {fieldErrors.verificationCode && (
-                        <p className="text-sm text-red-600">{fieldErrors.verificationCode}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        이메일을 받지 못하셨나요? 
-                        <button 
-                          onClick={handleResendCode}
-                          disabled={isResending}
-                          className="text-primary hover:underline ml-1"
-                        >
-                          {isResending ? "재전송 중..." : "이메일 재전송하기"}
-                        </button>
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           <Button 
             className="w-full h-12 bg-primary hover:bg-primary/90"
