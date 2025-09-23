@@ -91,6 +91,9 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
     verificationCode: ""
   })
 
+  // 저장 중 상태
+  const [isSaving, setIsSaving] = useState(false)
+
   // 필드 오류 설정 함수
   const setFieldError = (field: keyof typeof fieldErrors, message: string) => {
     setFieldErrors(prev => ({ ...prev, [field]: message }))
@@ -614,7 +617,7 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
 
           <Button 
             className="w-full h-12 bg-primary hover:bg-primary/90"
-            disabled={!isFormValid()}
+            disabled={!isFormValid() || isSaving}
             onClick={async () => {
               if (!isFormValid()) {
                 // 오류 메시지 표시 (각 필드별로 이미 위에서 처리됨)
@@ -622,6 +625,8 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
               }
               
               if (isFormValid()) {
+                setIsSaving(true) // 저장 중 상태로 변경
+                
                 try {
                   // 1. Firebase에 사용자 프로필 업데이트
                   const { ref, set } = require('firebase/database')
@@ -629,14 +634,14 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                   
                   if (!auth.currentUser) {
                     alert('로그인이 필요합니다.')
+                    setIsSaving(false)
                     return
                   }
                   
                   const userId = auth.currentUser.uid
                   
                   // 전화번호에 지역번호 포함하여 저장
-                  const phoneSuffix = existingData.phone.replace(/\D/g, '')
-                  const fullPhone = phoneSuffix ? phonePrefix + phoneSuffix : existingData.phone
+                  const fullPhone = phonePrefix + existingData.phone.replace(/\D/g, '') // 드롭박스 선택값 + 입력값
                   
                   // 기존 데이터와 새로 입력받은 데이터를 모두 포함해서 저장
                   const updatedProfileData = {
@@ -663,11 +668,19 @@ export default function AdditionalInfoPopup({ isOpen, onClose, serviceName, miss
                 } catch (error) {
                   console.error('Firebase 업데이트 실패:', error)
                   alert('데이터 저장 중 오류가 발생했습니다.')
+                  setIsSaving(false) // 오류 시 저장 중 상태 해제
                 }
               }
             }}
           >
-            저장 후 계속하기
+            {isSaving ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>저장 중...</span>
+              </div>
+            ) : (
+              '저장 후 계속하기'
+            )}
           </Button>
         </CardContent>
       </Card>
