@@ -200,7 +200,7 @@ function ServiceConsentContent() {
       consent.shopId && 
       consent.mallId !== '~' && 
       consent.shopId !== '~' &&
-      consent.isActive !== false // isActive가 false인 항목 제외
+      consent.isActive !== false // 연결해제된 항목만 제외 (만료된 항목은 포함)
     )
     
     if (activeFilter === "all") {
@@ -208,7 +208,20 @@ function ServiceConsentContent() {
     }
     
     return alwaysConsents.filter(consent => {
-      const status = calculateExpirationStatus(consent)
+      // expiresAt으로 직접 판단
+      const now = new Date()
+      const expiresAt = new Date(consent.expiresAt)
+      const daysUntilExpiry = Math.ceil((expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+      
+            let status
+            if (daysUntilExpiry <= 0) {
+              status = 'expired' // 만료됨
+            } else if (daysUntilExpiry <= 7) {
+              status = 'expiring' // 만료예정
+            } else {
+              status = 'active' // 활성
+            }
+      
       return status === activeFilter
     })
   }
@@ -394,9 +407,19 @@ function ServiceConsentContent() {
                     {filteredMallConsents
                       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                       .map((consent, index) => {
-                      const expirationStatus = calculateExpirationStatus(consent)
+                      const now = new Date()
+                      const expiresAt = new Date(consent.expiresAt)
+                      const daysUntilExpiry = Math.ceil((expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+                      
+                      let expirationStatus
+                      if (daysUntilExpiry <= 0) {
+                        expirationStatus = 'expired' // 만료됨
+                      } else if (daysUntilExpiry <= 7) {
+                        expirationStatus = 'expiring' // 만료예정
+                      } else {
+                        expirationStatus = 'active' // 활성
+                      }
                       const provisionDate = new Date(consent.timestamp || consent.createdAt || consent.date)
-                      const expiresAt = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
                       
                       return (
                       <div 
@@ -441,7 +464,7 @@ function ServiceConsentContent() {
                                     id: `${consent.mallId}-${consent.shopId}`,
                                     serviceName: consent.mallId,
                                     startDate: provisionDate.toLocaleDateString(),
-                                    expiryDate: expiresAt.toLocaleDateString(),
+                                    expiryDate: new Date(consent.expiresAt).toLocaleDateString(),
                                     consentType: consent.consentType,
                                     providedFields: ['name', 'phone', 'address', 'email'],
                                     mallId: consent.mallId,
@@ -594,11 +617,32 @@ function ServiceConsentContent() {
 
               {/* Action Buttons */}
               <div className="flex space-x-3">
-                <Button variant="destructive" className="flex-1" onClick={handleDeleteConsent}>
-                  <Unlink className="h-4 w-4 mr-2" />
-                  연결해제
-                </Button>
-                <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleComplete}>확인</Button>
+                {(() => {
+                  // 만료 상태 확인
+                  const now = new Date()
+                  const expiresAt = new Date(selectedConsent.expiryDate)
+                  const isExpired = now > expiresAt
+                  
+                  if (isExpired) {
+                    // 만료된 경우: 확인 버튼만 표시
+                    return (
+                      <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleComplete}>
+                        확인
+                      </Button>
+                    )
+                  } else {
+                    // 활성인 경우: 연결해제 + 확인 버튼
+                    return (
+                      <>
+                        <Button variant="destructive" className="flex-1" onClick={handleDeleteConsent}>
+                          <Unlink className="h-4 w-4 mr-2" />
+                          연결해제
+                        </Button>
+                        <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleComplete}>확인</Button>
+                      </>
+                    )
+                  }
+                })()}
               </div>
             </CardContent>
           </Card>

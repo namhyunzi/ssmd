@@ -72,7 +72,10 @@ export default function DashboardPage() {
         // 서비스 동의 데이터 로드 (always 타입만)
         try {
           const allConsents = await getUserServiceConsents(user)
-          const alwaysConsents = allConsents.filter(consent => consent.consentType === 'always')
+          const alwaysConsents = allConsents.filter(consent => 
+            consent.consentType === 'always' && 
+            consent.isActive !== false // 연결해제된 것만 제외 (만료된 것은 포함하여 통계 계산)
+          )
           setServiceConsents(alwaysConsents)
           const stats = calculateConsentStats(alwaysConsents)
           setConsentStats(stats)

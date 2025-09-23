@@ -50,7 +50,7 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
             const consentData = mallData[shopId];
             console.log('🔍 동의 데이터:', consentData);
             
-            // isActive가 false인 항목은 제외
+            // 연결해제된 항목만 제외 (만료된 항목은 포함)
             if (consentData.isActive !== false) {
               consents.push({
                 id: `${mallId}_${shopId}`,
