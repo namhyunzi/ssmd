@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { realtimeDb } from '@/lib/firebase';
-import { ref, set, get, remove } from 'firebase/database';
+import { ref, set, get, remove, update } from 'firebase/database';
 
 interface ConsentData {
   uid: string;
@@ -308,9 +308,9 @@ export async function DELETE(request: NextRequest) {
     
     const mappedUid = mappingSnapshot.val().mappedUid;
 
-    // 동의 해제 (삭제) - mappedUid 사용
+    // 동의 해제 (isActive를 false로 변경) - mappedUid 사용
     const consentRef = ref(realtimeDb, `mallServiceConsents/${mappedUid}/${mallId}/${shopId || 'default'}`);
-    await remove(consentRef);
+    await update(consentRef, { isActive: false });
 
     console.log(`동의 해제: ${uid}`);
 

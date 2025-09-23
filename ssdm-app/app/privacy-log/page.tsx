@@ -26,7 +26,7 @@ function PrivacyLogContent() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [userMappings, setUserMappings] = useState<any[]>([])
-  const [mallProvisionLogs, setMallProvisionLogs] = useState<any[]>([])
+  // mallProvisionLogs 제거 - logs만 사용
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
@@ -53,12 +53,34 @@ function PrivacyLogContent() {
       console.log('=== 개인정보 제공내역 로드 ===')
       console.log('사용자 ID:', userId)
       
-      const logsList = await getUserProvisionLogs(userId)
-      console.log('로드된 로그 목록:', logsList)
-      setLogs(logsList)
+      // 연결된 쇼핑몰 계정의 제공 내역만 조회 (중복 방지)
+      const allLogs = []
+      
+      try {
+        const mappings = await getUserMappings()
+        console.log('userMappings:', mappings)
+        
+        for (const mapping of mappings) {
+          console.log('조회 중인 mappedUid:', mapping.mappedUid)
+          const mallLogs = await getProvisionLogs(mapping.mappedUid)
+          console.log(`${mapping.mappedUid}의 로그:`, mallLogs)
+          
+          allLogs.push(...mallLogs.map(log => ({
+            ...log,
+            mallId: mapping.mallId,
+            shopId: mapping.shopId
+          })))
+        }
+        console.log('최종 allLogs:', allLogs)
+        console.log('allLogs 길이:', allLogs.length)
+        setLogs(allLogs)
+      } catch (error) {
+        console.error('Error loading mall provision logs:', error)
+        setLogs([])
+      }
       
       // 쇼핑몰 이름들 조회
-      const uniqueMallIds = [...new Set(logsList.map(log => log.mallId))]
+      const uniqueMallIds = [...new Set(allLogs.map(log => log.mallId))]
       const mallNamePromises = uniqueMallIds.map(mallId => fetchMallName(mallId))
       await Promise.all(mallNamePromises)
       
@@ -77,7 +99,7 @@ function PrivacyLogContent() {
             shopId: mapping.shopId
           })))
         }
-        setMallProvisionLogs(allMallLogs)
+        // mallProvisionLogs 제거 - logs만 사용
         console.log('쇼핑몰 개인정보 제공 내역:', allMallLogs)
       } catch (error) {
         console.error('Error loading mall provision logs:', error)
@@ -280,53 +302,7 @@ function PrivacyLogContent() {
             </div>
 
             {/* 쇼핑몰 개인정보 제공 내역 섹션 (모든 동의 유형 포함) */}
-            {mallProvisionLogs.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-4">쇼핑몰 개인정보 제공 내역</h3>
-                <div className="space-y-3">
-                  {mallProvisionLogs.map((log, index) => (
-                    <div key={`${log.mallId}-${log.shopId}-${log.logId}-${index}`} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3 flex-1">
-                          <div className="flex-shrink-0">
-                            <Store className="h-6 w-6 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-sm text-primary">{log.mallId}</div>
-                            <div className="text-xs text-muted-foreground">연결된 계정: {log.shopId}</div>
-                            <div className="text-xs text-muted-foreground">
-                              제공일: {formatDateTime(log.timestamp || log.createdAt || log.date)}
-                            </div>
-                            {log.consentType === 'always' && (
-                              <div className="text-xs text-muted-foreground">
-                                만료일: {(() => {
-                                  const provisionDate = new Date(log.timestamp || log.createdAt || log.date)
-                                  const expiryDate = new Date(provisionDate.getTime() + (6 * 30 * 24 * 60 * 60 * 1000))
-                                  return formatDateTime(expiryDate.toISOString())
-                                })()}
-                              </div>
-                            )}
-                            <div className="flex items-center space-x-1 mt-2">
-                              <span className="text-xs text-muted-foreground">제공 내역:</span>
-                              {log.providedFields?.map((field, fieldIndex) => (
-                                <Badge key={fieldIndex} variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
-                                  {getFieldName(field)}
-                                </Badge>
-                              )) || <span className="text-xs text-muted-foreground">N/A</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <Badge className={log.consentType === 'once' ? "bg-gray-500 text-white" : "bg-primary text-white"}>
-                            {log.consentType === 'once' ? '일회성' : '항상허용'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* mallProvisionLogs 섹션 제거 - logs만 사용 */}
 
             <div className="space-y-3">
               {isLoading ? (
@@ -334,7 +310,7 @@ function PrivacyLogContent() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                   <p className="text-sm text-muted-foreground">개인정보 제공내역을 불러오는 중...</p>
                 </div>
-              ) : (filteredLogs.length > 0 || mallProvisionLogs.length > 0) ? (
+              ) : filteredLogs.length > 0 ? (
                 <>
                   {paginatedLogs.map((log) => (
                   <div
@@ -358,8 +334,15 @@ function PrivacyLogContent() {
                             const providedFields = ['name', 'phone', 'address', 'email', 'zipCode']
                             const actualProvidedFields = providedFields.filter(field => {
                               const value = (log as any)[field]
+                              console.log(`필드 ${field}:`, value) // 디버깅용
                               return value && value.trim() !== ''
                             })
+                            
+                            console.log('실제 제공된 필드들:', actualProvidedFields) // 디버깅용
+                            
+                            if (actualProvidedFields.length === 0) {
+                              return <span className="text-xs text-muted-foreground">N/A</span>
+                            }
                             
                             return actualProvidedFields.map(field => (
                               <Badge key={field} className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-xs">
@@ -368,13 +351,12 @@ function PrivacyLogContent() {
                             ))
                           })()}
                         </div>
-                        <div className="flex items-center space-x-1 mt-1">
-                          <span className="text-xs text-muted-foreground">동의방식:</span>
-                          <Badge className={log.consentType === 'always' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
-                            {log.consentType === 'always' ? '항상 허용' : '한 번만'}
-                          </Badge>
-                        </div>
                       </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge className={log.consentType === 'always' ? 'bg-primary text-white' : 'bg-gray-500 text-white'}>
+                        {log.consentType === 'always' ? '항상허용' : '일회성'}
+                      </Badge>
                     </div>
                   </div>
                   ))}

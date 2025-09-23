@@ -252,29 +252,41 @@ export async function saveProvisionLog(
 }
 
 /**
- * 사용자의 개인정보 제공 로그 조회
+ * 사용자의 개인정보 제공 로그 조회 (mappedUid 기반)
  */
 export async function getUserProvisionLogs(userId: string): Promise<any[]> {
   try {
-    const logsRef = ref(realtimeDb, `provisionLogs/${userId}`);
-    const snapshot = await get(logsRef);
+    // 사용자의 매핑 정보 조회
+    const mappings = await getUserMappings();
+    console.log('getUserProvisionLogs - userMappings:', mappings);
     
-    if (snapshot.exists()) {
-      const logsData = snapshot.val();
-      const logsList = Object.keys(logsData).map(logId => ({
-        logId,
-        ...logsData[logId]
-      }));
+    const allLogs = [];
+    
+    // 각 매핑의 mappedUid로 로그 조회
+    for (const mapping of mappings) {
+      console.log('조회 중인 mappedUid:', mapping.mappedUid);
+      const logsRef = ref(realtimeDb, `provisionLogs/${mapping.mappedUid}`);
+      const snapshot = await get(logsRef);
       
-      // 최신순으로 정렬 (최근 것이 상단)
-      return logsList.sort((a, b) => {
-        const dateA = new Date(a.timestamp || a.createdAt || a.date || 0)
-        const dateB = new Date(b.timestamp || b.createdAt || b.date || 0)
-        return dateB.getTime() - dateA.getTime()
-      });
+      if (snapshot.exists()) {
+        const logsData = snapshot.val();
+        const logsList = Object.keys(logsData).map(logId => ({
+          logId,
+          mallId: mapping.mallId,
+          shopId: mapping.shopId,
+          ...logsData[logId]
+        }));
+        
+        allLogs.push(...logsList);
+      }
     }
     
-    return [];
+    // 최신순으로 정렬 (최근 것이 상단)
+    return allLogs.sort((a, b) => {
+      const dateA = new Date(a.timestamp || a.createdAt || a.date || 0)
+      const dateB = new Date(b.timestamp || b.createdAt || b.date || 0)
+      return dateB.getTime() - dateA.getTime()
+    });
   } catch (error) {
     console.error('로그 조회 실패:', error);
     return [];

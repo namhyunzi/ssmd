@@ -49,16 +49,20 @@ export async function getUserServiceConsents(user: User): Promise<UserConsents[]
           Object.keys(mallData).forEach((shopId) => {
             const consentData = mallData[shopId];
             console.log('🔍 동의 데이터:', consentData);
-            consents.push({
-              id: `${mallId}_${shopId}`,
-              userId: user.uid,
-              mallId,
-              shopId,
-              consentType: consentData.consentType,
-              createdAt: consentData.createdAt,
-              expiresAt: consentData.expiresAt,
-              isActive: consentData.isActive || undefined
-            });
+            
+            // isActive가 false인 항목은 제외
+            if (consentData.isActive !== false) {
+              consents.push({
+                id: `${mallId}_${shopId}`,
+                userId: user.uid,
+                mallId,
+                shopId,
+                consentType: consentData.consentType,
+                createdAt: consentData.createdAt,
+                expiresAt: consentData.expiresAt,
+                isActive: consentData.isActive || undefined
+              });
+            }
           });
         });
       }
