@@ -488,12 +488,27 @@ function ConsentPageContent() {
     }
   }
 
-  // 택배사용 JWT 생성 함수
-  const generateDeliveryJWT = async (shopId: string, mallId: string) => {
+  // 제휴사용 JWT 생성 함수
+  const generatePartnerJWT = async (shopId: string, mallId: string, jwtType: string) => {
     try {
-      console.log('택배사용 JWT 생성 요청:', { shopId, mallId })
+      console.log('제휴사용 JWT 생성 요청:', { shopId, mallId, jwtType })
       
-      const response = await fetch('/api/issue-jwt', {
+      let apiPath = ''
+      switch (jwtType) {
+        case 'popup_response':
+          apiPath = '/api/popup-response-jwt'
+          break
+        case 'partner':
+          apiPath = '/api/issue-partner-jwt'
+          break
+        case 'consent_status':
+          apiPath = '/api/consent-status-jwt'
+          break
+        default:
+          throw new Error(`지원하지 않는 JWT 타입: ${jwtType}`)
+      }
+      
+      const response = await fetch(apiPath, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -510,7 +525,7 @@ function ConsentPageContent() {
       }
       
       const data = await response.json()
-      console.log('택배사용 JWT 생성 완료:', {
+      console.log('제휴사용 JWT 생성 완료:', {
         jwt: data.jwt,
         expiresIn: data.expiresIn,
         consentType: data.consentType,
@@ -518,7 +533,7 @@ function ConsentPageContent() {
       })
       return data.jwt
     } catch (error) {
-      console.error('택배사용 JWT 생성 실패:', error)
+      console.error('제휴사용 JWT 생성 실패:', error)
       throw error
     }
   }
@@ -541,7 +556,9 @@ function ConsentPageContent() {
         expiresAt: consentType === 'once' 
           ? new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15분 후
           : new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString(), // 6개월 후
-        ...(consentType === 'always' && { isActive: true })
+        isActive: true,
+        // once일 때만 jwtIssued 필드 추가
+        ...(consentType === 'once' && { jwtIssued: false })
       })
       
       // 개인정보 제공 로그 저장
@@ -615,33 +632,23 @@ function ConsentPageContent() {
             console.log("사용할 targetOrigin:", targetOrigin);
             
             // 1. 동의 정보 저장
-            await saveConsentData(consentId, mallId, shopId, consentType)
+            await saveConsentData(consentId, mallId!, shopId!, consentType)
             
             // 2. Firebase 동기화 대기
             await new Promise(resolve => setTimeout(resolve, 1000))
             
-            // 3. 택배사용 JWT 생성
-            const deliveryJWT = await generateDeliveryJWT(shopId, mallId)
+            // 3. 팝업 응답용 JWT 생성
+            const popupResponseJWT = await generatePartnerJWT(shopId!, mallId!, 'popup_response')
             
             console.log('postMessage로 동의 결과 전달 (팝업):', {
               type: 'consent_result',
-              agreed: true,
-              consentType,
-              shopId,
-              mallId,
-              jwt: deliveryJWT,
-              timestamp: new Date().toISOString()
+              jwt: popupResponseJWT
             })
             
             // 3. 동의 결과 + JWT 전달
             window.opener.postMessage({
               type: 'consent_result',
-              agreed: true,
-              consentType,
-              shopId,
-              mallId,
-              jwt: deliveryJWT,
-              timestamp: new Date().toISOString()
+              jwt: popupResponseJWT
             }, targetOrigin)
             
           } else {
@@ -666,8 +673,8 @@ function ConsentPageContent() {
         }, 100)
       }
       
-      // 동의 내역 저장 (팝업과 일반 페이지 모두)
-      await saveConsentData(consentId, mallId, shopId, consentType)
+      // 동의 내역 저장 
+      await saveConsentData(consentId, mallId!, shopId!, consentType)
 
       console.log(`동의 완료 - shopId: ${shopId}, mallId: ${mallId}`)
 
