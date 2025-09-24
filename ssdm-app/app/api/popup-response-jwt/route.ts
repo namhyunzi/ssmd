@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
     const jwtPayload = {
       shopId: shopId,
       mallId: mallId,
-      consentType: consentData.consentType,
       agreed: true,
       purpose: "popup_response",
       timestamp: new Date().toISOString(),
