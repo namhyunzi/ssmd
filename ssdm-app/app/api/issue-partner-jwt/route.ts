@@ -120,7 +120,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({}, {
       headers: {
-        'Authorization': `Bearer ${partnerJWT}`
+        'Authorization': `Bearer ${partnerJWT}`,
+        'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+        'Access-Control-Allow-Methods': 'POST',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     })
 
