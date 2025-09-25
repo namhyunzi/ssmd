@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken'
 
 export async function POST(request: NextRequest) {
   try {
-    const { jwt: jwtToken } = await request.json()
+    const jwtToken = request.headers.get('authorization')?.replace('Bearer ', '')
     
     if (!jwtToken) {
       return NextResponse.json(
@@ -155,13 +155,12 @@ export async function POST(request: NextRequest) {
         isActive: consentData.isActive
       }, { headers: corsHeaders })
     } else if (consentData.consentType === 'once') {
-      // 2번: 일회성 동의 + 유효함
-      console.log('일회성 동의 - connected 반환')
-      return NextResponse.json({
-        status: 'connected',
-        consentType: 'once',
-        expiresAt: consentData.expiresAt
-      }, { headers: corsHeaders })
+      // 2번: 일회성 동의 - 무조건 need_connect
+      console.log('일회성 동의 - need_connect 반환')
+      return NextResponse.json(
+        { status: 'need_connect' },
+        { headers: corsHeaders }
+      )
     } else {
       // 3번: 동의 없음/만료됨
       console.log('동의 타입 불일치 - need_connect 반환')

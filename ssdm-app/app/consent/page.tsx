@@ -488,16 +488,13 @@ function ConsentPageContent() {
     }
   }
 
-  // 제휴사용 JWT 생성 함수
-  const generatePartnerJWT = async (shopId: string, mallId: string, jwtType: string) => {
+  // 제제휴사용 JWT API 호출 함수
+  const requestPartnerJWT = async (shopId: string, mallId: string, jwtType: string) => {
     try {
       console.log('제휴사용 JWT 생성 요청:', { shopId, mallId, jwtType })
       
       let apiPath = ''
       switch (jwtType) {
-        case 'popup_response':
-          apiPath = '/api/popup-response-jwt'
-          break
         case 'partner':
           apiPath = '/api/issue-partner-jwt'
           break
@@ -556,9 +553,7 @@ function ConsentPageContent() {
         expiresAt: consentType === 'once' 
           ? new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15분 후
           : new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString(), // 6개월 후
-        isActive: true,
-        // once일 때만 jwtIssued 필드 추가
-        ...(consentType === 'once' && { jwtIssued: false })
+        isActive: true
       })
       
       // 개인정보 제공 로그 저장
@@ -637,18 +632,15 @@ function ConsentPageContent() {
             // 2. Firebase 동기화 대기
             await new Promise(resolve => setTimeout(resolve, 1000))
             
-            // 3. 팝업 응답용 JWT 생성
-            const popupResponseJWT = await generatePartnerJWT(shopId!, mallId!, 'popup_response')
-            
             console.log('postMessage로 동의 결과 전달 (팝업):', {
               type: 'consent_result',
-              jwt: popupResponseJWT
+              timestamp: new Date().toISOString()
             })
             
-            // 3. 동의 결과 + JWT 전달
+            // 3. 동의 결과 전달
             window.opener.postMessage({
               type: 'consent_result',
-              jwt: popupResponseJWT
+              timestamp: new Date().toISOString()
             }, targetOrigin)
             
           } else {
