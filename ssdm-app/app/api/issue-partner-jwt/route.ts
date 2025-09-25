@@ -6,7 +6,9 @@ import { generateDelegateJWT } from '@/lib/jwt-utils'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('제휴사용 JWT 발급 API 호출됨')
+    console.log('=== issue-partner-jwt API 요청 받음 ===')
+    console.log('요청 시간:', new Date().toISOString())
+    console.log('요청 ID:', Math.random().toString(36).substr(2, 9))
     const jwtToken = request.headers.get('authorization')?.replace('Bearer ', '')
 
     if (!jwtToken) {
@@ -146,9 +148,17 @@ export async function POST(request: NextRequest) {
     const allowedFields = mallData.allowedFields
 
     // 1. 권한위임사(탹뱌사용) JWT 생성
+    console.log('=== delegateJWT 생성 시작 ===')
+    console.log('입력값:', { shopId, mallId, allowedFields })
     const delegateJWT = generateDelegateJWT(shopId, mallId, allowedFields)
+    console.log('delegateJWT 생성 완료:', {
+      jwt: delegateJWT,
+      length: delegateJWT.length,
+      timestamp: new Date().toISOString()
+    })
 
     // 2. 제휴사용(쇼핑몰) JWT 페이로드에 택배사용 JWT 포함
+    console.log('=== partnerJWT 생성 시작 ===')
     const jwtPayload = {
       shopId: shopId,
       mallId: mallId,
@@ -157,8 +167,14 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
       exp: Math.floor(Date.now() / 1000) + (15 * 60)
     }
+    console.log('partnerJWT 페이로드:', jwtPayload)
 
     const partnerJWT = jwt.sign(jwtPayload, apiKey, { algorithm: 'HS256' })
+    console.log('partnerJWT 생성 완료:', {
+      jwt: partnerJWT,
+      length: partnerJWT.length,
+      timestamp: new Date().toISOString()
+    })
 
     console.log('제휴사용 JWT 발급 성공:', {
       shopId: shopId,
