@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${partnerJWT}`,
         'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-        'Access-Control-Allow-Methods': 'POST',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     })
@@ -141,7 +141,7 @@ export async function OPTIONS() {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-      'Access-Control-Allow-Methods': 'POST',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     }
   })
