@@ -12,7 +12,14 @@ export async function POST(request: NextRequest) {
     if (!jwtToken) {
       return NextResponse.json(
         { error: 'JWT 토큰이 필요합니다.' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
 
@@ -21,7 +28,14 @@ export async function POST(request: NextRequest) {
     if (!apiKey) {
       return NextResponse.json(
         { error: 'PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.' },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
 
@@ -36,7 +50,14 @@ export async function POST(request: NextRequest) {
     if (!mappingsSnapshot.exists()) {
       return NextResponse.json(
         { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
-        { status: 404 }
+        { 
+          status: 404,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
     
@@ -53,7 +74,14 @@ export async function POST(request: NextRequest) {
     if (!targetMapping) {
       return NextResponse.json(
         { error: '사용자 매핑 정보를 찾을 수 없습니다.' },
-        { status: 404 }
+        { 
+          status: 404,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
     
@@ -66,7 +94,14 @@ export async function POST(request: NextRequest) {
     if (!consentSnapshot.exists()) {
       return NextResponse.json(
         { error: '쇼핑몰 서비스 동의가 필요합니다.' },
-        { status: 403 }
+        { 
+          status: 403,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
 
@@ -78,7 +113,14 @@ export async function POST(request: NextRequest) {
     if ((consentData.isActive === false) || (now > expiresAt)) {
       return NextResponse.json(
         { error: '개인정보 제공 동의가 비활성화되었거나 만료되었습니다.' },
-        { status: 403 }
+        { 
+          status: 403,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
 
@@ -89,7 +131,14 @@ export async function POST(request: NextRequest) {
     if (!mallSnapshot.exists()) {
       return NextResponse.json(
         { error: '제휴사 정보를 찾을 수 없습니다.' },
-        { status: 404 }
+        { 
+          status: 404,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        }
       )
     }
     
@@ -131,7 +180,14 @@ export async function POST(request: NextRequest) {
     console.error('제휴사용 JWT 발급 실패:', error)
     return NextResponse.json(
       { error: 'JWT 발급 중 오류가 발생했습니다.' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+      }
     )
   }
 }
