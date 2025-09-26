@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ref, get } from 'firebase/database'
+import { realtimeDb } from '@/lib/firebase'
+import { Card, CardContent } from "@/components/ui/card"
 import { 
   User, 
   Phone, 
@@ -26,16 +28,91 @@ function SecureViewerContent() {
   const [error, setError] = useState<string>("")
 
   useEffect(() => {
-    // UI 확인을 위해 바로 더미 데이터 표시
-    setPersonalInfo({
-      name: "남현지",
-      phone: "010-1111-1111",
-      address: "경기 성남시 분당구 대왕판교로 477 (판교동) 1층",
-      email: "hyunji9886@knou.ac.kr",
-      zipCode: "13480"
-    })
-    setLoading(false)
-  }, [])
+    const sessionId = searchParams.get('sessionId')
+    
+    if (!sessionId) {
+      setError('세션 ID가 필요합니다.')
+      setLoading(false)
+      return
+    }
+
+    loadPersonalInfo(sessionId)
+  }, [searchParams])
+
+  const loadPersonalInfo = async (sessionId: string) => {
+    try {
+      // 1. 세션 데이터 조회
+      const sessionRef = ref(realtimeDb, `viewer-sessions/${sessionId}`)
+      const sessionSnapshot = await get(sessionRef)
+      
+      if (!sessionSnapshot.exists()) {
+        setError('유효하지 않은 세션입니다.')
+        return
+      }
+      
+      const sessionData = sessionSnapshot.val()
+      
+      // 2. 만료 확인
+      const now = new Date()
+      const expiresAt = new Date(sessionData.expiresAt)
+      
+      if (now > expiresAt) {
+        setError('세션이 만료되었습니다.')
+        return
+      }
+      
+      // 3. userMappings에서 Firebase UID 조회
+      const mappingRef = ref(realtimeDb, `userMappings/${sessionData.mallId}`)
+      const mappingSnapshot = await get(mappingRef)
+      
+      if (!mappingSnapshot.exists()) {
+        setError('사용자 매핑 정보를 찾을 수 없습니다.')
+        return
+      }
+      
+      const mappings = mappingSnapshot.val() as Record<string, Record<string, any>>
+      let firebaseUid = null
+      
+      // shopId(쇼핑몰 사용자 ID)로 Firebase UID 찾기
+      for (const [uid, userMappings] of Object.entries(mappings)) {
+        if (userMappings[sessionData.shopId]) {
+          firebaseUid = uid
+          break
+        }
+      }
+      
+      if (!firebaseUid) {
+        setError('사용자 매핑을 찾을 수 없습니다.')
+        return
+      }
+      
+      // 4. Firebase UID로 users 테이블 조회
+      const userRef = ref(realtimeDb, `users/${firebaseUid}`)
+      const userSnapshot = await get(userRef)
+      
+      if (!userSnapshot.exists()) {
+        setError('사용자 정보를 찾을 수 없습니다.')
+        return
+      }
+      
+      const userData = userSnapshot.val()
+      
+      // 5. 요청된 필드만 필터링 (4개 필드만)
+      const personalInfo: PersonalInfo = {}
+      sessionData.requiredFields.forEach((field: string) => {
+        if (userData.profile && userData.profile[field]) {
+          personalInfo[field as keyof PersonalInfo] = userData.profile[field]
+        }
+      })
+      
+      setPersonalInfo(personalInfo)
+      
+    } catch (error) {
+      setError('개인정보 조회 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getFieldIcon = (field: string) => {
     switch (field) {
@@ -85,7 +162,7 @@ function SecureViewerContent() {
     )
   }
 
-  if (error || !personalInfo) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
@@ -93,16 +170,39 @@ function SecureViewerContent() {
             <div className="text-red-500 mb-4">
               <Shield className="h-12 w-12 mx-auto" />
             </div>
-            <h2 className="text-lg font-semibold mb-2">오류가 발생했습니다</h2>
-            <p className="text-muted-foreground">{error}</p>
+            <h2 className="text-lg font-semibold mb-2">
+              {error === '세션이 만료되었습니다.' ? '세션이 만료되었습니다' : '오류가 발생했습니다'}
+            </h2>
+            <p className="text-muted-foreground">
+              {error === '세션이 만료되었습니다.' 
+                ? '개인정보 조회 권한이 만료되었습니다.\n다시 요청해주세요.'
+                : error
+              }
+            </p>
           </CardContent>
         </Card>
       </div>
     )
   }
 
-  // 표시할 필드들 (실제로는 세션에서 받은 requiredFields 사용)
-  const displayFields = ['name', 'phone', 'address', 'email', 'zipCode'].filter(field => {
+  if (!personalInfo) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-lg">
+          <CardContent className="p-8 text-center">
+            <div className="text-gray-500 mb-4">
+              <Shield className="h-12 w-12 mx-auto" />
+            </div>
+            <h2 className="text-lg font-semibold mb-2">개인정보를 찾을 수 없습니다</h2>
+            <p className="text-muted-foreground">요청한 개인정보가 없습니다.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // 표시할 필드들 (4개 필드만)
+  const displayFields = Object.keys(personalInfo).filter(field => {
     const value = getFieldValue(field)
     return value && value.trim() !== ''
   })
