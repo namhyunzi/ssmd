@@ -216,9 +216,9 @@ function SecureViewerContent() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="w-full max-w-lg mx-auto">
         {/* 개인정보 표시 */}
-        <div className="bg-gray-50 p-4">
-          {displayFields.map((field: string) => (
-            <div key={field} className="flex items-center space-x-3 mb-5">
+        <div className="bg-gray-50 px-4 pt-4 pb-0">
+          {displayFields.map((field: string, index: number) => (
+            <div key={field} className={`flex items-center space-x-3 ${index < displayFields.length - 1 ? 'mb-5' : ''}`}>
               <div className="text-gray-500">
                 {getFieldIcon(field)}
               </div>
@@ -235,7 +235,7 @@ function SecureViewerContent() {
         </div>
 
         {/* SSDM 로고 */}
-        <div className="flex justify-end mt-4">
+        <div className="flex justify-end">
           <div className="text-center">
             <h1 className="text-xl font-bold text-primary">SSDM</h1>
             <p className="text-sm text-muted-foreground">개인정보보호</p>
