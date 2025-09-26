@@ -73,21 +73,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 연장 가능 세션 타입 확인 (QR만 가능)
-    if (session.sessionType !== 'qr') {
-      return NextResponse.json(
-        { error: '종이송장 세션은 연장할 수 없습니다.' },
-        { status: 400 }
-      );
-    }
 
     // 연장 횟수 확인
     if (session.extensionCount >= session.maxExtensions) {
       return NextResponse.json(
         { 
-          error: `연장 한도를 초과했습니다. (최대 ${session.maxExtensions}번)`,
+          error: '연장 한도를 초과했습니다.',
           maxExtensions: session.maxExtensions,
-          currentExtensions: session.extensionCount
+          currentExtensions: session.extensionCount,
+          remainingExtensions: 0
         },
         { status: 400 }
       );
@@ -100,16 +94,21 @@ export async function POST(request: NextRequest) {
     // 이미 만료된 세션은 연장 불가
     if (now > expiresAt) {
       return NextResponse.json(
-        { error: '만료된 세션은 연장할 수 없습니다.' },
+        { 
+          error: '만료된 세션은 연장할 수 없습니다.',
+          expiresAt: session.expiresAt,
+          currentTime: now.toISOString()
+        },
         { status: 400 }
       );
     }
 
-    // 연장 처리
-    const newExpiresAt = getExtendedExpiration(session.sessionType);
+    // 연장 처리 (12시간 연장)
+    const newExpiresAt = new Date();
+    newExpiresAt.setHours(newExpiresAt.getHours() + 12);
     const updatedSession: ViewerSession = {
       ...session,
-      expiresAt: newExpiresAt,
+      expiresAt: newExpiresAt.toISOString(),
       extensionCount: session.extensionCount + 1
     };
 
@@ -141,65 +140,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * 세션 연장 가능 여부 확인 API
- * GET /api/extend-session?sessionId=xxx
- */
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const sessionId = searchParams.get('sessionId');
-
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: 'sessionId 파라미터가 필요합니다.' },
-        { status: 400 }
-      );
-    }
-
-    // 세션 조회
-    const sessionRef = ref(realtimeDb, `viewerSessions/${sessionId}`);
-    const snapshot = await get(sessionRef);
-
-    if (!snapshot.exists()) {
-      return NextResponse.json(
-        { error: '존재하지 않는 세션입니다.' },
-        { status: 404 }
-      );
-    }
-
-    const session: ViewerSession = snapshot.val();
-
-    // 연장 가능 여부 확인
-    const canExtend = session.sessionType === 'qr' && 
-                     session.extensionCount < session.maxExtensions &&
-                     session.isActive &&
-                     new Date() <= new Date(session.expiresAt);
-
-    const remainingExtensions = Math.max(0, session.maxExtensions - session.extensionCount);
-
-    return NextResponse.json({
-      success: true,
-      canExtend,
-      sessionType: session.sessionType,
-      extensionCount: session.extensionCount,
-      maxExtensions: session.maxExtensions,
-      remainingExtensions,
-      expiresAt: session.expiresAt,
-      isActive: session.isActive
-    });
-
-  } catch (error) {
-    console.error('세션 연장 확인 API 오류:', error);
-    return NextResponse.json(
-      { 
-        error: '세션 연장 확인 중 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류'
-      },
-      { status: 500 }
-    );
-  }
-}
 
 /**
  * CORS 처리
