@@ -141,12 +141,32 @@ function SecureViewerContent() {
     }
   }
 
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return ''
+    
+    // 숫자만 추출
+    const numbers = phone.replace(/\D/g, '')
+    
+    // 010으로 시작하는 11자리 번호인 경우
+    if (numbers.length === 11 && numbers.startsWith('010')) {
+      return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`
+    }
+    
+    // 010으로 시작하는 10자리 번호인 경우 (010-123-4567)
+    if (numbers.length === 10 && numbers.startsWith('010')) {
+      return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6)}`
+    }
+    
+    // 다른 형식의 번호는 그대로 반환
+    return phone
+  }
+
   const getFieldValue = (field: string) => {
     if (!personalInfo) return ''
     
     switch (field) {
       case 'name': return personalInfo.name || ''
-      case 'phone': return personalInfo.phone || ''
+      case 'phone': return formatPhoneNumber(personalInfo.phone || '')
       case 'address': return personalInfo.address || ''
       case 'zipCode': return personalInfo.zipCode || ''
       case 'email': return personalInfo.email || ''
