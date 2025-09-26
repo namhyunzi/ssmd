@@ -120,15 +120,11 @@ export async function POST(request: NextRequest) {
       extensions: 0,
       maxExtensions: VIEWER_CONFIG.max_extensions
     }
-    console.log('세션 데이터:', sessionData)
     
-    console.log('Firebase 저장 시작...')
     const sessionRef = ref(realtimeDb, `viewer-sessions/${sessionId}`)
     await set(sessionRef, sessionData)
-    console.log('Firebase 저장 완료')
     
     // 8. 응답
-    console.log('✅ 뷰어 세션 생성 성공')
     return NextResponse.json({
       success: true,
       viewerUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/secure-viewer?sessionId=${sessionId}`,
@@ -137,10 +133,17 @@ export async function POST(request: NextRequest) {
     })
     
   } catch (error) {
-    console.log('❌ 뷰어 세션 생성 오류:', error)
-    console.log('오류 스택:', error instanceof Error ? error.stack : 'No stack')
+    // JWT 만료 오류 구분
+    if (error instanceof Error && error.name === 'TokenExpiredError') {
+      return NextResponse.json(
+        { error: 'JWT 토큰이 만료되었습니다. 새로운 토큰을 발급받아주세요.' },
+        { status: 401 }
+      )
+    }
+    
+    // 기타 오류
     return NextResponse.json(
-      { error: '뷰어 세션 생성 중 오류 발생' },
+      { error: '뷰어 세션 생성 중 오류가 발생했습니다.' },
       { status: 500 }
     )
   }
