@@ -15,7 +15,6 @@ interface ViewerSession {
   expiresAt: string;
   extensionCount: number;
   maxExtensions: number;
-  isActive: boolean;
 }
 
 /**
@@ -65,13 +64,6 @@ export async function POST(request: NextRequest) {
 
     const session: ViewerSession = snapshot.val();
 
-    // 세션 활성 상태 확인
-    if (!session.isActive) {
-      return NextResponse.json(
-        { error: '비활성화된 세션입니다.' },
-        { status: 400 }
-      );
-    }
 
 
     // 연장 횟수 확인
