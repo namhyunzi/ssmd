@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 기존 세션 조회
-    const sessionRef = ref(realtimeDb, `viewerSessions/${sessionId}`);
+    const sessionRef = ref(realtimeDb, `viewer-sessions/${sessionId}`);
     const snapshot = await get(sessionRef);
 
     if (!snapshot.exists()) {
