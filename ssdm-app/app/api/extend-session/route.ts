@@ -13,7 +13,7 @@ interface ViewerSession {
   allowedFields: string[];
   createdAt: string;
   expiresAt: string;
-  extensionCount: number;
+  extensions: number;
   maxExtensions: number;
 }
 
@@ -67,12 +67,12 @@ export async function POST(request: NextRequest) {
 
 
     // 연장 횟수 확인
-    if (session.extensionCount >= session.maxExtensions) {
+    if ((session.extensions || 0) >= session.maxExtensions) {
       return NextResponse.json(
         { 
           error: '연장 한도를 초과했습니다.',
           maxExtensions: session.maxExtensions,
-          currentExtensions: session.extensionCount,
+          currentExtensions: session.extensions || 0,
           remainingExtensions: 0
         },
         { status: 400 }
@@ -101,21 +101,21 @@ export async function POST(request: NextRequest) {
     const updatedSession: ViewerSession = {
       ...session,
       expiresAt: newExpiresAt.toISOString(),
-      extensionCount: session.extensionCount + 1
+      extensions: (session.extensions || 0) + 1
     };
 
     // 업데이트된 세션 저장
     await set(sessionRef, updatedSession);
 
-    const remainingExtensions = session.maxExtensions - (session.extensionCount + 1);
+    const remainingExtensions = session.maxExtensions - ((session.extensions || 0) + 1);
 
-    console.log(`세션 연장 성공: ${sessionId} (${session.extensionCount + 1}/${session.maxExtensions})`);
+    console.log(`세션 연장 성공: ${sessionId} (${(session.extensions || 0) + 1}/${session.maxExtensions})`);
 
     return NextResponse.json({
       success: true,
       sessionId,
       newExpiresAt,
-      extensionCount: updatedSession.extensionCount,
+      extensionCount: updatedSession.extensions,
       remainingExtensions,
       message: `세션이 12시간 연장되었습니다. (${remainingExtensions}번 더 연장 가능)`
     });
