@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       const normalizedDomain = extractDomain(domain);
       
       // 정규화된 도메인 검증 (포트 번호 포함 허용)
-      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[\d]{1,5})?$/;
+      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*(:[\d]{1,5})?$/;
       if (!domainRegex.test(normalizedDomain)) {
         return NextResponse.json(
           { error: `잘못된 도메인 형식입니다: ${normalizedDomain}` },
