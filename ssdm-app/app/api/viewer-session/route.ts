@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ref, set } from 'firebase/database'
+import { ref, set, get, query, orderByChild, equalTo } from 'firebase/database'
 import { realtimeDb } from '@/lib/firebase'
 import { verifyDelegateJWT } from '@/lib/jwt-utils'
 
@@ -15,6 +15,41 @@ function generateSessionId(): string {
   const timestamp = Date.now()
   const random = Math.random().toString(36).substr(2, 9)
   return `session_${timestamp}_${random}`
+}
+
+// 세션 만료 확인
+function isExpired(session: any): boolean {
+  return new Date() > new Date(session.expiresAt)
+}
+
+// 기존 유효한 세션 조회
+async function findExistingSession(shopId: string, mallId: string, fields: string[]): Promise<any | null> {
+  try {
+    const sessionsRef = ref(realtimeDb, 'viewer-sessions')
+    const sessionsSnapshot = await get(sessionsRef)
+    
+    if (!sessionsSnapshot.exists()) {
+      return null
+    }
+    
+    const sessions = sessionsSnapshot.val()
+    
+    // shopId, mallId, requiredFields가 동일한 세션 찾기
+    for (const [sessionId, sessionData] of Object.entries(sessions)) {
+      const session = sessionData as any
+      if (session.shopId === shopId && 
+          session.mallId === mallId && 
+          JSON.stringify(session.requiredFields.sort()) === JSON.stringify(fields.sort()) &&
+          !isExpired(session)) {
+        return session
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('기존 세션 조회 오류:', error)
+    return null
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -54,14 +89,25 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // 5. 세션 ID 생성
+    // 5. 기존 유효한 세션 확인
+    const existingSession = await findExistingSession(shopId, mallId, requestedFields)
+    if (existingSession && !isExpired(existingSession)) {
+      return NextResponse.json({
+        success: true,
+        viewerUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/secure-viewer?sessionId=${existingSession.sessionId}`,
+        sessionId: existingSession.sessionId,
+        expiresAt: existingSession.expiresAt
+      })
+    }
+    
+    // 6. 세션 ID 생성 (기존 세션이 없거나 만료된 경우)
     const sessionId = generateSessionId()
     
-    // 6. 만료시간 계산
+    // 7. 만료시간 계산
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + VIEWER_CONFIG.default_ttl_hours)
     
-    // 7. Firebase에 세션 저장
+    // 8. Firebase에 세션 저장
     const sessionData = {
       sessionId,
       shopId,
@@ -77,7 +123,7 @@ export async function POST(request: NextRequest) {
     const sessionRef = ref(realtimeDb, `viewer-sessions/${sessionId}`)
     await set(sessionRef, sessionData)
     
-    // 8. 응답
+    // 9. 응답
     return NextResponse.json({
       success: true,
       viewerUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/secure-viewer?sessionId=${sessionId}`,
