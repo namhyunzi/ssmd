@@ -102,6 +102,11 @@ function SecureViewerContent() {
       sessionData.requiredFields.forEach((field: string) => {
         if (userData.profile && userData.profile[field]) {
           personalInfo[field as keyof PersonalInfo] = userData.profile[field]
+          
+          // 주소가 요청되면 우편번호도 자동으로 포함
+          if (field === 'address' && userData.profile.zipCode) {
+            personalInfo.zipCode = userData.profile.zipCode
+          }
         }
       })
       
@@ -116,12 +121,12 @@ function SecureViewerContent() {
 
   const getFieldIcon = (field: string) => {
     switch (field) {
-      case 'name': return <User className="h-4 w-4" />
-      case 'phone': return <Phone className="h-4 w-4" />
-      case 'address': return <MapPin className="h-4 w-4" />
-      case 'zipCode': return <MapPin className="h-4 w-4" />
-      case 'email': return <Mail className="h-4 w-4" />
-      default: return <Shield className="h-4 w-4" />
+      case 'name': return <User className="h-5 w-5" />
+      case 'phone': return <Phone className="h-5 w-5" />
+      case 'address': return <MapPin className="h-5 w-5" />
+      case 'zipCode': return <MapPin className="h-5 w-5" />
+      case 'email': return <Mail className="h-5 w-5" />
+      default: return <Shield className="h-5 w-5" />
     }
   }
 
@@ -211,14 +216,14 @@ function SecureViewerContent() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="w-full max-w-lg mx-auto">
         {/* 개인정보 표시 */}
-        <div className="bg-gray-50 p-4 space-y-3">
+        <div className="bg-gray-50 p-4">
           {displayFields.map((field: string) => (
-            <div key={field} className="flex items-center space-x-3">
+            <div key={field} className="flex items-center space-x-3 mb-5">
               <div className="text-gray-500">
                 {getFieldIcon(field)}
               </div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-base font-medium text-gray-900">
                   {getFieldLabel(field)}
                 </div>
                 <div className="text-sm text-gray-600">
@@ -232,8 +237,8 @@ function SecureViewerContent() {
         {/* SSDM 로고 */}
         <div className="flex justify-end mt-4">
           <div className="text-center">
-            <h1 className="text-sm font-bold text-primary">SSDM</h1>
-            <p className="text-xs text-muted-foreground">개인정보보호</p>
+            <h1 className="text-xl font-bold text-primary">SSDM</h1>
+            <p className="text-sm text-muted-foreground">개인정보보호</p>
           </div>
         </div>
       </div>
