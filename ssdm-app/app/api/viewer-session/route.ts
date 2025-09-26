@@ -89,25 +89,14 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // 5. 기존 유효한 세션 확인
-    const existingSession = await findExistingSession(shopId, mallId, requestedFields)
-    if (existingSession && !isExpired(existingSession)) {
-      return NextResponse.json({
-        success: true,
-        viewerUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/secure-viewer?sessionId=${existingSession.sessionId}`,
-        sessionId: existingSession.sessionId,
-        expiresAt: existingSession.expiresAt
-      })
-    }
-    
-    // 6. 세션 ID 생성 (기존 세션이 없거나 만료된 경우)
+    // 5. 세션 ID 생성 (항상 새로운 세션 생성)
     const sessionId = generateSessionId()
     
-    // 7. 만료시간 계산
+    // 6. 만료시간 계산
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + VIEWER_CONFIG.default_ttl_hours)
     
-    // 8. Firebase에 세션 저장
+    // 7. Firebase에 세션 저장
     const sessionData = {
       sessionId,
       shopId,
@@ -123,7 +112,7 @@ export async function POST(request: NextRequest) {
     const sessionRef = ref(realtimeDb, `viewer-sessions/${sessionId}`)
     await set(sessionRef, sessionData)
     
-    // 9. 응답
+    // 8. 응답
     return NextResponse.json({
       success: true,
       viewerUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/secure-viewer?sessionId=${sessionId}`,
