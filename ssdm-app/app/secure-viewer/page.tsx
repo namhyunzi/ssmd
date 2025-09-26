@@ -56,7 +56,17 @@ function SecureViewerContent() {
       const now = new Date()
       const expiresAt = new Date(sessionData.expiresAt)
       
+      // 디버깅용 로그
+      console.log('=== 세션 만료 확인 ===')
+      console.log('현재 시간 (now):', now.toISOString())
+      console.log('만료 시간 (expiresAt):', expiresAt.toISOString())
+      console.log('원본 expiresAt 값:', sessionData.expiresAt)
+      console.log('만료 여부 (now > expiresAt):', now > expiresAt)
+      console.log('시간 차이 (밀리초):', now.getTime() - expiresAt.getTime())
+      console.log('========================')
+      
       if (now > expiresAt) {
+        console.log('세션이 만료되어 에러 설정')
         setError('세션이 만료되었습니다.')
         return
       }
