@@ -95,8 +95,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 연장 처리 (12시간 연장)
-    const newExpiresAt = new Date();
+    // 연장 처리 (기존 만료 시간에서 12시간 연장)
+    const currentExpiresAt = new Date(session.expiresAt);
+    const newExpiresAt = new Date(currentExpiresAt);
     newExpiresAt.setHours(newExpiresAt.getHours() + 12);
     const updatedSession: ViewerSession = {
       ...session,
