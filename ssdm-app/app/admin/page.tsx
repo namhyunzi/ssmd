@@ -468,7 +468,7 @@ export default function AdminPage() {
             <div className="relative">
               <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <Input
-                placeholder="쇼핑몰명, ID, 이메일로 검색..."
+                placeholder="회원사명, ID, 이메일로 검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 w-64 bg-white"
@@ -501,13 +501,13 @@ export default function AdminPage() {
                 }}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                쇼핑몰 등록
+                회원사 등록
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>
-                  {dialogMode === 'create' ? '새 쇼핑몰 등록' : 
+                  {dialogMode === 'create' ? '새 회원사 등록' : 
                    `API Key 재발급 - ${editingMall?.mallName}`}
                 </DialogTitle>
               </DialogHeader>
@@ -625,7 +625,7 @@ export default function AdminPage() {
                 </div>
                 
                 <div>
-                    <Label>제공 가능한 개인정보</Label>
+                    <Label>요청 가능한 개인정보</Label>
                     <div className="space-y-2 mt-2">
                       {fieldOptions.map(field => (
                         <div key={field.id} className="flex items-center space-x-2">
@@ -684,7 +684,7 @@ export default function AdminPage() {
                   <Shield className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">전체 쇼핑몰</p>
+                  <p className="text-sm font-medium text-gray-500">전체 회원사</p>
                   <p className="text-2xl font-bold text-gray-900">{malls.length}</p>
                 </div>
               </div>
