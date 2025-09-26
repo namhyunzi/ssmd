@@ -189,7 +189,7 @@ export default function AdminPage() {
         mallName: newMall.mallName,
         englishId: newMall.englishId,
         requiredFields: newMall.allowedFields,
-        allowedDomains: newMall.allowedDomains.filter(domain => domain.trim() !== ''),
+        allowedDomain: newMall.allowedDomain,
         contactEmail: newMall.contactEmail,
         description: newMall.description
       })
