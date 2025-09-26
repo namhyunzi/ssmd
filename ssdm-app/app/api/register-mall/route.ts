@@ -8,7 +8,7 @@ interface RegisterMallRequest {
   requiredFields: string[]
   contactEmail?: string
   description?: string
-  allowedDomains: string[]
+  allowedDomain: string
 }
 
 interface MallData {
@@ -16,7 +16,7 @@ interface MallData {
   allowedFields: string[]
   contactEmail: string
   description: string
-  allowedDomains: string[]
+  allowedDomain: string
   createdAt: string
   expiresAt: string       // API Key 만료일 (1년)
   isActive: boolean
@@ -50,65 +50,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { mallName, englishId, requiredFields, contactEmail, description, allowedDomains }: RegisterMallRequest = await request.json();
+    const { mallName, englishId, requiredFields, contactEmail, description, allowedDomain }: RegisterMallRequest = await request.json();
 
     // 입력값 검증
-    if (!mallName || !englishId || !requiredFields || !Array.isArray(requiredFields) || !allowedDomains || !Array.isArray(allowedDomains)) {
+    if (!mallName || !englishId || !requiredFields || !Array.isArray(requiredFields) || !allowedDomain) {
       return NextResponse.json(
-        { error: 'mallName, englishId, requiredFields(배열), allowedDomains(배열)은 필수입니다.' },
+        { error: 'mallName, englishId, requiredFields(배열), allowedDomain은 필수입니다.' },
         { status: 400 }
       );
     }
 
     // 허용 도메인 검증
-    if (allowedDomains.length === 0) {
+    if (!allowedDomain.trim()) {
       return NextResponse.json(
-        { error: '최소 하나 이상의 허용 도메인을 입력해주세요.' },
+        { error: '허용 도메인을 입력해주세요.' },
         { status: 400 }
       );
     }
 
     // 도메인 형식 검증 및 정규화
-    const normalizedDomains: string[] = [];
-    for (const domain of allowedDomains) {
-      if (!domain || typeof domain !== 'string' || domain.trim().length === 0) {
-        return NextResponse.json(
-          { error: '유효하지 않은 도메인이 포함되어 있습니다.' },
-          { status: 400 }
-        );
-      }
-      
-      // URL에서 도메인 추출 함수
-      const extractDomain = (input: string): string => {
-        try {
-          const trimmed = input.trim();
-          
-          // URL 형태인지 확인하고 도메인 추출
-          if (trimmed.includes('://')) {
-            const url = new URL(trimmed);
-            return url.host;
-          }
-          
-          // 프로토콜 없이 시작하는 경우 정리
-          return trimmed.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
-        } catch {
-          // URL 파싱 실패시 기본 정리만 수행
-          return input.trim().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+    // URL에서 도메인 추출 함수
+    const extractDomain = (input: string): string => {
+      try {
+        const trimmed = input.trim();
+        
+        // URL 형태인지 확인하고 도메인 추출
+        if (trimmed.includes('://')) {
+          const url = new URL(trimmed);
+          return url.host;
         }
-      };
-
-      const normalizedDomain = extractDomain(domain);
-      
-      // 정규화된 도메인 검증 (포트 번호 포함 허용)
-      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*(:[\d]{1,5})?$/;
-      if (!domainRegex.test(normalizedDomain)) {
-        return NextResponse.json(
-          { error: `잘못된 도메인 형식입니다: ${normalizedDomain}` },
-          { status: 400 }
-        );
+        
+        // 프로토콜 없이 시작하는 경우 정리
+        return trimmed.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+      } catch {
+        // URL 파싱 실패시 기본 정리만 수행
+        return input.trim().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
       }
-      
-      normalizedDomains.push(normalizedDomain);
+    };
+
+    const normalizedDomain = extractDomain(allowedDomain);
+    
+    // 정규화된 도메인 검증 (포트 번호 포함 허용)
+    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*(:[\d]{1,5})?$/;
+    if (!domainRegex.test(normalizedDomain)) {
+      return NextResponse.json(
+        { error: `잘못된 도메인 형식입니다: ${normalizedDomain}` },
+        { status: 400 }
+      );
     }
 
     // 쇼핑몰 이름 길이 검사
@@ -160,7 +148,7 @@ export async function POST(request: NextRequest) {
       allowedFields: requiredFields,
       contactEmail: contactEmail || '',
       description: description || '',
-      allowedDomains: normalizedDomains, // 정규화된 도메인 사용
+      allowedDomain: normalizedDomain, // 정규화된 도메인 사용
       createdAt: new Date().toISOString(),
       expiresAt: expiresAtISO,
       isActive: true
