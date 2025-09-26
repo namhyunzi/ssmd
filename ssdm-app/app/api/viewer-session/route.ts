@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     // JWT 만료 오류 구분
-    if (error instanceof Error && error.name === 'TokenExpiredError') {
+    if (error.message && error.message.includes('jwt expired')) {
       return NextResponse.json(
         { error: 'JWT 토큰이 만료되었습니다. 새로운 토큰을 발급받아주세요.' },
         { status: 401 }
