@@ -150,6 +150,7 @@ function SecureViewerContent() {
       if (now > expiresAt) {
         console.log('세션이 만료되어 에러 설정')
         setError('세션이 만료되었습니다.')
+        setLoading(false)
         return
       }
       
