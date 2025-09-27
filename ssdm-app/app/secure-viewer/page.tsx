@@ -29,6 +29,15 @@ function SecureViewerContent() {
   const [securityEnabled, setSecurityEnabled] = useState(false) // 보안 기능 상태
   const [mounted, setMounted] = useState(false) // 클라이언트 마운트 상태
 
+  // 보안 스타일 정의
+  const securityStyles = {
+    WebkitUserSelect: 'none',
+    MozUserSelect: 'none',
+    msUserSelect: 'none',
+    userSelect: 'none',
+    WebkitTouchCallout: 'none'
+  } as React.CSSProperties
+
   // 클라이언트 마운트 확인
   useEffect(() => {
     setMounted(true)
@@ -297,13 +306,8 @@ function SecureViewerContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" style={{
-        WebkitUserSelect: 'none',
-        MozUserSelect: 'none',
-        msUserSelect: 'none',
-        userSelect: 'none',
-        WebkitTouchCallout: 'none'
-      } as React.CSSProperties}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" 
+           style={mounted && securityEnabled ? securityStyles : {}}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">정보를 불러오는 중...</p>
@@ -314,19 +318,10 @@ function SecureViewerContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" style={{
-        WebkitUserSelect: 'none',
-        MozUserSelect: 'none',
-        msUserSelect: 'none',
-        userSelect: 'none',
-        WebkitTouchCallout: 'none'
-      } as React.CSSProperties}>
-        <div className="text-center" style={{
-          WebkitUserSelect: 'none',
-          MozUserSelect: 'none',
-          msUserSelect: 'none',
-          userSelect: 'none'
-        } as React.CSSProperties}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" 
+           style={mounted && securityEnabled ? securityStyles : {}}>
+        <div className="text-center" 
+             style={mounted && securityEnabled ? securityStyles : {}}>
           <h2 className="text-2xl font-semibold text-gray-900 mb-2">
             {error === '세션이 만료되었습니다.' ? '세션이 만료되었습니다' : '오류가 발생했습니다'}
           </h2>
@@ -343,13 +338,8 @@ function SecureViewerContent() {
 
   if (!personalInfo) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" style={{
-        WebkitUserSelect: 'none',
-        MozUserSelect: 'none',
-        msUserSelect: 'none',
-        userSelect: 'none',
-        WebkitTouchCallout: 'none'
-      } as React.CSSProperties}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" 
+           style={mounted && securityEnabled ? securityStyles : {}}>
         <Card className="w-full max-w-lg">
           <CardContent className="p-8 text-center">
             <div className="text-gray-500 mb-4">
@@ -370,46 +360,25 @@ function SecureViewerContent() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4" style={{
-      WebkitUserSelect: 'none',
-      MozUserSelect: 'none',
-      msUserSelect: 'none',
-      userSelect: 'none',
-      WebkitTouchCallout: 'none'
-    } as React.CSSProperties}>
+    <div className="min-h-screen bg-gray-50 p-4" 
+         style={mounted && securityEnabled ? securityStyles : {}}>
       <div className="w-full max-w-lg mx-auto">
         {/* 개인정보 표시 */}
-        <div className="bg-gray-50 px-4 pt-4 pb-0" style={{
-          WebkitUserSelect: 'none',
-          MozUserSelect: 'none',
-          msUserSelect: 'none',
-          userSelect: 'none'
-        } as React.CSSProperties}>
+        <div className="bg-gray-50 px-4 pt-4 pb-0" 
+             style={mounted && securityEnabled ? securityStyles : {}}>
           {displayFields.map((field: string, index: number) => (
-            <div key={field} className={`flex items-center space-x-3 ${index < displayFields.length - 1 ? 'mb-5' : ''}`} style={{
-              WebkitUserSelect: 'none',
-              MozUserSelect: 'none',
-              msUserSelect: 'none',
-              userSelect: 'none'
-            } as React.CSSProperties}>
+            <div key={field} className={`flex items-center space-x-3 ${index < displayFields.length - 1 ? 'mb-5' : ''}`} 
+                 style={mounted && securityEnabled ? securityStyles : {}}>
               <div className="text-gray-500">
                 {getFieldIcon(field)}
               </div>
               <div className="flex-1">
-                <div className="text-base font-medium text-gray-900" style={{
-                  WebkitUserSelect: 'none',
-                  MozUserSelect: 'none',
-                  msUserSelect: 'none',
-                  userSelect: 'none'
-                } as React.CSSProperties}>
+                <div className="text-base font-medium text-gray-900" 
+                     style={mounted && securityEnabled ? securityStyles : {}}>
                   {getFieldLabel(field)}
                 </div>
-                <div className="text-sm text-gray-600" style={{
-                  WebkitUserSelect: 'none',
-                  MozUserSelect: 'none',
-                  msUserSelect: 'none',
-                  userSelect: 'none'
-                } as React.CSSProperties}>
+                <div className="text-sm text-gray-600" 
+                     style={mounted && securityEnabled ? securityStyles : {}}>
                   {getFieldValue(field)}
                 </div>
               </div>
@@ -419,12 +388,8 @@ function SecureViewerContent() {
 
         {/* SSDM 로고 */}
         <div className="flex justify-end">
-          <div className="text-center" style={{
-            WebkitUserSelect: 'none',
-            MozUserSelect: 'none',
-            msUserSelect: 'none',
-            userSelect: 'none'
-          } as React.CSSProperties}>
+          <div className="text-center" 
+               style={mounted && securityEnabled ? securityStyles : {}}>
             <h1 className="text-xl font-bold text-primary">SSDM</h1>
             <p className="text-sm text-muted-foreground">개인정보보호</p>
           </div>
@@ -439,7 +404,7 @@ export default function SecureViewerPage() {
     <>
       {/* 보안 메타 태그 */}
       <head>
-        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.asia-southeast1.firebasedatabase.app https://*.googleapis.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.asia-southeast1.firebasedatabase.app https://*.googleapis.com; frame-src 'self' https://*.asia-southeast1.firebasedatabase.app https://*.googleapis.com;" />
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebasedatabase.app https://*.googleapis.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.firebasedatabase.app https://*.googleapis.com wss://*.firebasedatabase.app; frame-src 'self' https://*.firebasedatabase.app https://*.googleapis.com;" />
         <meta name="referrer" content="no-referrer" />
         <style dangerouslySetInnerHTML={{
           __html: `
