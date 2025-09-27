@@ -27,8 +27,14 @@ function SecureViewerContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
 
-  // 보안 기능 초기화
+  // 보안 기능 초기화 (만료된 세션에서는 비활성화)
   useEffect(() => {
+    // 만료된 세션이면 보안 기능 비활성화
+    if (error && error === '세션이 만료되었습니다.') {
+      return
+    }
+
+    // 유효한 세션일 때만 보안 기능 적용
     // 우클릭 방지
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault()
@@ -107,7 +113,7 @@ function SecureViewerContent() {
       document.removeEventListener('mousedown', handleMouseDown)
       clearInterval(devToolsInterval)
     }
-  }, [])
+  }, [error]) // error 상태를 의존성으로 추가
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId')
