@@ -26,15 +26,16 @@ function SecureViewerContent() {
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
+  const [securityEnabled, setSecurityEnabled] = useState(false) // 보안 기능 상태
 
-  // 보안 기능 초기화 (조건부 이벤트 리스너 등록/해제)
+  // 보안 기능 초기화 (securityEnabled 상태에 따라)
   useEffect(() => {
-    // 만료된 세션이면 보안 기능 완전 비활성화
-    if (error && error === '세션이 만료되었습니다.') {
+    // 보안 기능이 비활성화되어 있으면 아무것도 안함
+    if (!securityEnabled) {
       return
     }
 
-    // 유효한 세션일 때만 보안 기능 적용
+    // 보안 기능이 활성화되어 있을 때만 적용
     // 우클릭 방지
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault()
@@ -113,7 +114,7 @@ function SecureViewerContent() {
       document.removeEventListener('mousedown', handleMouseDown)
       clearInterval(devToolsInterval)
     }
-  }, [error]) // error 상태를 의존성으로 유지
+  }, [securityEnabled]) // securityEnabled 상태를 의존성으로 변경
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId')
@@ -157,8 +158,12 @@ function SecureViewerContent() {
         console.log('세션이 만료되어 에러 설정')
         setError('세션이 만료되었습니다.')
         setLoading(false)
+        setSecurityEnabled(false) // 보안 기능 비활성화
         return
       }
+      
+      // 유효한 세션일 때 보안 기능 활성화
+      setSecurityEnabled(true)
       
       // 3. userMappings에서 Firebase UID 조회
       const mappingRef = ref(realtimeDb, `userMappings/${sessionData.mallId}`)
@@ -166,6 +171,8 @@ function SecureViewerContent() {
       
       if (!mappingSnapshot.exists()) {
         setError('사용자 매핑 정보를 찾을 수 없습니다.')
+        setLoading(false)
+        setSecurityEnabled(false) // 보안 기능 비활성화
         return
       }
       
@@ -182,6 +189,8 @@ function SecureViewerContent() {
       
       if (!firebaseUid) {
         setError('사용자 매핑을 찾을 수 없습니다.')
+        setLoading(false)
+        setSecurityEnabled(false) // 보안 기능 비활성화
         return
       }
       
@@ -191,6 +200,8 @@ function SecureViewerContent() {
       
       if (!userSnapshot.exists()) {
         setError('사용자 정보를 찾을 수 없습니다.')
+        setLoading(false)
+        setSecurityEnabled(false) // 보안 기능 비활성화
         return
       }
       
@@ -213,6 +224,7 @@ function SecureViewerContent() {
       
     } catch (error) {
       setError('개인정보 조회 중 오류가 발생했습니다.')
+      setSecurityEnabled(false) // 보안 기능 비활성화
     } finally {
       setLoading(false)
     }
