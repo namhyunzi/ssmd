@@ -27,9 +27,9 @@ function SecureViewerContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
 
-  // 보안 기능 초기화 (만료된 세션에서는 비활성화)
+  // 보안 기능 초기화 (조건부 이벤트 리스너 등록/해제)
   useEffect(() => {
-    // 만료된 세션이면 보안 기능 비활성화
+    // 만료된 세션이면 보안 기능 완전 비활성화
     if (error && error === '세션이 만료되었습니다.') {
       return
     }
@@ -113,7 +113,7 @@ function SecureViewerContent() {
       document.removeEventListener('mousedown', handleMouseDown)
       clearInterval(devToolsInterval)
     }
-  }, [error]) // error 상태를 의존성으로 추가
+  }, [error]) // error 상태를 의존성으로 유지
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId')
@@ -282,12 +282,10 @@ function SecureViewerContent() {
         userSelect: 'none',
         WebkitTouchCallout: 'none'
       } as React.CSSProperties}>
-        <Card className="w-full max-w-lg">
-          <CardContent className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">정보를 불러오는 중...</p>
-          </CardContent>
-        </Card>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">정보를 불러오는 중...</p>
+        </div>
       </div>
     )
   }
