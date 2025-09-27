@@ -428,7 +428,7 @@ export default function SecureViewerPage() {
     <>
       {/* 보안 메타 태그 */}
       <head>
-        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.firebasedatabase.app https://*.googleapis.com; style-src 'self' 'unsafe-inline';" />
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.firebasedatabase.app https://*.googleapis.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.firebasedatabase.app https://*.googleapis.com; frame-src 'self' https://*.firebasedatabase.app https://*.googleapis.com;" />
         <meta name="referrer" content="no-referrer" />
         <style dangerouslySetInnerHTML={{
           __html: `
