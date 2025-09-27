@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { realtimeDb } from '@/lib/firebase'
 import { ref, get } from 'firebase/database'
 import jwt from 'jsonwebtoken'
-import { checkUserSession } from '@/lib/user-session'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,9 +26,6 @@ export async function POST(request: NextRequest) {
     // JWT 검증 및 shopId, mallId 추출
     const decoded = jwt.verify(jwtToken, apiKey, { algorithms: ['HS256'] }) as any
     const { shopId, mallId } = decoded
-
-    // 로그인 상태 확인을 위한 변수
-    let isLoggedIn = false
 
     // userMappings 전체 조회로 shopId로 매핑 찾기
     const mappingsRef = ref(realtimeDb, `userMappings/${mallId}`)
@@ -71,12 +67,10 @@ export async function POST(request: NextRequest) {
     const mappings = mappingsSnapshot.val()
     let targetMapping = null
     
-    // shopId로 매핑 찾기 및 로그인 상태 확인
+    // shopId로 매핑 찾기
     for (const [firebaseUid, userMappings] of Object.entries(mappings)) {
       if (userMappings && typeof userMappings === 'object' && shopId in userMappings) {
         targetMapping = (userMappings as any)[shopId]
-        // Firebase UID로 로그인 상태 확인
-        isLoggedIn = await checkUserSession(firebaseUid)
         break
       }
     }
@@ -158,8 +152,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         status: 'connected',
         consentType: 'always',
-        isActive: consentData.isActive,
-        isLoggedIn: isLoggedIn
+        isActive: consentData.isActive
       }, { headers: corsHeaders })
     } else if (consentData.consentType === 'once') {
       // 2번: 일회성 동의 - 무조건 need_connect

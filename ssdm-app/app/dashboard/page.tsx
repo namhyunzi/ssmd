@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation"
 import { getUserProfile, createDefaultProfile, Users } from "@/lib/user-profile"
 import { getUserServiceConsents, calculateConsentStats, UserConsents } from "@/lib/service-consent"
 import { getUserMappings } from "@/lib/data-storage"
-import { removeUserSession } from "@/lib/user-session"
 
 export default function DashboardPage() {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false)
@@ -118,115 +117,7 @@ export default function DashboardPage() {
   // 로그아웃 함수
   const handleLogout = async () => {
     try {
-      console.log('=== 로그아웃 시작 ===')
-      
-      // 1. 세션 비활성화
-      const user = auth.currentUser
-      if (user) {
-        await removeUserSession(user.uid)
-        console.log('사용자 세션 비활성화 완료')
-      }
-      
-      // 2. 로그아웃 처리
       await signOut(auth)
-      console.log('Firebase 로그아웃 완료')
-      
-      // 2. JWT 기반 팝업 여부 확인
-      const isConsentPopup = sessionStorage.getItem('openPopup')
-      const isPreviewPopup = sessionStorage.getItem('openPopup_preview')
-      const isPopup = isConsentPopup || isPreviewPopup
-      
-      console.log('팝업 확인:', {
-        isConsentPopup: !!isConsentPopup,
-        isPreviewPopup: !!isPreviewPopup,
-        isPopup: !!isPopup
-      })
-      
-      if (isPopup) {
-        console.log('팝업에서 로그아웃 - 상태 전달 시작')
-        
-        try {
-          // 3. Firebase에서 허용 도메인 조회
-          const { realtimeDb } = await import('@/lib/firebase')
-          const { ref, get } = await import('firebase/database')
-          
-          // JWT에서 mallId 추출
-          const jwtToken = isConsentPopup || isPreviewPopup
-          console.log('JWT 토큰 확인:', jwtToken ? '존재함' : '없음')
-          
-          if (!jwtToken) {
-            console.log('JWT 토큰이 없음 - 팝업 상태 전달 불가')
-            return
-          }
-          
-          // JWT 검증 함수
-          const verifyToken = async (jwtToken: string) => {
-            try {
-              const response = await fetch('/api/popup/consent', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jwt: jwtToken })
-              })
-              
-              if (response.ok) {
-                const { valid, payload } = await response.json()
-                return { success: valid, mallId: payload?.mallId }
-              }
-              return { success: false }
-            } catch (error) {
-              console.error('JWT 검증 실패:', error)
-              return { success: false }
-            }
-          }
-          
-          const verifyResult = await verifyToken(jwtToken)
-          console.log('JWT 검증 결과:', verifyResult)
-          
-          if (verifyResult.success && verifyResult.mallId) {
-            const mallRef = ref(realtimeDb, `malls/${verifyResult.mallId}`)
-            const mallSnapshot = await get(mallRef)
-            
-            let allowedDomain = null
-            if (mallSnapshot.exists()) {
-              const mallData = mallSnapshot.val()
-              allowedDomain = mallData.allowedDomain
-              console.log('허용 도메인 조회:', allowedDomain)
-            }
-            
-            // 4. 로그아웃 상태 즉시 전달
-            if (window.opener) {
-              console.log('postMessage 전달 시작:', {
-                type: 'logout_success',
-                isLoggedIn: false,
-                timestamp: new Date().toISOString(),
-                targetOrigin: allowedDomain
-              })
-              
-              window.opener.postMessage({
-                type: 'logout_success',
-                isLoggedIn: false,
-                timestamp: new Date().toISOString()
-              }, allowedDomain)
-              
-              console.log('로그아웃 상태 전달 완료')
-            } else {
-              console.log('window.opener가 없음 - 팝업이 아님')
-            }
-          } else {
-            console.log('JWT 검증 실패 또는 mallId 없음')
-          }
-        } catch (popupError) {
-          console.error('팝업 상태 전달 실패:', popupError)
-        }
-      } else {
-        console.log('일반 페이지에서 로그아웃 - 팝업 상태 전달 없음')
-      }
-      
-      // 5. 세션 정리
-      sessionStorage.removeItem('openPopup')
-      sessionStorage.removeItem('openPopup_preview')
-      console.log('세션 정리 완료')
-      
       setToastMessage("로그아웃 완료")
       setToastSubMessage("안전하게 로그아웃되었습니다.")
       setShowToast(true)
