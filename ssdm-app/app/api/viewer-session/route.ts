@@ -54,13 +54,9 @@ async function findExistingSession(shopId: string, mallId: string, fields: strin
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== 뷰어 세션 생성 시작 ===')
-    
     // 1. 헤더에서 JWT 추출
     const authHeader = request.headers.get('Authorization')
-    console.log('Authorization 헤더:', authHeader ? '존재' : '없음')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('❌ Authorization 헤더 오류')
       return NextResponse.json(
         { error: 'Authorization 헤더가 필요합니다.' },
         { status: 401 }
@@ -68,23 +64,17 @@ export async function POST(request: NextRequest) {
     }
     
     const jwt = authHeader.substring(7) // "Bearer " 제거
-    console.log('JWT 토큰 길이:', jwt.length)
     
     // 2. body에서 데이터 추출
     const { requiredFields, viewerType } = await request.json()
-    console.log('요청 데이터:', { requiredFields, viewerType })
     
     // 3. JWT 검증 (우리가 발급한 delegate JWT인지 확인)
     const publicKey = process.env.SSDM_PUBLIC_KEY
-    console.log('SSDM_PUBLIC_KEY 존재:', !!publicKey)
     if (!publicKey) {
-      console.log('❌ SSDM_PUBLIC_KEY가 설정되지 않음')
       throw new Error('SSDM_PUBLIC_KEY가 설정되지 않았습니다.')
     }
     
-    console.log('JWT 검증 시작...')
     const { shopId, mallId, fields } = await verifyDelegateJWT(jwt, publicKey)
-    console.log('JWT 검증 성공:', { shopId, mallId, fields })
     
     // 4. 요청 필드가 JWT의 fields와 일치하는지 확인
     const jwtFields = fields || []
@@ -101,12 +91,10 @@ export async function POST(request: NextRequest) {
     
     // 5. 세션 ID 생성 (항상 새로운 세션 생성)
     const sessionId = generateSessionId()
-    console.log('생성된 세션 ID:', sessionId)
     
     // 6. 만료시간 계산
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + VIEWER_CONFIG.default_ttl_hours)
-    console.log('만료 시간:', expiresAt.toISOString())
     
     // 7. Firebase에 세션 저장
     const sessionData = {
