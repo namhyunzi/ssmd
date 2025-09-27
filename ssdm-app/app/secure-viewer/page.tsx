@@ -27,9 +27,20 @@ function SecureViewerContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [securityEnabled, setSecurityEnabled] = useState(false) // 보안 기능 상태
+  const [mounted, setMounted] = useState(false) // 클라이언트 마운트 상태
 
-  // 보안 기능 초기화 (securityEnabled 상태에 따라)
+  // 클라이언트 마운트 확인
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // 보안 기능 초기화 (mounted + securityEnabled 상태에 따라)
+  useEffect(() => {
+    // 클라이언트 마운트되지 않았으면 아무것도 안함
+    if (!mounted) {
+      return
+    }
+    
     // 보안 기능이 비활성화되어 있으면 아무것도 안함
     if (!securityEnabled) {
       return
@@ -114,7 +125,7 @@ function SecureViewerContent() {
       document.removeEventListener('mousedown', handleMouseDown)
       clearInterval(devToolsInterval)
     }
-  }, [securityEnabled]) // securityEnabled 상태를 의존성으로 변경
+  }, [mounted, securityEnabled]) // mounted + securityEnabled 상태를 의존성으로 변경
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId')
@@ -428,7 +439,7 @@ export default function SecureViewerPage() {
     <>
       {/* 보안 메타 태그 */}
       <head>
-        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.firebasedatabase.app https://*.googleapis.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.firebasedatabase.app https://*.googleapis.com; frame-src 'self' https://*.firebasedatabase.app https://*.googleapis.com;" />
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.asia-southeast1.firebasedatabase.app https://*.googleapis.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.asia-southeast1.firebasedatabase.app https://*.googleapis.com; frame-src 'self' https://*.asia-southeast1.firebasedatabase.app https://*.googleapis.com;" />
         <meta name="referrer" content="no-referrer" />
         <style dangerouslySetInnerHTML={{
           __html: `
