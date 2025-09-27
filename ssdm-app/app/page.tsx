@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, deleteUser } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import TermsConsentPopup from '@/components/popups/terms-consent-popup'
+import { createUserSession } from '@/lib/user-session'
 
 
 export default function LoginPage() {
@@ -89,7 +90,7 @@ export default function LoginPage() {
   }, [])
 
   // 리다이렉션 처리 함수
-  const handleRedirectAfterLogin = () => {
+  const handleRedirectAfterLogin = async () => {
     const redirectUrl = sessionStorage.getItem('redirect_after_additional_info') || 
             sessionStorage.getItem('redirect_after_profile')
     
@@ -103,12 +104,91 @@ export default function LoginPage() {
       const jwtToken = sessionStorage.getItem('openPopup')
       const jwtTokenPreview = sessionStorage.getItem('openPopup_preview')
       
-      if (jwtToken) {
-        // 동의 요청 팝업
-        router.push('/consent')
-      } else if (jwtTokenPreview) {
-        // 정보 미리보기 팝업
-        router.push('/info-preview')
+      if (jwtToken || jwtTokenPreview) {
+        // 팝업인 경우 - 로그인 성공 상태 전달
+        console.log('=== 로그인 성공 - 팝업 상태 전달 시작 ===')
+        
+        try {
+          const currentToken = jwtToken || jwtTokenPreview
+          
+          // JWT 토큰 null 체크
+          if (!currentToken) {
+            console.log('JWT 토큰이 없음 - 팝업 상태 전달 불가')
+            return
+          }
+          
+          // JWT 검증 함수
+          const verifyToken = async (jwtToken: string) => {
+            try {
+              const response = await fetch('/api/popup/consent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jwt: jwtToken })
+              })
+              
+              if (response.ok) {
+                const { valid, payload } = await response.json()
+                return { success: valid, mallId: payload?.mallId }
+              }
+              return { success: false }
+            } catch (error) {
+              console.error('JWT 검증 실패:', error)
+              return { success: false }
+            }
+          }
+          
+          const verifyResult = await verifyToken(currentToken)
+          console.log('JWT 검증 결과:', verifyResult)
+          
+          if (verifyResult.success && verifyResult.mallId) {
+            // Firebase에서 허용 도메인 조회
+            const { realtimeDb } = await import('@/lib/firebase')
+            const { ref, get } = await import('firebase/database')
+            
+            const mallRef = ref(realtimeDb, `malls/${verifyResult.mallId}`)
+            const mallSnapshot = await get(mallRef)
+            
+            let allowedDomain = null
+            if (mallSnapshot.exists()) {
+              const mallData = mallSnapshot.val()
+              allowedDomain = mallData.allowedDomain
+              console.log('허용 도메인 조회:', allowedDomain)
+            }
+            
+            // 로그인 성공 상태 즉시 전달
+            if (window.opener) {
+              console.log('postMessage 전달 시작:', {
+                type: 'login_success',
+                isLoggedIn: true,
+                timestamp: new Date().toISOString(),
+                targetOrigin: allowedDomain
+              })
+              
+              window.opener.postMessage({
+                type: 'login_success',
+                isLoggedIn: true,
+                timestamp: new Date().toISOString()
+              }, allowedDomain)
+              
+              console.log('로그인 성공 상태 전달 완료')
+            } else {
+              console.log('window.opener가 없음 - 팝업이 아님')
+            }
+          } else {
+            console.log('JWT 검증 실패 또는 mallId 없음')
+          }
+        } catch (popupError) {
+          console.error('팝업 상태 전달 실패:', popupError)
+        }
+        
+        // 페이지 이동
+        if (jwtToken) {
+          // 동의 요청 팝업
+          router.push('/consent')
+        } else if (jwtTokenPreview) {
+          // 정보 미리보기 팝업
+          router.push('/info-preview')
+        }
       } else {
         // 일반 브라우저 접근 - 대시보드로 이동
         router.push('/dashboard')
@@ -138,7 +218,10 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const result = await signInWithEmailAndPassword(auth, email, password)
+      
+      // 세션 생성
+      await createUserSession(result.user.uid)
       
       // 로그인 성공 시 실패 횟수 초기화
       localStorage.removeItem('loginAttempts')
@@ -186,6 +269,9 @@ export default function LoginPage() {
     try {
       const provider = new GoogleAuthProvider()
       const result = await signInWithPopup(auth, provider)
+      
+      // 세션 생성
+      await createUserSession(result.user.uid)
       
       // Google 로그인 성공 시 실패 횟수 초기화
       localStorage.removeItem('loginAttempts')
