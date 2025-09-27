@@ -224,7 +224,6 @@ function SecureViewerContent() {
       
     } catch (error) {
       setError('개인정보 조회 중 오류가 발생했습니다.')
-      setSecurityEnabled(false) // 보안 기능 비활성화
     } finally {
       setLoading(false)
     }
@@ -429,7 +428,7 @@ export default function SecureViewerPage() {
     <>
       {/* 보안 메타 태그 */}
       <head>
-        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';" />
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.firebasedatabase.app https://*.googleapis.com; style-src 'self' 'unsafe-inline';" />
         <meta name="referrer" content="no-referrer" />
         <style dangerouslySetInnerHTML={{
           __html: `
