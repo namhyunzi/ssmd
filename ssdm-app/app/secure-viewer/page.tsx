@@ -415,49 +415,16 @@ function SecureViewerContent() {
   )
 }
 
+
 export default function SecureViewerPage() {
   return (
     <>
-      {/* 보안 메타 태그 */}
-      <head>
-        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebasedatabase.app https://*.googleapis.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.firebasedatabase.app https://*.googleapis.com wss://*.firebasedatabase.app; frame-src 'self' https://*.firebasedatabase.app https://*.googleapis.com;" />
-        <meta name="referrer" content="no-referrer" />
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            * {
-              -webkit-user-select: none !important;
-              -moz-user-select: none !important;
-              -ms-user-select: none !important;
-              user-select: none !important;
-              -webkit-user-drag: none !important;
-              -khtml-user-drag: none !important;
-              -moz-user-drag: none !important;
-              -o-user-drag: none !important;
-              user-drag: none !important;
-              -webkit-touch-callout: none !important;
-            }
-          `
-        } as any} />
-      </head>
       <Suspense fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" style={{
-          WebkitUserSelect: 'none',
-          MozUserSelect: 'none',
-          msUserSelect: 'none',
-          userSelect: 'none',
-          WebkitUserDrag: 'none',
-          KhtmlUserDrag: 'none',
-          MozUserDrag: 'none',
-          OUserDrag: 'none',
-          userDrag: 'none',
-          WebkitTouchCallout: 'none'
-        } as React.CSSProperties}>
-          <Card className="w-full max-w-lg">
-            <CardContent className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">페이지를 로드하는 중...</p>
-            </CardContent>
-          </Card>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">페이지를 로드하는 중...</p>
+          </div>
         </div>
       }>
         <SecureViewerContent />
