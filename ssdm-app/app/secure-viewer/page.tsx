@@ -43,39 +43,38 @@ function SecureViewerContent() {
     setMounted(true)
   }, [])
 
-  // 보안 기능 초기화 (mounted + securityEnabled 상태에 따라)
+  // 보안 기능 초기화 (이벤트 핸들러 조건부 처리)
   useEffect(() => {
     // 클라이언트 마운트되지 않았으면 아무것도 안함
     if (!mounted) {
       return
     }
-    
-    // 보안 기능이 비활성화되어 있으면 아무것도 안함
-    if (!securityEnabled) {
-      return
-    }
 
-    // 보안 기능이 활성화되어 있을 때만 적용
-    // 우클릭 방지
+    // 우클릭 방지 (조건부 처리)
     const handleContextMenu = (e: MouseEvent) => {
+      if (!securityEnabled) return
       e.preventDefault()
       return false
     }
 
-    // 텍스트 선택 방지
+    // 텍스트 선택 방지 (조건부 처리)
     const handleSelectStart = (e: Event) => {
+      if (!securityEnabled) return
       e.preventDefault()
       return false
     }
 
-    // 드래그 방지
+    // 드래그 방지 (조건부 처리)
     const handleDragStart = (e: DragEvent) => {
+      if (!securityEnabled) return
       e.preventDefault()
       return false
     }
 
-    // 키보드 단축키 방지 (프린트는 허용)
+    // 키보드 단축키 방지 (조건부 처리, 프린트는 허용)
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!securityEnabled) return
+      
       // F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S, Ctrl+A, Ctrl+C 등 방지 (Ctrl+P는 허용)
       if (e.key === 'F12' || 
           (e.ctrlKey && e.shiftKey && e.key === 'I') ||
@@ -89,16 +88,19 @@ function SecureViewerContent() {
       // Ctrl+P (프린트)는 허용
     }
 
-    // 마우스 우클릭 방지
+    // 마우스 우클릭 방지 (조건부 처리)
     const handleMouseDown = (e: MouseEvent) => {
+      if (!securityEnabled) return
       if (e.button === 2) { // 우클릭
         e.preventDefault()
         return false
       }
     }
 
-    // 개발자 도구 감지
+    // 개발자 도구 감지 (조건부 처리)
     const detectDevTools = () => {
+      if (!securityEnabled) return
+      
       const threshold = 160
       if (window.outerHeight - window.innerHeight > threshold || 
           window.outerWidth - window.innerWidth > threshold) {
@@ -134,7 +136,7 @@ function SecureViewerContent() {
       document.removeEventListener('mousedown', handleMouseDown)
       clearInterval(devToolsInterval)
     }
-  }, [mounted, securityEnabled]) // mounted + securityEnabled 상태를 의존성으로 변경
+  }, [mounted]) // mounted만 의존성으로 변경
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId')
