@@ -840,12 +840,19 @@ export default function ProfileSetupPage() {
                       email: email
                     }
                     
-                    // JWT 토큰 확인
-                    const jwtToken = sessionStorage.getItem('openPopup')
-                    if (!jwtToken) {
-                      console.error('JWT 토큰이 없습니다.')
-                      alert('JWT 토큰이 없습니다. 다시 시도해주세요.')
-                      return
+                    // 팝업 여부 확인
+                    const isFromPopup = sessionStorage.getItem('openPopup') !== null
+
+                    if (isFromPopup) {
+                      // 팝업에서 온 경우에만 JWT 토큰 확인
+                      const jwtToken = sessionStorage.getItem('openPopup')
+                      if (!jwtToken) {
+                        console.error('팝업에서 접근했지만 JWT 토큰이 없습니다.')
+                        return
+                      }
+                    } else {
+                      // 일반 접근 - JWT 토큰 확인 없이 진행
+                      console.log('일반 접근: 개인정보 저장 진행')
                     }
                     
                     // 임시 저장 후 분산저장소 설정으로 이동
