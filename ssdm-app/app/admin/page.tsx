@@ -179,6 +179,12 @@ export default function AdminPage() {
   }
 
   const handleCreateMall = async () => {
+    // 이메일 필수 검증
+    if (!newMall.contactEmail || !newMall.contactEmail.trim()) {
+      alert('연락처 이메일을 입력해주세요.')
+      return
+    }
+
     const response = await fetch('/api/register-mall', {
       method: 'POST',
       headers: { 
@@ -198,59 +204,40 @@ export default function AdminPage() {
     if (response.ok) {
       const result = await response.json()
       
-      // 이메일이 입력되고 즉시 발송이 체크된 경우 API Key 자동 발송
-      if (newMall.contactEmail && newMall.contactEmail.trim()) {
-        try {
-          const emailResponse = await fetch('/api/send-apikey', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              toEmail: newMall.contactEmail,
-              mallName: newMall.mallName,
-              mallId: result.mallId,
-              apiKey: result.apiKey,
-              allowedFields: result.allowedFields
-            })
-          })
-          
-          if (emailResponse.ok) {
-            
-            // 상태 업데이트 후 쇼핑몰 목록 새로고침
-            await loadMalls()
-            
-            // API Key 발급 완료 알림
-            alert('API Key가 성공적으로 발급되었습니다!')
-            
-            setApiKeyModal({
-              isOpen: true,
-              apiKey: result.apiKey,
-              mallName: newMall.mallName,
-              expiresAt: result.expiresAt,
-              isReissue: false
-            })
-          } else {
-            setApiKeyModal({
-              isOpen: true,
-              apiKey: result.apiKey,
-              mallName: newMall.mallName,
-              expiresAt: result.expiresAt,
-              isReissue: false
-            })
-            alert('⚠️ 이메일 발송에 실패했습니다. 수동으로 전달해주세요.')
-          }
-        } catch (emailError) {
-          setApiKeyModal({
-            isOpen: true,
-            apiKey: result.apiKey,
+      // 이메일이 있는 경우에만 API Key 발급
+      try {
+        const emailResponse = await fetch('/api/send-apikey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: newMall.contactEmail,
             mallName: newMall.mallName,
-            expiresAt: result.expiresAt,
-            isReissue: false
+            mallId: result.mallId,
+            apiKey: result.apiKey,
+            allowedFields: result.allowedFields
           })
-          alert('⚠️ 이메일 발송 중 오류가 발생했습니다.')
+        })
+        
+        if (emailResponse.ok) {
+          // 상태 업데이트 후 쇼핑몰 목록 새로고침
+          await loadMalls()
+          
+          // API Key 발급 완료 알림
+          alert('API Key가 성공적으로 발급되었습니다!')
+        } else {
+          alert('API Key는 발급되었지만 이메일 전달에 실패했습니다.')
         }
-      } else if (newMall.contactEmail && newMall.contactEmail.trim()) {
-        // API Key 발급 완료 알림 (이메일 없음)
-        alert('API Key가 성공적으로 발급되었습니다!')
+        
+        // 성공/실패 여부와 관계없이 모달 표시
+        setApiKeyModal({
+          isOpen: true,
+          apiKey: result.apiKey,
+          mallName: newMall.mallName,
+          expiresAt: result.expiresAt,
+          isReissue: false
+        })
+      } catch (emailError) {
+        alert('API Key는 발급되었지만 이메일 전달에 실패했습니다.')
         
         setApiKeyModal({
           isOpen: true,
@@ -259,18 +246,7 @@ export default function AdminPage() {
           expiresAt: result.expiresAt,
           isReissue: false
         })
-          } else {
-            // API Key 발급 완료 알림 (이메일 발송 실패)
-            alert('API Key가 발급되었지만 이메일 발송에 실패했습니다.')
-            
-            setApiKeyModal({
-              isOpen: true,
-              apiKey: result.apiKey,
-              mallName: newMall.mallName,
-              expiresAt: result.expiresAt,
-              isReissue: false
-            })
-          }
+      }
       
       closeDialog()
       loadMalls()
