@@ -488,52 +488,6 @@ function ConsentPageContent() {
     }
   }
 
-  // 제제휴사용 JWT API 호출 함수
-  const requestPartnerJWT = async (shopId: string, mallId: string, jwtType: string) => {
-    try {
-      console.log('제휴사용 JWT 생성 요청:', { shopId, mallId, jwtType })
-      
-      let apiPath = ''
-      switch (jwtType) {
-        case 'partner':
-          apiPath = '/api/issue-partner-jwt'
-          break
-        case 'consent_status':
-          apiPath = '/api/consent-status-jwt'
-          break
-        default:
-          throw new Error(`지원하지 않는 JWT 타입: ${jwtType}`)
-      }
-      
-      const response = await fetch(apiPath, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ shopId, mallId })
-      })
-      
-      console.log('JWT 발급 API 응답 상태:', response.status)
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('JWT 발급 API 오류:', errorData)
-        throw new Error(`JWT 발급 실패: ${errorData.error}`)
-      }
-      
-      const data = await response.json()
-      console.log('제휴사용 JWT 생성 완료:', {
-        jwt: data.jwt,
-        expiresIn: data.expiresIn,
-        consentType: data.consentType,
-        tokenLength: data.jwt?.length
-      })
-      return data.jwt
-    } catch (error) {
-      console.error('제휴사용 JWT 생성 실패:', error)
-      throw error
-    }
-  }
 
   // 동의 내역 저장 함수 (새로운 테이블 구조)
   const saveConsentData = async (consentId: string, mallId: string, shopId: string, consentType: string) => {

@@ -12,14 +12,7 @@ export async function POST(request: NextRequest) {
     if (!jwtToken) {
       return NextResponse.json(
         { error: 'JWT 토큰이 필요합니다.' },
-        { 
-          status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-          }
-        }
+        { status: 400 }
       )
     }
 
@@ -28,14 +21,7 @@ export async function POST(request: NextRequest) {
     if (!apiKey) {
       return NextResponse.json(
         { error: 'PRIVACY_SYSTEM_API_KEY가 설정되지 않았습니다.' },
-        { 
-          status: 500,
-          headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-          }
-        }
+        { status: 500 }
       )
     }
 
@@ -53,9 +39,6 @@ export async function POST(request: NextRequest) {
         { 
           status: 404,
           headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
           }
         }
       )
@@ -77,9 +60,6 @@ export async function POST(request: NextRequest) {
         { 
           status: 404,
           headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
           }
         }
       )
@@ -97,9 +77,6 @@ export async function POST(request: NextRequest) {
         { 
           status: 403,
           headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
           }
         }
       )
@@ -116,9 +93,6 @@ export async function POST(request: NextRequest) {
         { 
           status: 403,
           headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
           }
         }
       )
@@ -134,9 +108,6 @@ export async function POST(request: NextRequest) {
         { 
           status: 404,
           headers: {
-            'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
           }
         }
       )
@@ -170,10 +141,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({}, {
       headers: {
         'Authorization': `Bearer ${partnerJWT}`,
-        'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Expose-Headers': 'Authorization'
       }
     })
 
@@ -181,26 +148,8 @@ export async function POST(request: NextRequest) {
     console.error('제휴사용 JWT 발급 실패:', error)
     return NextResponse.json(
       { error: 'JWT 발급 중 오류가 발생했습니다.' },
-      { 
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
-      }
+      { status: 500 }
     )
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': 'https://morebooks.vercel.app',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Expose-Headers': 'Authorization'
-    }
-  })
-}
