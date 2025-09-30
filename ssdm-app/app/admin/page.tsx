@@ -513,7 +513,7 @@ export default function AdminPage() {
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="mallName">쇼핑몰 이름</Label>
+                  <Label htmlFor="mallName">회원사 이름</Label>
                   <Input
                     id="mallName"
                     value={newMall.mallName}
@@ -673,7 +673,7 @@ export default function AdminPage() {
         {/* 통계 섹션 */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-foreground">쇼핑몰 현황</h3>
+            <h3 className="text-lg font-semibold text-foreground">회원사 현황</h3>
             <p className="text-sm text-gray-500">만료 예정은 30일 이내를 기준으로 표시됩니다.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

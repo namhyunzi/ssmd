@@ -567,7 +567,7 @@ export default function MallManagementPage() {
 
         {/* 통계 섹션 */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">쇼핑몰 현황</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-4">회원사 현황</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
@@ -629,7 +629,7 @@ export default function MallManagementPage() {
 
         {/* 쇼핑몰 목록 섹션 */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">등록된 쇼핑몰</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-4">등록된 회원사</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentMalls.map(mall => (
             <Card key={mall.mallId} className="hover:shadow-lg transition-shadow">
